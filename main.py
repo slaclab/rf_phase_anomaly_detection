@@ -8,9 +8,10 @@ from process_c import ProcessC
 
 
 if __name__ == '__main__':
+    list_of_pvs = ['ca://KLYS:LI20:61:PHAS_FASTBR', 'ca://KLYS:LI20:61:AMPL']
+
     # Create an instance of the Manager
     with Manager() as manager:
-        # Create a queue within the context of the manager
         queue_one = manager.Queue()
         queue_two = manager.Queue()
         queue_log = manager.Queue()  # for logging only
@@ -31,7 +32,7 @@ if __name__ == '__main__':
         )
 
         process_objects = [
-            ProcessA(queue_one, n=5, logging_kwargs=logging_kwargs.copy()),
+            ProcessA(queue_one, pv_list=list_of_pvs, logging_kwargs=logging_kwargs.copy()),
             ProcessB(queue_one, queue_two, logging_kwargs=logging_kwargs.copy()),
             ProcessC(queue_two, logging_kwargs=logging_kwargs.copy()),
         ]
