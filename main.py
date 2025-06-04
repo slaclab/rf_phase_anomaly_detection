@@ -12,10 +12,12 @@ if __name__ == '__main__':
 
     # Create an instance of the Manager
     with Manager() as manager:
+        # create queues for inter-process communication
         queue_one = manager.Queue()
         queue_two = manager.Queue()
         queue_log = manager.Queue()  # for logging only
 
+        # logging configuration
         logging_kwargs = default_logging_kwargs = {
             'queue': queue_log,
             'logger_name': 'test_log',
@@ -31,6 +33,8 @@ if __name__ == '__main__':
             log_stdout=logging_kwargs['log_stdout']
         )
 
+        # create classes to be turned into processes
+        # it helps to put them in order
         process_objects = [
             K2EGProcess(
                 queue_one,
@@ -42,11 +46,12 @@ if __name__ == '__main__':
             ProcessC(queue_two, logging_kwargs=logging_kwargs.copy()),
         ]
 
+        # use ProcessManager to handle start and join of processes
         with ProcessManager(process_objects=process_objects) as pm:
             while pm.is_running:
                 time.sleep(1)
                 main_logger.debug('pm loop')
 
-        logger_process.join()
+        logger_process.join()  # wait for the logger to finish last
 
     print('Processes are done.')
