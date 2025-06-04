@@ -34,7 +34,9 @@ def run_logger_process(
     logger.setLevel(log_level)
     if log_stdout:
         # configure a stream handler
-        logger.addHandler(logging.StreamHandler())
+        sch = logging.StreamHandler()
+        sch.setFormatter(formatter)
+        logger.addHandler(sch)
 
     if logger_name is not None:
         # configure a file handler
@@ -63,7 +65,7 @@ def create_worker_logger(
         log_level: int = 0,
         log_stdout: bool = False  # for conformity with run_logger_process
 ) -> Optional[logging.Logger]:
-    """same signature as logger_process"""
+    """same signature as run_logger_process"""
     name = logger_name if logger_name is not None else 'worker'
     # create a logger
     logger = logging.getLogger(name)
@@ -75,5 +77,5 @@ def create_worker_logger(
     # log all messages, debug and up
     logger.setLevel(log_level)
     # report initial message
-    logger.info(f'Child process names "{name}" starting with log level {log_level}.')
+    logger.info(f'Child process named "{name}" starting with log level {log_level}.')
     return logger
