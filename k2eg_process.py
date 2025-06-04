@@ -8,9 +8,9 @@ from mp_logging import default_logging_kwargs, create_worker_logger
 from typing import Optional, Callable
 
 
-# APP_NAME appears to be import to accessing the kafka server
+# APP_NAME appears to be important to accessing the kafka server
 # the bottom APP_NAME works, but the top one does not
-# someone needs to configure kafka, I guess?
+# someone needs to configure kafka
 # APP_NAME = 'rf-phase-anomaly-detection'
 APP_NAME = 'app-phase-anomaly-detection'
 SNAPSHOT_NAME = 'phase_anomaly_detection_buffered_snap'
