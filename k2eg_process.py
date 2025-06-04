@@ -138,7 +138,7 @@ if __name__ == '__main__':
     def snap_handler(snap_name: str, snapshot: dict):
         print(f"Snapshot from {snap_name} received: {snapshot}")
 
-    k2_handler = K2EGHandler(pv_list=list_of_pvs, snapshot_handler=snap_handler)
+    k2_handler = K2EGHandler(pv_list=list_of_pvs, snapshot_period_ms=1000, snapshot_handler=snap_handler)
 
     with k2_handler as k2h:
         while True:
