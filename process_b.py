@@ -25,8 +25,9 @@ class ProcessB(CustomProcessObject):
             if not self.queue_one.empty():
                 r = self.queue_one.get()
                 self.logger.debug(f"ProcessB sees {r}")
-                self.logger.debug(f"ProcessB enqueuing {r}")
-                self.queue_two.put(r)
+                if r is None or r % 2 == 1:  # enqueue only the odds
+                    self.logger.debug(f"ProcessB enqueuing {r}")
+                    self.queue_two.put(r)
                 if r is None:  # enqueue a None to stop this process
                     break
 

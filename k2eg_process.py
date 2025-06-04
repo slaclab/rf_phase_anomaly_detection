@@ -124,9 +124,10 @@ class K2EGProcess(CustomProcessObject):
             handler.close()
 
     def snapshot_handler(self, snapshot_name: str, snapshot: dict):
+        iteration = snapshot['iteration']
         if self.logger is not None:
-            self.logger.debug(f"Snapshot enqueued for {snapshot_name}")
-        self.queue.put((snapshot_name, snapshot))
+            self.logger.debug(f"Snapshot {iteration:d} enqueued for {snapshot_name}")
+        self.queue.put(iteration)  # processes B and C expect an integer for now
 
 
 if __name__ == '__main__':
