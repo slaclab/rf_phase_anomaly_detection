@@ -1,7 +1,6 @@
 import logging
 from datetime import datetime
 from multiprocessing import Queue
-from multiprocessing import queues
 from logging.handlers import QueueHandler
 
 from typing import Optional
@@ -21,6 +20,22 @@ def run_logger_process(
         log_level: int = 10,
         log_stdout: bool = False
 ):
+    """
+    Log for multiprocessing where messages can get jumbled otherwise.
+    See section Example_Using_QueueHandler_and_a_Logging_Process of
+    https://superfastpython.com/multiprocessing-logging-in-python/
+
+    queue : Queue
+        Queue where messages will be sent to be logged by other processes
+    logger_name : str
+        What to name the logger and, partially, the output file.  Pass None
+        to disable file logging.
+    log_level : int
+        The level at which messages will be logged.  Default is 10 (DEBUG).
+        See: https://docs.python.org/3/library/logging.html#logging-levels
+    log_stdout : bool
+        Whether (True) or not (False) to print logs to standard output.
+    """
     # configure formatter
     t = datetime.strftime(datetime.now(), '%Y%m%d_%H%M%S')
     fmt_str = '%(asctime)s | %(name)-15s | %(levelname)-8s | %(message)s'
@@ -77,5 +92,5 @@ def create_worker_logger(
     # log all messages, debug and up
     logger.setLevel(log_level)
     # report initial message
-    logger.info(f'Child process named "{name}" starting with log level {log_level}.')
+    logger.debug(f'Child process named "{name}" starting with log level {log_level}.')
     return logger
