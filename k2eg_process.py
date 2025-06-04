@@ -1,11 +1,11 @@
 import time
-from multiprocessing import Process, Manager
+from multiprocessing import Manager
 import k2eg
 from k2eg.broker import SnapshotProperties, SnapshotType
 from process import CustomProcessObject
 from mp_logging import default_logging_kwargs, create_worker_logger
 
-from typing import Optional
+from typing import Optional, Callable
 
 
 # APP_NAME appears to be import to accessing the kafka server
@@ -16,16 +16,42 @@ APP_NAME = 'app-phase-anomaly-detection'
 SNAPSHOT_NAME = 'phase_anomaly_detection_buffered_snap'
 
 
+def read_pv_list_from_file(pv_list_file: str) -> list[str]:
+    with open(pv_list_file, 'r') as f:
+        return [
+            f"ca://{u:s}"
+            for u in f.read().splitlines()
+            if not u.startswith('#')
+        ]
+
+
 class K2EGHandler:
     def __init__(self,
                  pv_list: list[str],
-                 snapshot_handler
+                 snapshot_period_ms: int,
+                 snapshot_handler: Callable,
+                 logging_kwargs: dict = default_logging_kwargs
                  ):
+        """
+        This class is meant to be used as a context manager to abstract away the
+        required startup and shutdown code for getting recurring buffered
+        snapshots from k2eg.  It is best to run this inside a multiprocessing
+        process like the K2EGProcess below.
+
+        k2eg requires that you set an environment variable named
+        K2EG_PYTHON_CONFIGURATION_PATH_FOLDER that points to a directory
+        containing a file named 'lcls.ini'.
+        """
         self.pv_list = pv_list
+        self.snapshot_period_ms = snapshot_period_ms
         self.snapshot_handler = snapshot_handler
+        self.logging_kwargs = logging_kwargs
+        self.logging_kwargs['logger_name'] = 'K2EGHandler'
+        self.logger = None
+
         self.snapshot_properties = SnapshotProperties(
             snapshot_name=SNAPSHOT_NAME,
-            time_window=1000,
+            time_window=snapshot_period_ms,
             repeat_delay=0,
             pv_uri_list=self.pv_list,
             triggered=False,
@@ -36,9 +62,9 @@ class K2EGHandler:
         self.snapshot_is_running = False
 
     def __enter__(self):
-        # requires environment variable K2EG_PYTHON_CONFIGURATION_PATH_FOLDER
-        # to be set to the location of a file named lcls.ini
-        print('K2EGHandler: Spinning up buffered snapshots')
+        if self.logger is None:
+            self.logger = create_worker_logger(**self.logging_kwargs)
+        self.logger.debug('Spinning up buffered snapshots')
         _ = self.dml.snapshot_recurring(
             self.snapshot_properties,
             handler=self.snapshot_handler,
@@ -51,23 +77,27 @@ class K2EGHandler:
         self.dml.snapshot_stop(SNAPSHOT_NAME)
         self.dml.close()
         self.snapshot_is_running = False
-        print('K2EGHandler: shutdown snapshot production')
+        self.logger.debug('shutdown snapshot production')
 
 
-class ProcessA(CustomProcessObject):
+class K2EGProcess(CustomProcessObject):
     def __init__(self,
                  queue: 'Manager.Queue',
                  pv_list: list[str],
+                 snapshot_period_ms: int = 1000,
                  logging_kwargs: Optional[dict] = default_logging_kwargs
                  ):
         self.queue = queue
         self.pv_list = pv_list
+        self.snapshot_period_ms = snapshot_period_ms
 
         self.logging_kwargs = logging_kwargs
-        self.logging_kwargs['logger_name'] = 'k2egHandler'
+        self.logging_kwargs['logger_name'] = 'K2EGProcess'
         self.logger = None
 
         self.k2_handler = None
+
+        self.keep_fetching_data = False
 
     def __call__(self):
         if self.logger is None:
@@ -75,16 +105,19 @@ class ProcessA(CustomProcessObject):
         if not isinstance(self.k2_handler, K2EGHandler):
             self.k2_handler = K2EGHandler(
                 pv_list=self.pv_list,
-                snapshot_handler=self.snapshot_handler
+                snapshot_period_ms=self.snapshot_period_ms,
+                snapshot_handler=self.snapshot_handler,
+                logging_kwargs=self.logging_kwargs.copy()
             )
 
         # put data onto the queue at regular intervals
         with self.k2_handler as k2h:
-            self.logger.debug(f"ProcessA K2EGHandler.snapshot_is_running: {k2h.snapshot_is_running}")
-            while k2h.snapshot_is_running:
-                self.logger.debug('ProcessA is waiting for data from K2EGHandler')
+            self.logger.debug(f"K2EGHandler.snapshot_is_running: {k2h.snapshot_is_running}")
+            self.keep_fetching_data = True
+            while k2h.snapshot_is_running and self.keep_fetching_data:
+                self.logger.debug('Waiting for data from K2EGHandler')
                 time.sleep(2.0)
-        self.logger.debug('ProcessA finished')
+        self.logger.debug('Finished')
         self.queue.put(None)  # end the downstream processes
 
         for handler in self.logger.handlers:
@@ -112,7 +145,6 @@ if __name__ == '__main__':
             print("Sleeping 2 seconds")
 
     # # test the process and handler together
-    # from multiprocessing import Manager
     # from mp_logging import run_logger_process
     #
     # with Manager() as manager:

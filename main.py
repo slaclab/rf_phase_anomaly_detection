@@ -2,13 +2,13 @@ import time
 from multiprocessing import Manager, Process
 from mp_logging import run_logger_process, create_worker_logger
 from process import ProcessManager
-from process_a import ProcessA
+from k2eg_process import K2EGProcess, read_pv_list_from_file
 from process_b import ProcessB
 from process_c import ProcessC
 
 
 if __name__ == '__main__':
-    list_of_pvs = ['ca://KLYS:LI20:61:PHAS_FASTBR', 'ca://KLYS:LI20:61:AMPL']
+    list_of_pvs = read_pv_list_from_file('resources/very_short_pv_list.txt')
 
     # Create an instance of the Manager
     with Manager() as manager:
@@ -32,7 +32,12 @@ if __name__ == '__main__':
         )
 
         process_objects = [
-            ProcessA(queue_one, pv_list=list_of_pvs, logging_kwargs=logging_kwargs.copy()),
+            K2EGProcess(
+                queue_one,
+                pv_list=list_of_pvs,
+                snapshot_period_ms=1000,
+                logging_kwargs=logging_kwargs.copy()
+            ),
             ProcessB(queue_one, queue_two, logging_kwargs=logging_kwargs.copy()),
             ProcessC(queue_two, logging_kwargs=logging_kwargs.copy()),
         ]
