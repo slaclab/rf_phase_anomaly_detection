@@ -41,7 +41,12 @@ then edit `./etc/conda/activate.d/env_vars.sh` to include
 export K2EG_PYTHON_CONFIGURATION_PATH_FOLDER=/sdf/sw/k2eg/configuration
 ```
 
-and edit `/etc/conda/deactivate.d/env_vars.sh` to include
+and edit `./etc/conda/deactivate.d/env_vars.sh` to include
 ```
 unset K2EG_PYTHON_CONFIGURATION_PATH_FOLDER
 ```
+
+then reactivate the conda environment to have the environment variables load:
+```
+conda activate rf_phase_ad
+
