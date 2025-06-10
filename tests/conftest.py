@@ -1,4 +1,5 @@
 import os
+import random
 from typing import Dict, Any
 import yaml
 import pytest
@@ -39,3 +40,15 @@ def configs(rootdir) -> Dict[str, Any]:
         return configs
     except FileNotFoundError as e:
         pytest.skip(str(e))
+
+
+@pytest.fixture(scope="module")
+def pv_name() -> str:
+    return "test_pv_name"
+
+@pytest.fixture(scope="module")
+def labels_value() -> list:
+    labels = (torch.zeros(82).tolist())
+    idx = random.randint(0, 81)
+    labels[idx] = 1
+    return labels

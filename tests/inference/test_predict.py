@@ -1,7 +1,9 @@
 from typing import Dict, Any
+import traceback
 import pytest
 import torch
 
+import k2eg
 from inference.predict import Predict
 
 
@@ -34,3 +36,16 @@ class TestPredict:
         predictor = Predict()
         with pytest.raises(IndexError):  # TODO: add validation to handle empty input
             predictor.predict([])
+
+    def test_writing_predictions_to_k3eg(self, pv_name, labels_value):
+        try:
+            k2eg_client = k2eg.dml('rf-phase-ad', 'app-three')
+            k2eg_client.put(
+                f'pva://{pv_name}',
+                labels_value,
+                5.0
+            )
+        except ValueError:
+            trb = traceback.format_exc()
+            if "[kafka_broker_url] Kafka broker url is mandatory" in str(trb):
+                pytest.skip("k2eg client not available or failed to connect")
