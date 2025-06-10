@@ -42,7 +42,9 @@ class TestPredict:
     # Test writing predictions to k2eg
     def test_writing_predictions_to_k2eg(self, pv_name, labels_value, rootdir):
         k2eg_conf_dir = f"{rootdir}/../config/"
-        with mock.patch.dict(os.environ, {"K2EG_PYTHON_CONFIGURATION_PATH_FOLDER": k2eg_conf_dir}):
+        with mock.patch.dict(
+            os.environ, {"K2EG_PYTHON_CONFIGURATION_PATH_FOLDER": k2eg_conf_dir}
+        ):
             try:
                 k2eg_client = k2eg.dml("rf-phase-ad", "app-three")
                 k2eg_client.put(f"pva://{pv_name}", labels_value, 1.0)
