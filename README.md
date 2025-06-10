@@ -49,4 +49,17 @@ unset K2EG_PYTHON_CONFIGURATION_PATH_FOLDER
 then reactivate the conda environment to have the environment variables load:
 ```
 conda activate rf_phase_ad
+```
+## Process B
+#### Part 1 - Beam Checks
+1. Does the beam have a standard charge at the injector? We require BPMS∶IN20∶221∶TMITCUH >
+0.5 × 109 and be logged every second in the EPICS Archiver. A lower charge or the charge not being logged can indicate the beam is not being operated in a standard operational mode. 
 
+2. Is the beam stopper being used? We require STPR∶BSYH∶2∶STD2INA == 0, indicating the beam stopper is out. 
+
+3.  Is the beam rate 120 Hz? We require IOC∶BSY0∶MP01∶PCRATE == 8. 
+4.  Is the entire beam being delivered to the hard x-ray line? We require IOC∶IN20∶EV01∶RG02ACTRATE == 10. 
+
+We do allow temporary (<90 s) violations of these conditions to not disallow short periods of “nonstandard” beam operation caused by automatic feedback or protection-based control mechanisms.
+
+### Part 2 - Candidate Generation 
