@@ -36,17 +36,20 @@ def load_configs():
         return yaml.safe_load(file)
 
 
-def predict(configs, networks, batch, sigm=True, standardize=False, device=None):
+def predict(configs, networks, batch):
+    # Setup configs
+    # TODO: add a flag to use standardization
+    n_pred, thres, exact = itemgetter("n_pred", "thres", "exact")(configs["predict"])
+    standardize, sigm, device = itemgetter("standardize", "sigmoid", "device")(
+        configs["predict"]
+    )
+
     # Choose device
     if device is None:
         if torch.cuda.is_available():
             device = torch.device("cuda:0")
         else:
             device = torch.device("cpu")
-
-    # Setup configs
-    # TODO: add a flag to use standardization
-    n_pred, thres, exact = itemgetter("n_pred", "thres", "exact")(configs["predict"])
 
     Y_sigm = []
     for i, net in enumerate(networks):
@@ -75,7 +78,7 @@ def predict(configs, networks, batch, sigm=True, standardize=False, device=None)
         _labels = torch.logical_and(S > thres[0], Q > thres[1])
         labels.append(_labels)
 
-    L = torch.vstack(labels).T.to(device)
+    L = torch.vstack(labels).T.tolist()
 
     return L
 

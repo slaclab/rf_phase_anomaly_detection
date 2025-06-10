@@ -46,9 +46,10 @@ def configs(rootdir) -> Dict[str, Any]:
 def pv_name() -> str:
     return "test_pv_name"
 
+
 @pytest.fixture(scope="module")
 def labels_value() -> list:
-    labels = (torch.zeros(82).tolist())
+    labels = torch.zeros(82).tolist()
     idx = random.randint(0, 81)
     labels[idx] = 1
     return labels

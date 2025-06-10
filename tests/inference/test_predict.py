@@ -23,11 +23,11 @@ class TestPredict:
         # Check configs loaded correctly
         assert predictor.configs == configs
         # Check if predictions are of the expected shape
-        assert isinstance(predictions, torch.Tensor)
-        assert predictions.shape[0] == len(rf_data)
+        assert isinstance(predictions, list)
+        assert len(predictions) == len(rf_data)
 
         # Check if predictions match the expected output data
-        assert all(predictions == expected_output)
+        assert predictions == expected_output
 
     def test_predict_with_invalid_input(self):
         pass  # TODO: add validation to handle invalid input
@@ -39,12 +39,8 @@ class TestPredict:
 
     def test_writing_predictions_to_k3eg(self, pv_name, labels_value):
         try:
-            k2eg_client = k2eg.dml('rf-phase-ad', 'app-three')
-            k2eg_client.put(
-                f'pva://{pv_name}',
-                labels_value,
-                5.0
-            )
+            k2eg_client = k2eg.dml("rf-phase-ad", "app-three")
+            k2eg_client.put(f"pva://{pv_name}", labels_value, 5.0)
         except ValueError:
             trb = traceback.format_exc()
             if "[kafka_broker_url] Kafka broker url is mandatory" in str(trb):
