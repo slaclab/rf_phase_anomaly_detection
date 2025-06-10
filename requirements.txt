@@ -1,0 +1,7 @@
+k2eg
+numpy
+torch
+pyyaml
+pytest
+lume-model @ git+https://github.com/slaclab/lume-model@add-conv-support # until merged to main
+botorch # fix dependency?

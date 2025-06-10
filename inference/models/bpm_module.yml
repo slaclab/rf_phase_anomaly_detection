@@ -1,0 +1,65 @@
+model_class: TorchModule
+input_order: [bpm1, bpm2, bpm3, bpm4, bpm5, bpm6, bpm7, bpm8]
+output_order: [anom_score]
+model:
+  model_class: TorchModel
+  input_variables:
+    bpm1:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [-200.0, 200.0]
+      value_range_tolerance: 1.0e-08
+    bpm2:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [-200.0, 200.0]
+      value_range_tolerance: 1.0e-08
+    bpm3:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [-200.0, 200.0]
+      value_range_tolerance: 1.0e-08
+    bpm4:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [-200.0, 200.0]
+      value_range_tolerance: 1.0e-08
+    bpm5:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [-200.0, 200.0]
+      value_range_tolerance: 1.0e-08
+    bpm6:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [-200.0, 200.0]
+      value_range_tolerance: 1.0e-08
+    bpm7:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [-200.0, 200.0]
+      value_range_tolerance: 1.0e-08
+    bpm8:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [-200.0, 200.0]
+      value_range_tolerance: 1.0e-08
+  output_variables:
+    anom_score: {variable_class: ScalarVariable, is_constant: false, value_range_tolerance: 1.0e-08}
+  input_validation_config: null
+  output_validation_config: null
+  model: bpm_module_model.pt
+  input_transformers: []
+  output_transformers: []
+  output_format: tensor
+  device: cpu
+  fixed_model: true
+  precision: double

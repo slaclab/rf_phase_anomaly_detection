@@ -1,0 +1,23 @@
+model_class: TorchModule
+input_order: [rf]
+output_order: [anom_score]
+model:
+  model_class: TorchModel
+  input_variables:
+    rf:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [-400.0, 400.0]
+      value_range_tolerance: 1.0e-08
+  output_variables:
+    anom_score: {variable_class: ScalarVariable, is_constant: false, value_range_tolerance: 1.0e-08}
+  input_validation_config: null
+  output_validation_config: null
+  model: rf_module_model.pt
+  input_transformers: []
+  output_transformers: []
+  output_format: tensor
+  device: cpu
+  fixed_model: true
+  precision: double
