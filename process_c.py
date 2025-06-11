@@ -33,8 +33,8 @@ class ProcessC(CustomProcessObject):
 
                 # Run inference on the received data
                 # r should have the structure (rf_input_tensor, bpm_input_tensor, rf_station)
-                # where rf_input_tensor and bpm_input_tensor are tensors of size (D, N)
-                # and rf_station is a string representing the PV name
+                # where rf_input_tensor and bpm_input_tensor are tensors of size (1, 1066)
+                # and (8, 1066) respectively, and rf_station is a string representing the PV name
                 result = predictor.predict(r, write_to_pv=True)
                 self.logger.debug(f"ProcessC result: {result}")
 

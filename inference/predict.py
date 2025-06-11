@@ -43,9 +43,9 @@ class Predict:
         """Make predictions using the loaded models and provided a single batch of data.
         Args:
             rf_input_tensor (tensor): Tensor of input data for the first model, with a shape of (D, N), where N is
-            the number of samples and D is the number of RF stations (1).
+            the number of samples (1066) and D is the number of RF stations (1).
             bpm_input_tensor (tensor): Tensor of input data for the second model, with a shape of (D, N), where N is
-            the number of samples and D is the number of BPMs (8).
+            the number of samples and D (1066) is the number of BPMs (8).
             rf_station (str): The PV name of the RF station to write the prediction result to K2EG.
         Returns:
             bool: Prediction result, True if an anomaly is detected, False otherwise.
@@ -105,8 +105,8 @@ def predict_label(
         configs (dict): Configuration dictionary for the prediction.
         networks (list): List of TorchModule instances representing the models (length should be 2).
         batch (Tuple): Tuple of input data for the models, should be torch tensors and have a length of 2. The first
-        element should be the RF data with a shape of (D, N), where N is the number of samples and D is the number
-        of RFs (1), and the second element should be the BPM data with a shape of (D, N), where D is the number
+        element should be the RF data with a shape of (D, N), where N is the number of samples (1066) and D is the
+        number of RFs (1), and the second element should be the BPM data with a shape of (D, N), where D is the number
         of BPMs (8).
     Returns:
         bool: Prediction result, True if an anomaly is detected, False otherwise.
@@ -156,8 +156,8 @@ def create_anomaly_table(station: str) -> NTTable:
     Returns:
         NTTable: A table with anomaly states for each klystron station.
     """
-    path = Path(__file__).parent / "klystrons.yml"
-    with path.open() as f:
+    path = ROOTDIR + "/" + "klystrons.yml"
+    with open(path, "rb") as f:
         yaml_input = yaml.safe_load(f)
     klys_list = yaml_input["klystrons"]
     # Create a table with anomaly states for each klystron, and mark the given station as anomalous
