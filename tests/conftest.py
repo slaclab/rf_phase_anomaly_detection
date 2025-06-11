@@ -17,17 +17,9 @@ def test_data_set(rootdir):
     try:
         with open(f"{rootdir}/fixtures/test_data.pt", "rb") as f:
             test_data_set = torch.load(f, weights_only=False)
-        return test_data_set
-    except FileNotFoundError as e:
-        pytest.skip(str(e))
-
-
-@pytest.fixture(scope="module")
-def expected_output(rootdir):
-    try:
-        with open(f"{rootdir}/fixtures/output.pt", "rb") as f:
-            output = torch.load(f, weights_only=False)
-        return output
+        with open(f"{rootdir}/fixtures/test_data_false.pt", "rb") as f:
+            test_data_set_false = torch.load(f, weights_only=False)
+        return test_data_set, test_data_set_false
     except FileNotFoundError as e:
         pytest.skip(str(e))
 

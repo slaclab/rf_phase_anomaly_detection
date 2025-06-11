@@ -3,7 +3,6 @@ where only the 1D convolutional layers and fully connected layers are retained.
 https://github.com/SLAC-ML/CoincAD/blob/phase/core/CoincAD_NN_utils.py
 """
 
-import torch
 from torch import nn
 import torch.nn.functional as F
 
@@ -22,7 +21,6 @@ class AnomNet(nn.Module):
         padding=0,
         stride=1,
         dropout=0,
-        train_noise=0,
         n_feat=500,
         init_neur=100,
         n_neur=10,
@@ -58,10 +56,8 @@ class AnomNet(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
         self.flatten = nn.Flatten()
-        self.train_noise = train_noise
 
     def forward(self, x):
-        x = x + self.train_noise * torch.randn(x.shape).to(x)
         x = F.relu(self.conv1a(x))
         x = F.relu(self.conv1b(x))
         # x = F.relu(self.conv1c(x))

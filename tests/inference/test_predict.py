@@ -1,9 +1,9 @@
 from typing import Dict, Any
 from unittest import mock
 import traceback
-import pytest
-import torch
 import os
+
+import pytest
 
 import k2eg
 from inference.predict import Predict
@@ -14,29 +14,37 @@ class TestPredict:
         self,
         test_data_set,
         configs: Dict[str, Any],
-        expected_output: torch.Tensor,
     ):
         predictor = Predict()
-        rf_data, bpm_data, pv_names = test_data_set
 
+        # Get data that should return a prediction of True
+        rf_data, bpm_data, pv_names = test_data_set[0]
         # Run prediction
         predictions = predictor.predict([rf_data, bpm_data])
-
         # Check configs loaded correctly
         assert predictor.configs == configs
         # Check if predictions are of the expected shape
-        assert isinstance(predictions, list)
-        assert len(predictions) == len(rf_data)
-
+        assert isinstance(predictions, bool)
         # Check if predictions match the expected output data
-        assert predictions == expected_output
+        assert predictions
+
+        # Get data that should return a prediction of False
+        rf_data, bpm_data, pv_names = test_data_set[1]
+        # Run prediction
+        predictions = predictor.predict([rf_data, bpm_data])
+        # Check configs loaded correctly
+        assert predictor.configs == configs
+        # Check if predictions are of the expected shape
+        assert isinstance(predictions, bool)
+        # Check if predictions match the expected output data
+        assert not predictions
 
     def test_predict_with_invalid_input(self):
         pass  # TODO: add validation to handle invalid input
 
     def test_predict_with_empty_input(self):
         predictor = Predict()
-        with pytest.raises(IndexError):  # TODO: add validation to handle empty input
+        with pytest.raises(ValueError):
             predictor.predict([])
 
     # Test writing predictions to k2eg
