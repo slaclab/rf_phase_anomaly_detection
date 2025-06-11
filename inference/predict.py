@@ -5,7 +5,6 @@ https://github.com/SLAC-ML/CoincAD/blob/phase/core/CoincAD_train.py
 import os
 from operator import itemgetter
 from typing import Any, Tuple, Dict, List
-from pathlib import Path
 
 import torch
 import yaml
@@ -97,7 +96,9 @@ def load_configs():
 
 
 def predict_label(
-    configs: Dict[str, Any], networks: List[TorchModule], batch: Tuple[torch.Tensor, torch.Tensor]
+    configs: Dict[str, Any],
+    networks: List[TorchModule],
+    batch: Tuple[torch.Tensor, torch.Tensor],
 ) -> bool:
     """Make predictions using the loaded models and provided a single batch of data.
 
@@ -168,7 +169,10 @@ def create_anomaly_table(station: str) -> NTTable:
     #     ...
     # ]
     # where each dict is a row and its keys are columns.
-    anomaly_table = [{'station': klys, 'anomaly_state': True if klys==station else False} for klys in klys_list]
+    anomaly_table = [
+        {"station": klys, "anomaly_state": True if klys == station else False}
+        for klys in klys_list
+    ]
     # Generate output format.
     table_format = NTTable([("station", "s"), ("anomaly_state", "?")])
     return table_format.wrap(anomaly_table)
@@ -180,7 +184,7 @@ def write_prediction_to_p4p_sim(anomaly_table: NTTable):
         anomaly_table (NTTable): The anomaly table to write to K2EG.
     """
     context = Context()
-    anomaly_pv = 'KLYS:SYS0:1:ANOM_STATES'
+    anomaly_pv = "KLYS:SYS0:1:ANOM_STATES"
     context.put(anomaly_pv, anomaly_table)
 
 
@@ -189,7 +193,7 @@ def write_prediction_to_k2eg(anomaly_table: NTTable):
     Args:
         anomaly_table (NTTable): The anomaly table to write to K2EG.
     """
-    anomaly_pv = 'KLYS:SYS0:1:ANOM_STATES'
+    anomaly_pv = "KLYS:SYS0:1:ANOM_STATES"
     k2eg_client = k2eg.dml("rf-phase-ad", "app-three")
     try:
         k2eg_client.put(f"pva://{anomaly_pv}", anomaly_table, 5.0)
