@@ -1,12 +1,16 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
+
 WORKDIR /app
 # Set env variable for k2eg
 ENV K2EG_PYTHON_CONFIGURATION_PATH_FOLDER=/app/config
-# Copy and install Python dependencies
 COPY requirements.txt .
+
 RUN apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y git
-RUN pip install --upgrade pip && pip install -r requirements.txt
-# Copy project files
+    apt-get install --no-install-recommends -qy python3-dev g++ gcc && \
+    apt-get install -y git && \
+    pip install --no-cache-dir -r requirements.txt && \
+    apt-get remove -qy python3-dev g++ gcc --purge && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY . .

@@ -32,6 +32,7 @@ class Predict:
         self.configs = load_configs() or configs
         self.networks = load_models() or networks
         self.write_to_pv = write_to_pv
+        self.klystrons_dict = load_klystron_configs()
 
     def predict(
         self,
@@ -54,7 +55,7 @@ class Predict:
         )
         if anomalous and self.write_to_pv:
             # Create anomaly table with the given station marked as anomalous
-            anomaly_table = create_anomaly_table(rf_station)
+            anomaly_table = create_anomaly_table(rf_station, self.klystrons_dict)
             # Write the prediction result to K2EG
             write_prediction_to_k2eg(anomaly_table)
         return anomalous
@@ -92,6 +93,18 @@ def load_configs():
     """
 
     with open(ROOTDIR + "/configs.yml", "r") as file:
+        return yaml.safe_load(file)
+
+
+def load_klystron_configs():
+    """Load klystron configurations from a YAML file.
+    The configs should have the following keys:
+        - klystrons: list of klystron station names.
+
+    Returns:
+        dict: Configuration dictionary loaded from the YAML file.
+    """
+    with open(ROOTDIR + "/klystrons.yml", "r") as file:
         return yaml.safe_load(file)
 
 
@@ -149,18 +162,17 @@ def predict_label(
     return bool(label)
 
 
-def create_anomaly_table(station: str) -> NTTable:
+def create_anomaly_table(station: str, klystrons: Dict[str, str]) -> NTTable:
     """Create an anomaly table where all klystron stations are set to False,
      and the given anomalous station is set to True.
     Args:
         station (str): The name of the klystron station to mark as anomalous.
+        klystrons (dict): Dictionary containing klystron station names.
+            Expected format: {'klystrons': ['station_1', 'station_2', ...]}.
     Returns:
         NTTable: A table with anomaly states for each klystron station.
     """
-    path = ROOTDIR + "/" + "klystrons.yml"
-    with open(path, "rb") as f:
-        yaml_input = yaml.safe_load(f)
-    klys_list = yaml_input["klystrons"]
+    klys_list = klystrons["klystrons"]
     # Create a table with anomaly states for each klystron, and mark the given station as anomalous
     # Table format:
     # [
