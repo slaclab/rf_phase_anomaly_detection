@@ -5,10 +5,15 @@ https://github.com/SLAC-ML/CoincAD/blob/phase/core/CoincAD_train.py
 import os
 from operator import itemgetter
 from typing import Any, Tuple, Dict, List
+from pathlib import Path
 
 import torch
 import yaml
 
+from p4p.nt import NTTable
+from p4p.client.thread import Context
+import k2eg
+from k2eg.dml import OperationTimeout
 from lume_model.models.torch_module import TorchModule
 
 
@@ -18,14 +23,16 @@ ROOTDIR = os.path.dirname(os.path.abspath(__file__))
 class Predict:
     """Predict class for making predictions using LUME-models."""
 
-    def __init__(self, configs=None, networks=None):
+    def __init__(self, configs=None, networks=None, write_to_pv=False):
         """Initialize the Predict class.
         Args:
             configs (dict, optional): Configuration dictionary for the prediction.
             networks (list, optional): List of TorchModule instances representing the models.
+            write_to_pv (bool, optional): Whether to write the prediction result to a PV. Defaults to False.
         """
         self.configs = load_configs() or configs
         self.networks = load_models() or networks
+        self.write_to_pv = write_to_pv
 
     def predict(
         self,
@@ -46,8 +53,11 @@ class Predict:
         anomalous = predict_label(
             self.configs, self.networks, (rf_input_tensor, bpm_input_tensor)
         )
-        if anomalous:
-            write_prediction_to_k2eg(rf_station)
+        if anomalous and self.write_to_pv:
+            # Create anomaly table with the given station marked as anomalous
+            anomaly_table = create_anomaly_table(rf_station)
+            # Write the prediction result to K2EG
+            write_prediction_to_k2eg(anomaly_table)
         return anomalous
 
 
@@ -87,7 +97,7 @@ def load_configs():
 
 
 def predict_label(
-    configs: Dict[str, Any], networks: List[TorchModule], batch: Tuple[torch.Tensor]
+    configs: Dict[str, Any], networks: List[TorchModule], batch: Tuple[torch.Tensor, torch.Tensor]
 ) -> bool:
     """Make predictions using the loaded models and provided a single batch of data.
 
@@ -138,10 +148,58 @@ def predict_label(
     return bool(label)
 
 
-def write_prediction_to_k2eg(pv_name: str):
-    # k2eg_client = k2eg.dml("rf-phase-ad", "app-three")
-    # k2eg_client.put(f"pva://{pv_name}", value, timestamp) # this?
-    pass
+def create_anomaly_table(station: str) -> NTTable:
+    """Create an anomaly table where all klystron stations are set to False,
+     and the given anomalous station is set to True.
+    Args:
+        station (str): The name of the klystron station to mark as anomalous.
+    Returns:
+        NTTable: A table with anomaly states for each klystron station.
+    """
+    path = Path(__file__).parent / "klystrons.yml"
+    with path.open() as f:
+        yaml_input = yaml.safe_load(f)
+    klys_list = yaml_input["klystrons"]
+    # Create a table with anomaly states for each klystron, and mark the given station as anomalous
+    # Table format:
+    # [
+    #     {'station': 'station_1', 'anomaly_state': Bool},
+    #     {'station': 'station_2', 'anomaly_state': Bool},
+    #     ...
+    # ]
+    # where each dict is a row and its keys are columns.
+    anomaly_table = [{'station': klys, 'anomaly_state': True if klys==station else False} for klys in klys_list]
+    # Generate output format.
+    table_format = NTTable([("station", "s"), ("anomaly_state", "?")])
+    return table_format.wrap(anomaly_table)
+
+
+def write_prediction_to_p4p_sim(anomaly_table: NTTable):
+    """For testing purposes, write the anomaly table to a simulated server.
+    Args:
+        anomaly_table (NTTable): The anomaly table to write to K2EG.
+    """
+    context = Context()
+    anomaly_pv = 'KLYS:SYS0:1:ANOM_STATES'
+    context.put(anomaly_pv, anomaly_table)
+
+
+def write_prediction_to_k2eg(anomaly_table: NTTable):
+    """Write the anomaly table to K2EG.
+    Args:
+        anomaly_table (NTTable): The anomaly table to write to K2EG.
+    """
+    anomaly_pv = 'KLYS:SYS0:1:ANOM_STATES'
+    k2eg_client = k2eg.dml("rf-phase-ad", "app-three")
+    try:
+        k2eg_client.put(f"pva://{anomaly_pv}", anomaly_table, 5.0)
+        k2eg_client.close()
+    except Exception as e:
+        k2eg_client.close()
+        if isinstance(e, OperationTimeout):
+            print(f"Operation timed out while writing to {anomaly_pv}.")
+        else:
+            raise e
 
 
 def standardize_tensor(x):

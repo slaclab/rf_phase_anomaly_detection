@@ -32,20 +32,11 @@ class ProcessC(CustomProcessObject):
                     break
 
                 # Run inference on the received data
-                result = predictor.predict(r)
+                # r should have the structure (rf_input_tensor, bpm_input_tensor, rf_station)
+                # where rf_input_tensor and bpm_input_tensor are tensors of size (D, N)
+                # and rf_station is a string representing the PV name
+                result = predictor.predict(r, write_to_pv=True)
                 self.logger.debug(f"ProcessC result: {result}")
-
-                # TODO: Write result to PVs/or back to the queue?
-            #     # Send result back to the queue
-            #     self.queue.put(result)
-            #     self.logger.debug("ProcessC put result back to queue")
-            #     self.queue.task_done()
-            #     self.logger.debug("ProcessC task done")
-            # else:
-            #     self.logger.debug("ProcessC queue is empty, waiting...")
-            #     self.queue.join()
-            #     self.queue.join(timeout=1)
-            #     self.logger.debug("ProcessC queue join completed, checking again")
 
         for handler in self.logger.handlers:
             handler.close()
