@@ -7,6 +7,6 @@ metadata:
 spec:
   containers:
   - name: rf-phase-anomaly-detection-pod
-    image: scr.svc.stanford.edu/smiskov/rf-phase-anomaly-detection:0.1
+    image: scr.svc.stanford.edu/smiskov/rf-phase-anomaly-detection:0.2
     command: ["/bin/bash", "-c", "--"]
     args: ["while true; do sleep 30; done;"]
