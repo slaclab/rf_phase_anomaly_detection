@@ -28,10 +28,12 @@ git clone git@github.com:slaclab/rf_phase_anomaly_detection.git
 ```
 
 This package requires [k2eg_spoofer](https://github.com/slaclab/k2eg_spoofer) to run anytime live PV data is not available (like during PAMM).
-To install ialso k2eg_spoofer:
+To also install k2eg_spoofer:
 ```
 cd .. # go to the rf_phase_ad dir
 git clone git@github.com:slaclab/k2eg_spoofer.git
+realpath k2eg_spoofer
+# the result of this is the path of k2eg_spoofer on your machine, save for later setting the $PYTHONPATH...
 ```
 
 To [set/unset](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#macos-and-linux) the required environment variables:
@@ -46,7 +48,7 @@ touch ./etc/conda/deactivate.d/env_vars.sh
 then edit `./etc/conda/activate.d/env_vars.sh` to include:
 ```
 export K2EG_PYTHON_CONFIGURATION_PATH_FOLDER=/sdf/sw/k2eg/configuration
-export PYTHONPATH="${PYTHONPATH}:${CONDA_PREFIX}/../k2eg_spoofer"
+export PYTHONPATH="${PYTHONPATH}:<your_k2eg_spoofer_path"
 ```
 
 and edit `./etc/conda/deactivate.d/env_vars.sh` to include
