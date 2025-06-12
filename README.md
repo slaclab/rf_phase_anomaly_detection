@@ -60,6 +60,19 @@ then reactivate the conda environment to have the environment variables load:
 ```
 conda activate rf_phase_ad
 ```
+
+## Running the pipeline
+
+To run the pipeline on real PV data from k2eg, simply run:
+```
+python main.py
+```
+
+To use spoofed (random) data produced locally, you can set the cmdline flag:
+```
+python main.py --spoof_k2eg_data
+```
+
 ## Process B
 #### Part 1 - Beam Checks
 1. Does the beam have a standard charge at the injector? We require BPMS∶IN20∶221∶TMITCUH >
