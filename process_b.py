@@ -3,9 +3,10 @@ from process import CustomProcessObject
 from mp_logging import default_logging_kwargs, create_worker_logger
 
 from typing import Optional
-
+import k2eg_spoofer
 
 class ProcessB(CustomProcessObject):
+
     def __init__(self,
                  queue_one: 'Manager.Queue',
                  queue_two: 'Manager.Queue',

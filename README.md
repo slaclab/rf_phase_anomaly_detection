@@ -12,7 +12,7 @@ process_c - runs CoAD to confirm candidates
 ## Installation instructions on S3DF
 
 This package requires k2eg to function on S3DF.
-To install k2eg:
+To install k2eg along with this current repo:
 
 ```
 conda create --name rf_phase_ad python=3.10
@@ -27,7 +27,14 @@ cd ..
 git clone git@github.com:slaclab/rf_phase_anomaly_detection.git
 ```
 
-To [set/unset](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#macos-and-linux) the required environment variable:
+This package requires [k2eg_spoofer](https://github.com/slaclab/k2eg_spoofer) to run anytime live PV data is not available (like during PAMM).
+To install ialso k2eg_spoofer:
+```
+cd .. # go to the rf_phase_ad dir
+git clone git@github.com:slaclab/k2eg_spoofer.git
+```
+
+To [set/unset](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#macos-and-linux) the required environment variables:
 ```
 cd $CONDA_PREFIX
 mkdir -p ./etc/conda/activate.d
@@ -36,9 +43,10 @@ touch ./etc/conda/activate.d/env_vars.sh
 touch ./etc/conda/deactivate.d/env_vars.sh
 ```
 
-then edit `./etc/conda/activate.d/env_vars.sh` to include
+then edit `./etc/conda/activate.d/env_vars.sh` to include:
 ```
 export K2EG_PYTHON_CONFIGURATION_PATH_FOLDER=/sdf/sw/k2eg/configuration
+export PYTHONPATH="${PYTHONPATH}:${CONDA_PREFIX}/../k2eg_spoofer"
 ```
 
 and edit `./etc/conda/deactivate.d/env_vars.sh` to include
