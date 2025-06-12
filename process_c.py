@@ -22,7 +22,7 @@ class ProcessC(CustomProcessObject):
             self.logger = create_worker_logger(**self.logging_kwargs)
 
         # Initialize predictor (loads models and configs)
-        predictor = Predict()
+        predictor = Predict(write_to_pv=True)
 
         while True:
             if not self.queue.empty():
@@ -35,7 +35,8 @@ class ProcessC(CustomProcessObject):
                 # r should have the structure (rf_input_tensor, bpm_input_tensor, rf_station)
                 # where rf_input_tensor and bpm_input_tensor are tensors of size (1, 1066)
                 # and (8, 1066) respectively, and rf_station is a string representing the PV name
-                result = predictor.predict(r, write_to_pv=True)
+                # We may need to convert to tensors here or in the Predict class
+                result = predictor.predict(*r)
                 self.logger.debug(f"ProcessC result: {result}")
 
         for handler in self.logger.handlers:
