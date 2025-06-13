@@ -27,12 +27,12 @@ class K2EGSpoofProcess(CustomProcessObject):
 
         self.logger.debug("starting k2eg spoofing process")
         spoofer = K2EGSpoofer(
-            pv_configs=[{'name': pv, 'rate_hz': 1.0, 'drop_rate': 0.0} for pv in self.pv_list],
+            pv_configs=[{'name': pv, 'rate_hz': 120, 'drop_rate': 0.0} for pv in self.pv_list],
             n_emits=self.n_emits,
             emit_rate_hz=self.emit_rate_hz,
         )
         for emission in spoofer():
-            self.logger.debug(f"emitting: {emission}")
+            #self.logger.debug(f"emitting: {emission}")
             self.queue.put(emission)
 
         self.logger.debug("k2eg spoofing finished")
