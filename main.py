@@ -19,7 +19,7 @@ if __name__ == '__main__':
     )       
     args = parser.parse_args()
 
-    list_of_pvs = read_pv_list_from_file('resources/very_short_pv_list.txt')
+    list_of_pvs = read_pv_list_from_file('resources/pv_list.txt')
 
     # Create an instance of the Manager
     with Manager() as manager:
@@ -50,7 +50,7 @@ if __name__ == '__main__':
             k2eg_proc = K2EGSpoofProcess(
                 queue=queue_one,
                 pv_list=list_of_pvs,
-                n_emits=10,
+                n_emits=400,
                 emit_rate_hz=1,
                 logging_kwargs=logging_kwargs.copy()
             )
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     
         process_objects = [
             k2eg_proc,
-            ProcessB(queue_one, queue_two, logging_kwargs=logging_kwargs.copy()),
+            ProcessB(queue_one, queue_two, pv_list=list_of_pvs, logging_kwargs=logging_kwargs.copy()),
             ProcessC(queue_two, logging_kwargs=logging_kwargs.copy()),
         ]
 
