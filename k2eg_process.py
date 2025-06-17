@@ -33,8 +33,8 @@ class K2EGHandler:
                  logging_kwargs: dict = default_logging_kwargs
                  ):
         """
-        This class is meant to be used as a context manager to abstract away the
-        required startup and shutdown code for getting recurring buffered
+        This class is meant to be used as a context manager to abstract away
+        the required startup and shutdown code for getting recurring buffered
         snapshots from k2eg.  It is best to run this inside a multiprocessing
         process like the K2EGProcess below.
 
@@ -51,12 +51,12 @@ class K2EGHandler:
 
         self.snapshot_properties = SnapshotProperties(
             snapshot_name=SNAPSHOT_NAME,
-            time_window=snapshot_period_ms,
-            repeat_delay=0,
+            time_window=snapshot_period_ms,  # time window of emits
+            repeat_delay=0,                  # no delay between emits
             pv_uri_list=self.pv_list,
-            triggered=False,
+            triggered=False,                 # emit without a trigger
             type=SnapshotType.TIMED_BUFFERED,
-            pv_field_filter_list=["value"]
+            pv_field_filter_list=["value"]   # emit just the PV values
         )
         self.dml = k2eg.dml('lcls', APP_NAME)
         self.snapshot_is_running = False
@@ -81,6 +81,25 @@ class K2EGHandler:
 
 
 class K2EGProcess(CustomProcessObject):
+    """
+    This class creates a process for handling k2eg as a sub-process.
+    It's fundamental function is to set up and break down k2eg as well
+    as provide a snapshot_handler method that k2eg will call at regular
+    intervals given snapshot_period_ms.
+
+    Parameters
+    ----------
+    queue : Manager.Queue
+        A multiprocessing manager queue on which to put the snapshots.
+    pv_list : list[str]
+        A list of pv names and access types to hand to k2eg.
+        Example list element is 'ca://KLYS:LI20:61:PHAS_FASTBR'
+    snapshot_period_ms : int
+        The number of miliseconds between snapshots emitted by k2eg.
+    logging_kwargs : dict
+        A dictionary of arguments for the function create_worker_logger
+        from the mp_logging module.
+    """
     def __init__(self,
                  queue: 'Manager.Queue',
                  pv_list: list[str],
@@ -112,9 +131,15 @@ class K2EGProcess(CustomProcessObject):
 
         # put data onto the queue at regular intervals
         with self.k2_handler as k2h:
-            self.logger.debug(f"K2EGHandler.snapshot_is_running: {k2h.snapshot_is_running}")
+            self.logger.debug(
+                "K2EGHandler.snapshot_is_running: "
+                f"{k2h.snapshot_is_running}"
+            )
             self.keep_fetching_data = True
             while k2h.snapshot_is_running and self.keep_fetching_data:
+                # this does nothing, replace it with instrumentation
+                # the sleep is to keep the status checks from being
+                # nearly constant
                 self.logger.debug('Waiting for data from K2EGHandler')
                 time.sleep(2.0)
         self.logger.debug('Finished')
@@ -126,20 +151,34 @@ class K2EGProcess(CustomProcessObject):
     def snapshot_handler(self, snapshot_name: str, snapshot: dict):
         iteration = snapshot['iteration']
         if self.logger is not None:
-            self.logger.debug(f"Snapshot {iteration:d} enqueued for {snapshot_name}")
+            self.logger.debug(
+                f"Snapshot {iteration:d} "
+                f"enqueued for {snapshot_name}"
+            )
             self.logger.debug(snapshot)
         self.queue.put(iteration)  # processes B and C expect an integer for now
 
 
 if __name__ == '__main__':
+    """
+    This section is for basic testing and debugging only.  Use the main
+    module for deploying this code.
+    """
     # basic testing
-    list_of_pvs = ['ca://KLYS:LI20:61:PHAS_FASTBR', 'ca://KLYS:LI20:61:AMPL']
+    list_of_pvs = [
+        'ca://KLYS:LI20:61:PHAS_FASTBR',
+        'ca://KLYS:LI20:61:AMPL'
+    ]
 
     # test just the handler
     def snap_handler(snap_name: str, snapshot: dict):
         print(f"Snapshot from {snap_name} received: {snapshot}")
 
-    k2_handler = K2EGHandler(pv_list=list_of_pvs, snapshot_period_ms=1000, snapshot_handler=snap_handler)
+    k2_handler = K2EGHandler(
+        pv_list=list_of_pvs,
+        snapshot_period_ms=1000,
+        snapshot_handler=snap_handler
+    )
 
     with k2_handler as k2h:
         while True:
