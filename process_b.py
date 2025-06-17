@@ -61,7 +61,7 @@ class ProcessB(CustomProcessObject):
                 fake_output_data = (fake_rf_input_tensor, fake_bpm_input_tensor, fake_pv_name)
                 self.queue_two.put(fake_output_data)
 
-                end = time.perf_counter()  # ⏱️ End profiling
+                end = time.perf_counter()
                 elapsed_ms = (end - start) * 1000
                 self.logger.debug(f"process_b iteration took : {elapsed_ms:.2f} ms")
 
@@ -103,6 +103,9 @@ class ProcessB(CustomProcessObject):
 
         self.buffer.append(pv, values)
 
+    def do_beam_checks(self):
+        return True
+
     def find_candidates(self):
         # add beam checks here
         return []
@@ -136,6 +139,11 @@ class Buffer:
                     f.write(f"{v}\n")
 
     def append(self, key: str, values: np.ndarray):
+        # we only allocate array memory once, and then once memory is full
+        # we drop the lowest-index 120 values and shift the existing values over
+        # and append the new values to the end.
+        # this will soon be done in a time-based fashion (older than 5 min values are dropped)
+
         if key not in self.buffer_map:
             raise KeyError(f"key '{key}' not found in buffer")
 
