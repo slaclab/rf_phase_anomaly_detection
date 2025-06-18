@@ -9,17 +9,21 @@ import numpy as np
 import os
 import time
 
+SAMPLES_PER_SECOND = 120 # hz
+BUFFER_DURATION_SEC = 60 * 5  # 5 mins
+BUFFER_LENGTH = SAMPLES_PER_SECOND * BUFFER_DURATION_SEC
+
 class ProcessB(CustomProcessObject):
     """
     ProcessB consumes k2eg snapshots from queue_one and buffers 5 minutes of data per PV at 120hz.
     it performs beam checks and candidate window searcing, and forwards output to queue_two for ProcessC.
     """
     def __init__(self,
-                 queue_one: 'Manager.Queue',
-                 queue_two: 'Manager.Queue',
-                 pv_list: list[str],
-                 logging_kwargs: Optional[dict] = default_logging_kwargs
-                 ):
+                queue_one: 'Manager.Queue',
+                queue_two: 'Manager.Queue',
+                pv_list: list[str],
+                logging_kwargs: Optional[dict] = default_logging_kwargs
+                ):
         self.queue_one = queue_one
         self.queue_two = queue_two
 
@@ -30,14 +34,14 @@ class ProcessB(CustomProcessObject):
         self.logger = None
 
         # holds up to 5 minutes of 120hz data (36000 points) per pv.
-        self.buffer = Buffer(pv_list, 36000, logging_kwargs) # 3600 = 120hz * 60sec * 5mins
+        self.buffer = Buffer(pv_list, BUFFER_LENGTH, logging_kwargs) # 3600 = 120hz * 60sec * 5mins
 
     def __call__(self):
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
 
-        self.logger.debug(f"running provess_b on {len(self.pv_list)} pvs")
-        self.logger.debug("startin data processing loop...")
+        self.logger.debug(f"running process_b on {len(self.pv_list)} pvs")
+        self.logger.debug("starting data processing loop...")
 
         while True:
             try:
@@ -83,20 +87,35 @@ class ProcessB(CustomProcessObject):
         """
         Append the latest 120-sample PV snapshot into the buffer for each pv
         """
-        for pv in self.pv_list:
+        for i, pv in enumerate(self.pv_list):
             entries = snapshot.get(pv, [])
 
-            values = np.empty(120, dtype=np.float64)
-            for i, e in enumerate(entries):
-                values[i] = e.get("value", np.nan)
+            values = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
+            for j, e in enumerate(entries):
+                values[j] = e.get("value", np.nan)
 
-            self.buffer.append(pv, values)
+            times = None
+            # update buffer's timestamps arr with the first pv's times,
+            # and assume the other pv have same timing.
+            if i == 0:
+                times = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
+                for j, e in enumerate(entries):
+                    ts = e.get("timeStamp", {})
+                    seconds = ts.get("secondsPastEpoch", 0)
+                    nanos = ts.get("nanoseconds", 0)
+                    times[j] = seconds + nanos * 1e-9
+            self.logger.debug(f"times: {times}")
+
+            self.buffer.append(pv, SAMPLES_PER_SECOND, values, times)
         
         # Update buffer index tracking
         if self.buffer.index != self.buffer.buffer_len:
-            self.buffer.index += 120
+            self.buffer.index += SAMPLES_PER_SECOND
         else:
-            self.buffer_index == self.buffer_len - 120
+            self.buffer_index == self.buffer_len - SAMPLES_PER_SECOND
+
+        self.logger.debug(f"buffer map: {self.buffer.buffer_map}")
+        self.logger.debug(f"buffer timestamps: {self.buffer.pv_timestamps}")
 
     def do_beam_checks(self):
         # placeholder: beam condition logic here.
@@ -111,47 +130,58 @@ class Buffer:
     Fixed-length buffer for storing a sliding window of 120hz float data per pv.
     By default stores 5 mins (36000 values) of past data.
     """
-    def __init__(self, pv_list: list[str], buffer_len: int = 36000, logging_kwargs: Optional[dict] = default_logging_kwargs):
+    def __init__(self, pv_list: list[str], buffer_len: int = BUFFER_LENGTH, logging_kwargs: Optional[dict] = default_logging_kwargs):
         self.pv_list = pv_list
         
         # max length of buffer
         self.buffer_len = buffer_len
 
+        self.index = 0  # tracks the next write index
         # default buffer length is 36000 to store 5 mins of data at 120hz.
         # we allocate the buffer initially to avoid potential memory-copies during array append operation.
         self.buffer_map = {
             pv: np.empty(buffer_len, dtype=np.float64) for pv in self.pv_list
         }
-        self.index = 0  # tracks the next write index
-        
-        self.passes_beam_check = np.empty(buffer_len, dtype=bool) # whether at this timestamp all
+        # just store the timestamp data from the first pv we read from the snapshot,
+        # and assume the other pv's data is timed the same.
+        self.pv_timestamps = np.empty(buffer_len, dtype=np.float64)
+        self.passes_beam_checks = np.empty(buffer_len, dtype=bool)
 
         self.logging_kwargs = logging_kwargs
         self.logger = create_worker_logger(**self.logging_kwargs)
         self.logging_kwargs['logger_name'] = 'buffer'
 
-    def append(self, key: str, values: np.ndarray):
+    def append(self, key: str, num_new_data_points: int = SAMPLES_PER_SECOND, values: np.ndarray = None, timestamps: Optional[np.ndarray] = None):
         """
-        Appends 120 new values for a given pv. If the buffer is full, old data is shifted to make room.
+        Appends 'num_new_data_points' of data new values into the buffer mapping for a given pv. If the buffer is full, old data is shifted to make room.
+        Also appends timestamp data if 'timestamps' arg is not None.
         """
         if key not in self.buffer_map:
             raise KeyError(f"key '{key}' not found in buffer")
 
-        if len(values) != 120:
-            raise ValueError(f"Expected array of length 120, got {len(values)}")
+        if len(values) != SAMPLES_PER_SECOND:
+            raise ValueError(f"Expected array of length SAMPLES_PER_SECOND, got {len(values)}")
 
+        if key not in self.buffer_map:
+            raise KeyError(f"key '{key}' not found in buffer map")
         curr_pv_arr = self.buffer_map[key]            
         idx = self.index
 
-        if idx + 120 <= self.buffer_len:
+        if idx + num_new_data_points <= self.buffer_len:
             # have enough room without shifting, just write to next open index (this only happens during initial buffer fill-up)
             self.logger.debug(f"initial filling of buffer, current index {idx}")
-            curr_pv_arr[idx:idx+120] = values
+            curr_pv_arr[idx:idx+num_new_data_points] = values
+            if timestamps is not None:
+                self.pv_timestamps[idx:idx+num_new_data_points] = timestamps
         else:
             # shift left and append to the end, this should be quick on a np.arr
             self.logger.debug(f"buffer is full, removing oldest data")
-            curr_pv_arr[:-120] = curr_pv_arr[120:]
-            curr_pv_arr[-120:] = values
+            curr_pv_arr[:-num_new_data_points] = curr_pv_arr[num_new_data_points:]
+            curr_pv_arr[-num_new_data_points:] = values
+            if timestamps is not None:
+                self.pv_timestamps[:-num_new_data_points] = self.pv_timestamps[num_new_data_points:]
+                self.pv_timestamps[-num_new_data_points:] = timestamps
+
 
     def get(self, key: str):
         """
@@ -163,11 +193,12 @@ class Buffer:
 
     def clear(self, key: str):
         """
-            Clear buffer contents for given pv.
+        Clear buffer contents for all PVs.
         """
-        if key not in self.buffer_map:
-            raise KeyError(f"key '{key}' not found in buffer map.")
-        self.buffer_map[key][:] = np.empty(self.buffer_len, dtype=np.float64)
+        for key in self.buffer_map:
+            self.buffer_map[key][:] = np.empty(self.buffer_len, dtype=np.float64) # ':' will hopefully modify in place
+        self.pv_timestamps[:] = np.empty(self.buffer_len, dtype=np.float64)
+        self.passes_beam_checks[:] = np.empty(self.buffer_len, dtype=bool)
         self.index = 0
 
     def dump_to_human_readable(self, directory: str = "buffer_dump_txt"):
@@ -183,9 +214,8 @@ class Buffer:
         
         for pv in self.pv_list:
             valid_data = self.buffer_map[pv][:self.index]
-            pv = pv[5:] # get rid of "ca://"
-            filepath = os.path.join(directory, f"{pv.replace(':', '_')}.txt")
-
+            filename = pv.lstrip("ca://").replace(':', '_') + ".txt"
+            filepath = os.path.join(directory, filename)
             self.logger.debug(f"writing dump file {filepath} for {pv}")
             with open(filepath, "w") as f:
                 for v in valid_data:
