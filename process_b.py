@@ -1,13 +1,19 @@
-from multiprocessing import Manager
-from process import CustomProcessObject
-from mp_logging import default_logging_kwargs, create_worker_logger
-from typing import Optional
-import k2eg_spoofer
-from queue import Empty
-from datetime import datetime
-import numpy as np
+# standard library imports
 import os
 import time
+from datetime import datetime
+from multiprocessing import Manager
+from queue import Empty
+from typing import Optional
+
+# 3rd party imports
+import numpy as np
+
+# local imports
+from beam_check import get_beam_checks_from_snapshot
+from mp_logging import create_worker_logger, default_logging_kwargs
+from process import CustomProcessObject
+import k2eg_spoofer
 
 SAMPLES_PER_SECOND = 120 # hz
 BUFFER_DURATION_SEC = 60 * 5  # 5 mins
