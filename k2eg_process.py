@@ -45,7 +45,7 @@ class K2EGHandler:
         self.pv_list = pv_list
         self.snapshot_period_ms = snapshot_period_ms
         self.snapshot_handler = snapshot_handler
-        self.logging_kwargs = logging_kwargs
+        self.logging_kwargs = dict(logging_kwargs)
         self.logging_kwargs['logger_name'] = 'K2EGHandler'
         self.logger = None
 
@@ -110,7 +110,7 @@ class K2EGProcess(CustomProcessObject):
         self.pv_list = pv_list
         self.snapshot_period_ms = snapshot_period_ms
 
-        self.logging_kwargs = logging_kwargs
+        self.logging_kwargs = dict(logging_kwargs)
         self.logging_kwargs['logger_name'] = 'K2EGProcess'
         self.logger = None
 

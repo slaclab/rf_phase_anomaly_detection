@@ -17,7 +17,7 @@ class K2EGSpoofProcess(CustomProcessObject):
         self.pv_list = pv_list
         self.n_emits = n_emits
         self.emit_rate_hz = emit_rate_hz
-        self.logging_kwargs = logging_kwargs
+        self.logging_kwargs = dict(logging_kwargs)
         self.logging_kwargs['logger_name'] = 'K2EGSpoofProcess'
         self.logger = None
 

@@ -2,7 +2,7 @@ from typing import Optional
 import numpy as np
 import logging
 
-from mp_logging import create_worker_logger
+from mp_logging import create_worker_logger, default_logging_kwargs
 
 SAMPLES_PER_SECOND = 120 # hz
 BUFFER_DURATION_SEC = 60 * 5  # 5 mins
@@ -13,9 +13,9 @@ class Buffer:
     Fixed-length buffer for storing a sliding window of 120hz float data per pv.
     By default stores 5 mins (36000 values) of past data.
     """
-    def __init__(self, pv_list: list[str], buffer_len: int, logger: logging.Logger):
+    def __init__(self, pv_list: list[str], buffer_len: int, logging_kwargs: Optional[dict] = default_logging_kwargs):
         self.pv_list = pv_list
-        
+
         # max length of buffer
         self.buffer_len = buffer_len
 
@@ -30,13 +30,21 @@ class Buffer:
         self.pv_timestamps = np.empty(buffer_len, dtype=np.float64)
         self.passes_beam_checks = np.empty(buffer_len, dtype=bool)
 
-        self.logger = logger
+        self.logging_kwargs = dict(logging_kwargs)
+        self.logging_kwargs['logger_name'] = 'buffer'
+        self.logger = None
+
+    def buffer_initalize(self):
+        # setup calls that should be ran in the _call_ method of subprocess (to avoid getting called in main process)
+        if self.logger is None:
+            self.logger = create_worker_logger(**self.logging_kwargs) # do here instead of __init__ to avoid creating this logger in main thread
 
     def append(self, key: str, num_new_data_points: int, values: np.ndarray, timestamps: Optional[np.ndarray]):
         """
         Appends 'num_new_data_points' of data new values into the buffer mapping for a given pv. If the buffer is full, old data is shifted to make room.
         Also appends timestamp data if 'timestamps' arg is not None.
         """
+        self.logger.debug(f"writing {num_new_data_points} to {key} in buffer")
         if key not in self.buffer_map:
             raise KeyError(f"key '{key}' not found in buffer")
 
@@ -65,6 +73,7 @@ class Buffer:
         """
         Get data from the buffer map for given pv.
         """
+        self.logger.debug(f"getting {key} value from buffer")
         if key not in self.buffer_map:
             raise KeyError(f"key '{key}' not found in buffer map")
         return self.buffer_map[key][:self.index]
@@ -73,6 +82,7 @@ class Buffer:
         """
         Clear buffer contents for all PVs.
         """
+        self.logger.debug("clearing all values from buffer")
         for key in self.buffer_map:
             self.buffer_map[key][:] = np.empty(self.buffer_len, dtype=np.float64) # ':' will hopefully modify in place
         self.pv_timestamps[:] = np.empty(self.buffer_len, dtype=np.float64)
@@ -88,6 +98,7 @@ class Buffer:
             self.logger.debug(f"dump dir: {dir_name}")
             self.buffer.dump_to_human_readable(directory=dir_name)
         """
+        self.logger.debug(f"dumping buffer data to {directory}")
         os.makedirs(directory, exist_ok=True)
         
         for pv in self.pv_list:
