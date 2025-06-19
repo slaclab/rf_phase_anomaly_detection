@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import Dict
 import numpy as np
 import pandas as pd
+from buffer import Buffer
 
 # Constants
 BEAM_RATE_PV = "IOC:BSY0:MP01:PC_RATE"
@@ -21,7 +22,7 @@ EXP_TMIT_FREQ = 1
 ALLOWED_TMIT_DIFF = 0.05
 EXP_TMIT_MIN = 0.5e9
 
-def do_beam_checks(buffer, starting_index, num_samples_to_check):
+def do_beam_checks(buffer: Buffer, starting_index: int, num_samples_to_check: int) -> None:
     """
     Apply beam checks to data in buffer_map, from starting_index to starting_index+num_samples_to_check.
     Fills buffer.passes_beam_checks with boolean results.
