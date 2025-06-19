@@ -16,6 +16,9 @@ from process import CustomProcessObject
 from buffer import Buffer, SAMPLES_PER_SECOND, BUFFER_DURATION_SEC, BUFFER_LENGTH
 import k2eg_spoofer
 
+# we care about windows where beam-checks fail only if longer than this length
+TEMP_VIOLATION_LENGTH = SAMPLES_PER_SECOND * 90 # 90 seconds
+
 class ProcessB(CustomProcessObject):
     """
     ProcessB consumes k2eg snapshots from queue_one and buffers 5 minutes of data per PV at 120hz.
@@ -61,8 +64,8 @@ class ProcessB(CustomProcessObject):
                 self.update_buffer(r)
 
                 # process data in buffer and get stuff to pass to process_c and CoAD
-                self.find_valid_windows()
-                result = self.find_candidates()
+                valid_windows = self.find_valid_windows()
+                # result = self.find_candidates()
 
                 # placeholder: dummy data for ProcessC:
                 fake_rf_input_tensor = np.random.rand(1, 1066).astype(np.float32)
@@ -119,7 +122,31 @@ class ProcessB(CustomProcessObject):
             self.buffer.index == self.buffer_len - SAMPLES_PER_SECOND
 
     def find_valid_windows(self):
-        return []
+        """
+        Search buffer's passes_beam_checks array to find contiguous regions of failing beam check of >= TEMP_VIOLATION_LENGTH seconds.
+        Returns list of (start_index, end_index) tuples, where end_index is the first index where the beam-checks start to pass again.
+        """
+        windows = []
+        start = None
+
+        for i, val in enumerate(self.buffer.passes_beam_checks):
+            if val is False:
+                if start is None:
+                    start = i  # begin a new potential failure window
+            else:
+                if start is not None:
+                    window_len = i - start
+                    if window_len >= MIN_WINDOW_LEN:
+                        windows.append((start, i))
+                    start = None  # end current window
+
+        # handle trailing window that runs to end of buffer
+        if start is not None:
+            window_len = len(self.buffer.passes_beam_checks) - start
+            if window_len >= MIN_WINDOW_LEN:
+                windows.append((start, len(self.buffer.passes_beam_checks)))
+
+        return windows
 
     def find_candidates(self):
         # placeholder: candidate determination logic here.
