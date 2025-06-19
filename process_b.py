@@ -10,7 +10,7 @@ from typing import Optional
 import numpy as np
 
 # local imports
-from beam_check import get_beam_checks_from_snapshot
+from beam_check import do_beam_checks
 from mp_logging import create_worker_logger, default_logging_kwargs
 from process import CustomProcessObject
 import k2eg_spoofer
@@ -110,22 +110,21 @@ class ProcessB(CustomProcessObject):
                     seconds = ts.get("secondsPastEpoch", 0)
                     nanos = ts.get("nanoseconds", 0)
                     times[j] = seconds + nanos * 1e-9
-            self.logger.debug(f"times: {times}")
 
             self.buffer.append(pv, SAMPLES_PER_SECOND, values, times)
         
+        do_beam_checks(self.buffer, self.buffer.index, SAMPLES_PER_SECOND)
+
         # Update buffer index tracking
         if self.buffer.index != self.buffer.buffer_len:
             self.buffer.index += SAMPLES_PER_SECOND
         else:
-            self.buffer_index == self.buffer_len - SAMPLES_PER_SECOND
-
-        self.logger.debug(f"buffer map: {self.buffer.buffer_map}")
-        self.logger.debug(f"buffer timestamps: {self.buffer.pv_timestamps}")
+            self.buffer.index == self.buffer_len - SAMPLES_PER_SECOND
 
     def do_beam_checks(self):
         # placeholder: beam condition logic here.
-        return True
+        for i in range(self.buffer.index):
+            self.buffer.passes_beam_checks[i] = True
 
     def find_candidates(self):
         # placeholder: candidate determination logic here.
@@ -142,7 +141,7 @@ class Buffer:
         # max length of buffer
         self.buffer_len = buffer_len
 
-        self.index = 0  # tracks the next write index
+        self.index = 0 # tracks the next write index
         # default buffer length is 36000 to store 5 mins of data at 120hz.
         # we allocate the buffer initially to avoid potential memory-copies during array append operation.
         self.buffer_map = {
@@ -154,8 +153,8 @@ class Buffer:
         self.passes_beam_checks = np.empty(buffer_len, dtype=bool)
 
         self.logging_kwargs = logging_kwargs
-        self.logger = create_worker_logger(**self.logging_kwargs)
         self.logging_kwargs['logger_name'] = 'buffer'
+        self.logger = create_worker_logger(**self.logging_kwargs)
 
     def append(self, key: str, num_new_data_points: int = SAMPLES_PER_SECOND, values: np.ndarray = None, timestamps: Optional[np.ndarray] = None):
         """
@@ -168,26 +167,23 @@ class Buffer:
         if len(values) != SAMPLES_PER_SECOND:
             raise ValueError(f"Expected array of length SAMPLES_PER_SECOND, got {len(values)}")
 
-        if key not in self.buffer_map:
-            raise KeyError(f"key '{key}' not found in buffer map")
         curr_pv_arr = self.buffer_map[key]            
         idx = self.index
 
         if idx + num_new_data_points <= self.buffer_len:
             # have enough room without shifting, just write to next open index (this only happens during initial buffer fill-up)
-            self.logger.debug(f"initial filling of buffer, current index {idx}")
+            #self.logger.debug(f"initial filling of buffer, current index {idx}")
             curr_pv_arr[idx:idx+num_new_data_points] = values
             if timestamps is not None:
                 self.pv_timestamps[idx:idx+num_new_data_points] = timestamps
         else:
             # shift left and append to the end, this should be quick on a np.arr
-            self.logger.debug(f"buffer is full, removing oldest data")
+            #self.logger.debug(f"buffer is full, removing oldest data")
             curr_pv_arr[:-num_new_data_points] = curr_pv_arr[num_new_data_points:]
             curr_pv_arr[-num_new_data_points:] = values
             if timestamps is not None:
                 self.pv_timestamps[:-num_new_data_points] = self.pv_timestamps[num_new_data_points:]
                 self.pv_timestamps[-num_new_data_points:] = timestamps
-
 
     def get(self, key: str):
         """
@@ -197,7 +193,7 @@ class Buffer:
             raise KeyError(f"key '{key}' not found in buffer map")
         return self.buffer_map[key][:self.index]
 
-    def clear(self, key: str):
+    def clear(self):
         """
         Clear buffer contents for all PVs.
         """
