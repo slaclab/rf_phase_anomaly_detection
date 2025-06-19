@@ -67,19 +67,26 @@ class ProcessB(CustomProcessObject):
                 valid_windows = self.find_valid_windows()
                 # result = self.find_candidates()
 
-                # placeholder: dummy data for ProcessC:
-                fake_rf_input_tensor = np.random.rand(1, 1066).astype(np.float32)
-                fake_bpm_input_tensor = np.random.rand(8, 1066).astype(np.float32)
-                fake_pv_name = "fake_pv_name"
-
-                fake_output_data = (fake_rf_input_tensor, fake_bpm_input_tensor, fake_pv_name)
-                self.queue_two.put(fake_output_data)
-
                 end = time.perf_counter()
                 elapsed_ms = (end - start) * 1000
                 self.logger.debug(f"process_b iteration took : {elapsed_ms:.2f} ms")
                 if elapsed_ms > 1000: # have to be <= 1 sec
                     self.logger.warning(f"process_b iteration is slow!! : {elapsed_ms:.2f} ms")
+
+                
+                # placeholder: dummy data for ProcessC:
+                fake_rf_input_tensor = np.random.rand(1, 1066).astype(np.float32)
+                fake_bpm_input_tensor = np.random.rand(8, 1066).astype(np.float32)
+                fake_pv_name = "fake_pv_name"
+
+                # expand later with any more info we need to send to process_c
+                fake_output_data = {
+                    "timestamp": end,
+                    "rf_input": fake_rf_input_tensor,
+                    "bpm_input": fake_bpm_input_tensor,
+                    "pv_name": fake_pv_name,
+                }
+                self.queue_two.put(fake_output_data)
 
             except Empty:
                 continue
