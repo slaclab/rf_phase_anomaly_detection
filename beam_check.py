@@ -5,10 +5,10 @@ import pandas as pd
 from buffer import Buffer
 
 # Constants
-BEAM_RATE_PV = "IOC:BSY0:MP01:PC_RATE"
-BEAM_SPLIT_PV = "IOC:IN20:EV01:RG02_ACTRATE"
-IN_TMIT_PV = "BPMS:IN20:221:TMITCUHBR" #?? do we want "BR" at end of this pv-name
-STOPPER_PV = "STPR:BSYH:2:STD2_IN_A"
+BEAM_RATE_PV = "ca://IOC:BSY0:MP01:PC_RATE"
+BEAM_SPLIT_PV = "ca://IOC:IN20:EV01:RG02_ACTRATE"
+IN_TMIT_PV = "ca://BPMS:IN20:221:TMITCUHBR" #?? do we want the "BR" at end of this pv-name
+STOPPER_PV = "ca://STPR:BSYH:2:STD2_IN_A"
 
 BEAM_RATE_TABLE = {1: 0, 4: 1, 5: 10, 6: 30, 7: 60, 8: 120}
 BEAM_SPLIT_TABLE_HXR = {
@@ -30,19 +30,19 @@ def do_beam_checks(buffer: Buffer, starting_index: int, num_samples_to_check: in
     for curr_index in range(starting_index, num_samples_to_check):
 
         # Stopper check
-        stopper = buffer.buffer_map.get("ca://"+STOPPER_PV)[curr_index]
+        stopper = buffer.buffer_map.get(STOPPER_PV)[curr_index]
         stopper_clear = stopper == 0
 
         # Beam rate check (must be 120Hz)
-        beam_rate = buffer.buffer_map.get("ca://"+BEAM_RATE_PV)[curr_index]
+        beam_rate = buffer.buffer_map.get(BEAM_RATE_PV)[curr_index]
         full_rate = BEAM_RATE_TABLE.get(beam_rate, 0) == 120
 
         # Beam split check (must be 120Hz HXR)
-        beam_split = buffer.buffer_map.get("ca://"+BEAM_SPLIT_PV)[curr_index]
+        beam_split = buffer.buffer_map.get(BEAM_SPLIT_PV)[curr_index]
         hxr_split = BEAM_SPLIT_TABLE_HXR.get(beam_split, 0) == 120
 
         # TMIT check (must be real charge + logged at ~1Hz)
-        tmit = buffer.buffer_map.get("ca://"+IN_TMIT_PV)[curr_index]
+        tmit = buffer.buffer_map.get(IN_TMIT_PV)[curr_index]
         is_real_charge = tmit > EXP_TMIT_MIN
 
         '''
