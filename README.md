@@ -73,6 +73,11 @@ To use spoofed (random) data produced locally, you can set the cmdline flag:
 python main.py --spoof_k2eg_data
 ```
 
+And log files will be written each run unless disabled with the cmdline flag:
+```
+python main.py --disable_file_logging
+```
+
 ## Process B
 #### Part 1 - Beam Checks
 1. Does the beam have a standard charge at the injector? We require BPMS∶IN20∶221∶TMITCUH >
