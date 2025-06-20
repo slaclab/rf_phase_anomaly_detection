@@ -35,7 +35,7 @@ class ProcessB(CustomProcessObject):
 
         self.pv_list = pv_list
 
-        self.logging_kwargs = dict(logging_kwargs) # maps in python are pass-by-reference
+        self.logging_kwargs = logging_kwargs
         self.logging_kwargs['logger_name'] = 'process_b'
         self.logger = None
 

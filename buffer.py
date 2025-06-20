@@ -30,14 +30,14 @@ class Buffer:
         self.pv_timestamps = np.empty(buffer_len, dtype=np.float64)
         self.passes_beam_checks = np.empty(buffer_len, dtype=bool)
 
-        self.logging_kwargs = dict(logging_kwargs)
+        self.logging_kwargs = logging_kwargs
         self.logging_kwargs['logger_name'] = 'buffer'
         self.logger = None
 
     def buffer_initalize(self):
         # setup calls that should be ran in the _call_ method of subprocess (to avoid getting called in main process)
         if self.logger is None:
-            self.logger = create_worker_logger(**self.logging_kwargs) # do here instead of __init__ to avoid creating this logger in main thread
+            self.logger = create_worker_logger(**self.logging_kwargs)
 
     def append(self, key: str, num_new_data_points: int, values: np.ndarray, timestamps: Optional[np.ndarray]):
         """

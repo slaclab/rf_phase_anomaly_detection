@@ -11,7 +11,7 @@ class ProcessC(CustomProcessObject):
                  logging_kwargs: Optional[dict] = default_logging_kwargs
                  ):
         self.queue = queue
-        self.logging_kwargs = dict(logging_kwargs)
+        self.logging_kwargs = logging_kwargs
         self.logging_kwargs['logger_name'] = 'process_c'
         self.logger = None
 
