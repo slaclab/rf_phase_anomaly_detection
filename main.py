@@ -2,19 +2,22 @@ import time
 from multiprocessing import Manager, Process
 from mp_logging import run_logger_process, create_worker_logger
 from process import ProcessManager
-from process_a import ProcessA
+from k2eg_process import K2EGProcess, read_pv_list_from_file
 from process_b import ProcessB
 from process_c import ProcessC
 
 
 if __name__ == '__main__':
+    list_of_pvs = read_pv_list_from_file('resources/very_short_pv_list.txt')
+
     # Create an instance of the Manager
     with Manager() as manager:
-        # Create a queue within the context of the manager
+        # create queues for inter-process communication
         queue_one = manager.Queue()
         queue_two = manager.Queue()
         queue_log = manager.Queue()  # for logging only
 
+        # logging configuration
         logging_kwargs = default_logging_kwargs = {
             'queue': queue_log,
             'logger_name': 'test_log',
@@ -30,17 +33,25 @@ if __name__ == '__main__':
             log_stdout=logging_kwargs['log_stdout']
         )
 
+        # create classes to be turned into processes
+        # it helps to put them in order
         process_objects = [
-            ProcessA(queue_one, n=5, logging_kwargs=logging_kwargs.copy()),
+            K2EGProcess(
+                queue_one,
+                pv_list=list_of_pvs,
+                snapshot_period_ms=1000,
+                logging_kwargs=logging_kwargs.copy()
+            ),
             ProcessB(queue_one, queue_two, logging_kwargs=logging_kwargs.copy()),
             ProcessC(queue_two, logging_kwargs=logging_kwargs.copy()),
         ]
 
+        # use ProcessManager to handle start and join of processes
         with ProcessManager(process_objects=process_objects) as pm:
             while pm.is_running:
                 time.sleep(1)
                 main_logger.debug('pm loop')
 
-        logger_process.join()
+        logger_process.join()  # wait for the logger to finish last
 
     print('Processes are done.')
