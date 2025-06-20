@@ -3,6 +3,19 @@ import numpy as np
 import logging
 
 from mp_logging import create_worker_logger
+from beam_check import do_beam_checks
+from beam_check_config import (
+    BEAM_RATE_PV,
+    BEAM_SPLIT_PV,
+    IN_TMIT_PV,
+    STOPPER_PV,
+    BEAM_RATE_TABLE,
+    BEAM_SPLIT_TABLE_HXR,
+    MIN_VIOLATION_DUR,
+    EXP_TMIT_FREQ,
+    ALLOWED_TMIT_DIFF,
+    EXP_TMIT_MIN,
+)
 
 SAMPLES_PER_SECOND = 120 # hz
 BUFFER_DURATION_SEC = 60 * 5  # 5 mins
@@ -30,8 +43,53 @@ class Buffer:
         self.pv_timestamps = np.empty(buffer_len, dtype=np.float64)
         self.passes_beam_checks = np.empty(buffer_len, dtype=bool)
 
+        self.valid_windows = np.empty(0, dtype=object) # will hold tuples of (window_start_index, window_end_index)
+
         self.logger = logger
 
+    def update(self, snapshot):
+        """
+        Append the latest 120-sample PV snapshot into the buffer for each pv
+        """
+        for i, pv in enumerate(self.pv_list):
+            entries = snapshot.get(pv, [])
+
+            values = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
+            for j, e in enumerate(entries):
+                values[j] = e.get("value", np.nan)
+
+            times = None
+            # update buffer's timestamps arr with the first pv's times,
+            # and assume the other pv have same timing.
+            if i == 0:
+                times = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
+                for j, e in enumerate(entries):
+                    ts = e.get("timeStamp", {})
+                    seconds = ts.get("secondsPastEpoch", 0)
+                    nanos = ts.get("nanoseconds", 0)
+                    times[j] = seconds + nanos * 1e-9
+
+            self.append(pv, SAMPLES_PER_SECOND, values, times)
+        
+        do_beam_checks(
+            stopper_pv_data=self.buffer_map[STOPPER_PV],
+            beam_rate_pv_data=self.buffer_map[BEAM_RATE_PV],
+            beam_split_pv_data=self.buffer_map[BEAM_SPLIT_PV],
+            in_tmit_pv_data=self.buffer_map[IN_TMIT_PV],
+            starting_index=self.index,
+            num_samples_to_check=SAMPLES_PER_SECOND,
+            passes_beam_checks=self.passes_beam_checks
+        )
+
+        self.update_violation_window_list()
+
+        # Update buffer index tracking
+        if self.index != self.buffer_len:
+            self.index += SAMPLES_PER_SECOND
+        else:
+            self.index == self.buffer_len - SAMPLES_PER_SECOND
+
+        
     def append(self, key: str, num_new_data_points: int, values: np.ndarray, timestamps: Optional[np.ndarray]):
         """
         Appends 'num_new_data_points' of data new values into the buffer mapping for a given pv. If the buffer is full, old data is shifted to make room.
@@ -60,6 +118,37 @@ class Buffer:
             if timestamps is not None:
                 self.pv_timestamps[:-num_new_data_points] = self.pv_timestamps[num_new_data_points:]
                 self.pv_timestamps[-num_new_data_points:] = timestamps
+
+    def update_violation_window_list(self):
+        """
+        Search buffer's passes_beam_checks array to find contiguous regions of failing beam check of >= TEMP_VIOLATION_LENGTH seconds.
+        Returns list of (start_index, end_index) tuples, where end_index is the first index where the beam-checks start to pass again.
+        """
+        windows = []
+        start = None
+
+        for i, val in enumerate(self.passes_beam_checks):
+            if val is False:
+                if start is None:
+                    start = i  # begin a new potential failure window
+            else:
+                if start is not None:
+                    window_len = i - start
+                    if window_len >= MIN_WINDOW_LEN:
+                        windows.append((start, i))
+                    start = None  # end current window
+
+        # handle trailing window that runs to end of buffer
+        if start is not None:
+            window_len = len(self.buffer.passes_beam_checks) - start
+            if window_len >= MIN_WINDOW_LEN:
+                windows.append((start, len(self.buffer.passes_beam_checks)))
+
+        return windows
+
+    def find_candidates(self):
+        # placeholder: candidate determination logic here.
+        return []
 
     def get(self, key: str):
         """

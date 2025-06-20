@@ -10,7 +10,6 @@ from typing import Optional
 import numpy as np
 
 # local imports
-from beam_check import do_beam_checks
 from mp_logging import create_worker_logger, default_logging_kwargs
 from process import CustomProcessObject
 from buffer import Buffer, SAMPLES_PER_SECOND, BUFFER_DURATION_SEC, BUFFER_LENGTH
@@ -56,15 +55,15 @@ class ProcessB(CustomProcessObject):
                 if r is None: # enqueuing a None should stop this process
                     break
 
-                #need to be sure each iteration of this processing loop is <= 1 second
+                # need to be sure each iteration of this processing loop is <= 1 second
                 # (new data comes each second from process_a, so data will pile-up if our processing takes over 1 second)
                 start = time.perf_counter()
 
                 # parse the k2eg snapshot and update buffer
-                self.update_buffer(r)
+                self.buffer.update(r)
 
                 # process data in buffer and get stuff to pass to process_c and CoAD
-                valid_windows = self.find_valid_windows()
+                # valid_windows = self.buffer.get_valid_windows()
                 # result = self.find_candidates()
 
                 end = time.perf_counter()
@@ -94,67 +93,4 @@ class ProcessB(CustomProcessObject):
         self.logger.debug("shutting down process_b")
 
         for handler in self.logger.handlers:
-            handler.close()
-
-    def update_buffer(self, snapshot):
-        """
-        Append the latest 120-sample PV snapshot into the buffer for each pv
-        """
-        for i, pv in enumerate(self.pv_list):
-            entries = snapshot.get(pv, [])
-
-            values = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
-            for j, e in enumerate(entries):
-                values[j] = e.get("value", np.nan)
-
-            times = None
-            # update buffer's timestamps arr with the first pv's times,
-            # and assume the other pv have same timing.
-            if i == 0:
-                times = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
-                for j, e in enumerate(entries):
-                    ts = e.get("timeStamp", {})
-                    seconds = ts.get("secondsPastEpoch", 0)
-                    nanos = ts.get("nanoseconds", 0)
-                    times[j] = seconds + nanos * 1e-9
-
-            self.buffer.append(pv, SAMPLES_PER_SECOND, values, times)
-        
-        do_beam_checks(self.buffer, self.buffer.index, SAMPLES_PER_SECOND)
-
-        # Update buffer index tracking
-        if self.buffer.index != self.buffer.buffer_len:
-            self.buffer.index += SAMPLES_PER_SECOND
-        else:
-            self.buffer.index == self.buffer_len - SAMPLES_PER_SECOND
-
-    def find_valid_windows(self):
-        """
-        Search buffer's passes_beam_checks array to find contiguous regions of failing beam check of >= TEMP_VIOLATION_LENGTH seconds.
-        Returns list of (start_index, end_index) tuples, where end_index is the first index where the beam-checks start to pass again.
-        """
-        windows = []
-        start = None
-
-        for i, val in enumerate(self.buffer.passes_beam_checks):
-            if val is False:
-                if start is None:
-                    start = i  # begin a new potential failure window
-            else:
-                if start is not None:
-                    window_len = i - start
-                    if window_len >= MIN_WINDOW_LEN:
-                        windows.append((start, i))
-                    start = None  # end current window
-
-        # handle trailing window that runs to end of buffer
-        if start is not None:
-            window_len = len(self.buffer.passes_beam_checks) - start
-            if window_len >= MIN_WINDOW_LEN:
-                windows.append((start, len(self.buffer.passes_beam_checks)))
-
-        return windows
-
-    def find_candidates(self):
-        # placeholder: candidate determination logic here.
-        return []
+            handler.close() 

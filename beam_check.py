@@ -1,48 +1,58 @@
 from datetime import datetime, timedelta
 from typing import Dict
 import numpy as np
-import pandas as pd
-from buffer import Buffer
 
-# Constants
-BEAM_RATE_PV = "ca://IOC:BSY0:MP01:PC_RATE"
-BEAM_SPLIT_PV = "ca://IOC:IN20:EV01:RG02_ACTRATE"
-IN_TMIT_PV = "ca://BPMS:IN20:221:TMITCUHBR" #?? do we want the "BR" at end of this pv-name
-STOPPER_PV = "ca://STPR:BSYH:2:STD2_IN_A"
+from beam_check_config import BEAM_RATE_TABLE, BEAM_SPLIT_TABLE_HXR, EXP_TMIT_MIN
 
-BEAM_RATE_TABLE = {1: 0, 4: 1, 5: 10, 6: 30, 7: 60, 8: 120}
-BEAM_SPLIT_TABLE_HXR = {
-    1: 0, 2: 0, 3: 1, 4: 10, 5: 30, 6: 60,
-    7: 90, 8: 110, 9: 119, 10: 120, 11: 1,
-    12: 10, 13: 0, 14: 0
-}
-
-MIN_VIOLATION_DUR = timedelta(seconds=90)
-EXP_TMIT_FREQ = 1
-ALLOWED_TMIT_DIFF = 0.05
-EXP_TMIT_MIN = 0.5e9
-
-def do_beam_checks(buffer: Buffer, starting_index: int, num_samples_to_check: int) -> None:
+# note: can't pass in buffer object directly b/c of circular import
+# (buffer.py would import beam_check.py, and beam_check.py would import buffer.py ...).
+def do_beam_checks(
+    stopper_pv_data: np.ndarray,
+    beam_rate_pv_data: np.ndarray,
+    beam_split_pv_data: np.ndarray,
+    in_tmit_pv_data: np.ndarray,
+    starting_index: int,
+    num_samples_to_check: int,
+    passes_beam_checks: np.ndarray
+) -> None:
     """
     Apply beam checks to data in buffer_map, from starting_index to starting_index+num_samples_to_check.
     Fills buffer.passes_beam_checks with boolean results.
     """
-    for curr_index in range(starting_index, num_samples_to_check):
+
+    # vectorized version
+    end_index = starting_index + num_samples_to_check
+    sl = slice(starting_index, end_index)
+
+    stopper_clear = stopper_pv_data[sl] == 0
+    full_rate = np.vectorize(BEAM_RATE_TABLE.get)(beam_rate_pv_data[sl], 0) == 120 # passing the .get function to vectorize
+    hxr_split = np.vectorize(BEAM_SPLIT_TABLE_HXR.get)(beam_split_pv_data[sl], 0) == 120
+    is_real_charge = in_tmit_pv_data[sl] > EXP_TMIT_MIN
+    is_logged_correctly = np.ones_like(stopper_clear, dtype=bool) # need to figure out real check
+
+    passes_beam_checks[sl] = (
+        stopper_clear & full_rate & hxr_split & is_real_charge & is_logged_correctly
+    )
+
+    # for-loop version
+    """
+    end_index = starting_index + num_samples_to_check
+    for curr_index in range(starting_index, end_index):
 
         # Stopper check
-        stopper = buffer.buffer_map.get(STOPPER_PV)[curr_index]
+        stopper = stopper_pv_data[curr_index]
         stopper_clear = stopper == 0
 
         # Beam rate check (must be 120Hz)
-        beam_rate = buffer.buffer_map.get(BEAM_RATE_PV)[curr_index]
+        beam_rate = beam_rate_pv_data[curr_index]
         full_rate = BEAM_RATE_TABLE.get(beam_rate, 0) == 120
 
         # Beam split check (must be 120Hz HXR)
-        beam_split = buffer.buffer_map.get(BEAM_SPLIT_PV)[curr_index]
+        beam_split = beam_split_pv_data[curr_index] 
         hxr_split = BEAM_SPLIT_TABLE_HXR.get(beam_split, 0) == 120
 
         # TMIT check (must be real charge + logged at ~1Hz)
-        tmit = buffer.buffer_map.get(IN_TMIT_PV)[curr_index]
+        tmit = in_tmit_pv_data[curr_index]
         is_real_charge = tmit > EXP_TMIT_MIN
 
         '''
@@ -58,3 +68,4 @@ def do_beam_checks(buffer: Buffer, starting_index: int, num_samples_to_check: in
         # combine all checks
         passes_all_checks = stopper_clear & full_rate & hxr_split & is_real_charge & is_logged_correctly
         buffer.passes_beam_checks[curr_index] = passes_all_checks
+    """
