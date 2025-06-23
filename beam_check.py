@@ -20,7 +20,7 @@ def do_beam_checks(
     Fills buffer.passes_beam_checks with boolean results.
     """
 
-    # for now, don't do any beamchecks
+    # for now, we don't do any beamchecks
     return True
 
     """

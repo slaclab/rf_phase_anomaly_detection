@@ -17,6 +17,7 @@ from beam_check_config import (
     EXP_TMIT_MIN,
 )
 from sliding_window import SlidingWindowArray
+from anomaly_candidate import AnomalyCandidate
 
 SAMPLES_PER_SECOND = 120 # hz
 BUFFER_DURATION_SEC = 60 * 5  # 5 mins
@@ -62,10 +63,10 @@ class Buffer:
 
             self.data_map[pv].put(values)
 
-            times = None
             # update buffer's timestamps arr with the first pv's times,
             # and assume the other pv have same timing.
             if i == 0:
+                times = None
                 timestamps = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
                 for j, e in enumerate(entries):
                     ts = e.get("timeStamp", {})
@@ -76,6 +77,8 @@ class Buffer:
                 self.data_map["pv_timestamps"].put(timestamps)
 
         self_index = self.data_map[self.pv_list[0]].index  # use first pv as index reference
+
+        self.clean_data()
 
         do_beam_checks(
             stopper_pv_data=self.data_map[STOPPER_PV],
@@ -94,7 +97,11 @@ class Buffer:
             self.index += SAMPLES_PER_SECOND
         else:
             self.index == self.buffer_len - SAMPLES_PER_SECOND
-        
+
+    def clean_data(self) -> None:
+        # forward fill data not updated during timestamp, check if corresponding pv timestamps are close enough, etc
+        return
+
     def append(self, pv_name: str, num_new_data_points: int, values: np.ndarray, timestamps: Optional[np.ndarray]) -> None:
         """
         Appends 'num_new_data_points' of data new values into the buffer mapping for a given pv. If the buffer is full, old data is shifted to make room.

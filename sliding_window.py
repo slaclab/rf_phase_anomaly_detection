@@ -20,7 +20,7 @@ class SlidingWindowArray:
     def put(self, values: np.ndarray) -> None:
         n = len(values)
         if n > self.buffer_len:
-            raise ValueError(f"Too many values ({n}) for buffer size {self.buffer_len}")
+            raise ValueError(f"too many values ({n}) for buffer size {self.buffer_len}")
 
         if self.index + n <= self.buffer_len:
             self.data[self.index:self.index + n] = values
@@ -29,17 +29,17 @@ class SlidingWindowArray:
             shift = n
             self.data[:-shift] = self.data[shift:]
             self.data[-shift:] = values
-            self.index = self.buffer_len  # always "full"
+            self.index = self.buffer_len  # remains "full"
 
     def get(self, start: Optional[int] = None, end: Optional[int] = None) -> np.ndarray:
         s = start if start is not None else 0
         e = end if end is not None else self.index
         if s < 0 or e > self.index or s > e:
-            raise IndexError(f"Invalid start/end indices: {s}, {e}")
+            raise IndexError(f"invalid start/end indices: {s}, {e}")
         return self.data[s:e]
 
     def clear(self) -> None:
-        self.data[:] = np.empty(self.buffer_len, dtype=self.data.dtype)
+        self.data.fill(np.nan)
         self.index = 0
 
     def is_full(self) -> bool:

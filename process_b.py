@@ -66,8 +66,7 @@ class ProcessB(CustomProcessObject):
             self.buffer.update(r)
 
             # process data in buffer and get stuff to pass to process_c and CoAD
-            # valid_windows = self.buffer.get_valid_windows()
-            # result = self.find_candidates()
+            # do here...
 
             end = time.perf_counter()
             elapsed_ms = (end - start) * 1000
