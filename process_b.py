@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 from multiprocessing import Manager
 from queue import Empty
-from typing import Optional
+from typing import Optional, List
 
 # 3rd party imports
 import numpy as np
@@ -14,7 +14,7 @@ from mp_logging import create_worker_logger, default_logging_kwargs
 from process import CustomProcessObject
 from buffer import Buffer, SAMPLES_PER_SECOND, BUFFER_DURATION_SEC, BUFFER_LENGTH
 import k2eg_spoofer
-from anomaly_candidate import AnomalyCandidate
+from anomaly_candidate import AnomalyCandidate, CandidateBucket
 
 # we care about windows where beam-checks fail only if longer than this length
 TEMP_VIOLATION_LENGTH = SAMPLES_PER_SECOND * 90 # 90 seconds
@@ -41,6 +41,8 @@ class ProcessB(CustomProcessObject):
 
         # holds up to 5 minutes of 120hz data (36000 points) per pv.
         self.buffer = Buffer(pv_list, BUFFER_LENGTH, logging_kwargs) # 3600 = 120hz * 60sec * 5mins
+        # holds anomaly candidates
+        self.candidate_bucket = CandidateBucket()
 
     def __call__(self) -> None:
 
@@ -64,7 +66,19 @@ class ProcessB(CustomProcessObject):
             start = time.perf_counter()
 
             # parse the k2eg snapshot and update buffer
-            self.buffer.update(r)
+            index_change = self.buffer.update(r)
+            # move the indexes of the previously found candidates
+            self.candidate_bucket.update_slow_indexes(index_change)
+            # add new candidates to the bucket
+            new_candidates: List[AnomalyCandidate] = self.buffer.find_candidates()
+            for candidate in new_candidates:
+                self.candidate_bucket.put(candidate)
+            
+            # check for candidates ready for process C
+            while self.candidate_bucket.oldest_candidate_slow_index <= self.buffer.index - 5 * SAMPLES_PER_SECOND:
+                candidate = self.candidate_bucket.get()  # get the oldest candidate
+                # make a candidate to send to process C
+                # move lines 95 to 101 and update
 
             # process data in buffer and get stuff to pass to process_c and CoAD,
             # do here...

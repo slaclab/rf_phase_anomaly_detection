@@ -15,8 +15,13 @@ from beam_check_config import (
     EXP_TMIT_FREQ,
     ALLOWED_TMIT_DIFF,
     EXP_TMIT_MIN,
+    MAD_LENGTH,
+    CONSECUTIVE_LENGTH,
+    BPM_NAMES
 )
+from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
+from anomaly_candidates import AnomalyCandidate
 
 SAMPLES_PER_SECOND = 120 # hz
 BUFFER_DURATION_SEC = 60 * 5  # 5 mins
@@ -44,14 +49,20 @@ class Buffer:
         # and assume the other pv's data is timed the same.
         self.data_map["pv_timestamps"] = SlidingWindowArray(buffer_len, dtype=np.float64)
         self.data_map["beam_checks"] = SlidingWindowArray(buffer_len, dtype=bool)
+        self.data_map["bpm_score_1"] = SlidingWindowArray(buffer_len, dtype=np.float64)
+        self.data_map["bpm_score_20"] = SlidingWindowArray(buffer_len, dtype=np.float64)
         # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
         self.data_map["valid_windows"] = set() # will hold tuples of (window_start_index, window_end_index)
 
         self.logger = logger
 
-    def update(self, snapshot: dict[str, list[dict]]) -> None:
+    def update(self, snapshot: dict[str, list[dict]]) -> int:
         """
         Append the latest 120-sample PV snapshot into the buffer for each pv
+
+        Return
+        ------
+
         """
         for i, pv in enumerate(self.pv_list):
             entries = snapshot.get(pv, [])
@@ -75,7 +86,6 @@ class Buffer:
 
                 self.data_map["pv_timestamps"].put(timestamps)
 
-        self_index = self.data_map[self.pv_list[0]].index  # use first pv as index reference
 
         self.clean_data()
 
@@ -88,8 +98,21 @@ class Buffer:
             num_samples_to_check=SAMPLES_PER_SECOND,
             beam_checks=self.data_map["beam_checks"]
         )
+        
+        self.index = self.data_map[self.pv_list[0]].index  # use first pv as index reference
 
-        self.update_violation_window_list()
+        was_full_before_new_data = self.data_map["bpm_score_20"].is_full()
+
+        total_length = SAMPLES_PER_SECOND + MAD_LENGTH - 1
+        if self.index > total_length:
+            bpm_score_1 = compute_score_1({
+                name: self.data_map.get(name, self.index - total_length, self.index) for name in BPM_NAMES
+            })
+            bpm_score_20 = compute_score_20(bpm_score_1)
+            self.data_map["bpm_score_1"].put(bpm_score_1[-SAMPLES_PER_SECOND:])
+            self.data_map["bpm_score_20"].put(bpm_score_20[-SAMPLES_PER_SECOND:])
+        
+        return -120 if was_full_before_new_data else 0
 
     def clean_data(self) -> None:
         # forward fill data not updated during timestamp, check if corresponding pv timestamps are close enough, etc
@@ -124,7 +147,7 @@ class Buffer:
 
         self.data_map["valid_windows"].update(windows)
 
-    def find_candidates(self) -> list[dict]:
+    def find_candidates(self) -> list[AnomalyCandidate]:
         # placeholder: candidate determination logic here.
         return []
 
@@ -141,7 +164,7 @@ class Buffer:
             raise IndexError(f"start and end indicies not valid in buffer: {start_index}, {end_index}")
             return []
 
-        s = start_index if start_index   is not None else 0
+        s = start_index if start_index is not None else 0
         e = end_index if end_index is not None else self.index
         return self.data_map[pv_name][s:e]
 
@@ -152,7 +175,7 @@ class Buffer:
         for pv_name in self.data_map:
             self.data_map[pv_name].clear()
         self.data_map["pv_timestamps"].clear()
-        self.data_check["beam_checks"].clear()
+        self.data_map["beam_checks"].clear()
 
     def dump_to_human_readable(self, directory: str = "buffer_dump_txt") -> None:
         """
