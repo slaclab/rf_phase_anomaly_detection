@@ -95,18 +95,18 @@ class Buffer:
         else:
             self.index == self.buffer_len - SAMPLES_PER_SECOND
         
-    def append(self, key: str, num_new_data_points: int, values: np.ndarray, timestamps: Optional[np.ndarray]) -> None:
+    def append(self, pv_name: str, num_new_data_points: int, values: np.ndarray, timestamps: Optional[np.ndarray]) -> None:
         """
         Appends 'num_new_data_points' of data new values into the buffer mapping for a given pv. If the buffer is full, old data is shifted to make room.
         Also appends timestamp data if 'timestamps' arg is not None.
         """
-        if key not in self.data_map:
-            raise KeyError(f"key '{key}' not found in buffer")
+        if pv_name not in self.data_map:
+            raise KeyError(f"pv_name '{pv_name}' not found in buffer")
 
         if len(values) != SAMPLES_PER_SECOND:
             raise ValueError(f"Expected array of length SAMPLES_PER_SECOND, got {len(values)}")
 
-        curr_pv_arr = self.data_map[key]            
+        curr_pv_arr = self.data_map[pv_name]            
         idx = self.index
 
         if idx + num_new_data_points <= self.buffer_len:
@@ -156,14 +156,14 @@ class Buffer:
         # placeholder: candidate determination logic here.
         return []
 
-    def get(self, key: str, start_index: Optional[int] = None, end_index: Optional[int] = None) -> np.ndarray:
+    def get(self, pv_name: str, start_index: Optional[int] = None, end_index: Optional[int] = None) -> np.ndarray:
         """
         Get data from the buffer map for given pv.
         Will return all the valid data for specified pv in buffer if start_index and end_index are None,
         else will return the data in the specified range. (or an empty array if the specified range is not valid)
         """
-        if key not in self.data_map:
-            raise KeyError(f"key '{key}' not found in buffer map")
+        if pv_name not in self.data_map:
+            raise KeyError(f"pv_name '{pv_name}' not found in buffer map")
 
         if start_index < 0 or start_index > self.index or end_index > self.index:
             raise IndexError(f"start and end indicies not valid in buffer: {start_index}, {end_index}")
@@ -171,14 +171,14 @@ class Buffer:
 
         s = start_index if start_index   is not None else 0
         e = end_index if end_index is not None else self.index
-        return self.data_map[key][s:e]
+        return self.data_map[pv_name][s:e]
 
     def clear(self) -> None:
         """
         Clear buffer contents for all PVs.
         """
-        for key in self.data_map:
-            self.data_map[key][:] = np.empty(self.buffer_len, dtype=np.float64) # ':' will hopefully modify in place
+        for pv_name in self.data_map:
+            self.data_map[pv_name][:] = np.empty(self.buffer_len, dtype=np.float64) # ':' will hopefully modify in place
         self.pv_timestamps[:] = np.empty(self.buffer_len, dtype=np.float64)
         self.passes_beam_checks[:] = np.empty(self.buffer_len, dtype=bool)
         self.index = 0
