@@ -26,7 +26,7 @@ class Buffer:
     Fixed-length buffer for storing a sliding window of 120hz float data per pv.
     By default stores 5 mins (36000 values) of past data.
     """
-    def __init__(self, pv_list: list[str], buffer_len: int, logger: logging.Logger):
+    def __init__(self, pv_list: list[str], buffer_len: int, logger: logging.Logger) -> None:
         self.pv_list = pv_list
         
         # max length of buffer
@@ -47,7 +47,7 @@ class Buffer:
 
         self.logger = logger
 
-    def update(self, snapshot):
+    def update(self, snapshot: dict[str, list[dict]]) -> None:
         """
         Append the latest 120-sample PV snapshot into the buffer for each pv
         """
@@ -88,9 +88,8 @@ class Buffer:
             self.index += SAMPLES_PER_SECOND
         else:
             self.index == self.buffer_len - SAMPLES_PER_SECOND
-
         
-    def append(self, key: str, num_new_data_points: int, values: np.ndarray, timestamps: Optional[np.ndarray]):
+    def append(self, key: str, num_new_data_points: int, values: np.ndarray, timestamps: Optional[np.ndarray]) -> None:
         """
         Appends 'num_new_data_points' of data new values into the buffer mapping for a given pv. If the buffer is full, old data is shifted to make room.
         Also appends timestamp data if 'timestamps' arg is not None.
@@ -119,7 +118,7 @@ class Buffer:
                 self.pv_timestamps[:-num_new_data_points] = self.pv_timestamps[num_new_data_points:]
                 self.pv_timestamps[-num_new_data_points:] = timestamps
 
-    def update_violation_window_list(self):
+    def update_violation_window_list(self) -> list[tuple[int, int]]:
         """
         Search buffer's passes_beam_checks array to find contiguous regions of failing beam check of >= TEMP_VIOLATION_LENGTH seconds.
         Returns list of (start_index, end_index) tuples, where end_index is the first index where the beam-checks start to pass again.
@@ -146,19 +145,28 @@ class Buffer:
 
         return windows
 
-    def find_candidates(self):
+    def find_candidates(self) -> list[dict]:
         # placeholder: candidate determination logic here.
         return []
 
-    def get(self, key: str):
+    def get(self, key: str, start_index: Optional[int] = None, end_index: Optional[int] = None) -> np.ndarray:
         """
         Get data from the buffer map for given pv.
+        Will return all the valid data for specified pv in buffer if the start and end are None,
+        else will return the data in the specified range. (or an empty array if the specified range is not valid)
         """
         if key not in self.buffer_map:
             raise KeyError(f"key '{key}' not found in buffer map")
-        return self.buffer_map[key][:self.index]
 
-    def clear(self):
+        if start_index < 0 or start_index > self.index or end_index > self.index:
+            raise IndexError(f"start and end indicies not valid in buffer: {start}, {end}")
+            return []
+
+        s = start if start is not None else 0
+        e = end if end is not None else self.index
+        return self.buffer_map[key][s:e]
+
+    def clear(self) -> None:
         """
         Clear buffer contents for all PVs.
         """
@@ -168,7 +176,7 @@ class Buffer:
         self.passes_beam_checks[:] = np.empty(self.buffer_len, dtype=bool)
         self.index = 0
 
-    def dump_to_human_readable(self, directory: str = "buffer_dump_txt"):
+    def dump_to_human_readable(self, directory: str = "buffer_dump_txt") -> None:
         """
         Debug util: dump each PV's data to a separate text file, 1 value per line.
         

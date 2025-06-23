@@ -20,6 +20,9 @@ def do_beam_checks(
     Fills buffer.passes_beam_checks with boolean results.
     """
 
+    return True
+
+    """
     # vectorized version
     end_index = starting_index + num_samples_to_check
     sl = slice(starting_index, end_index)
@@ -35,7 +38,6 @@ def do_beam_checks(
     )
 
     # for-loop version
-    """
     end_index = starting_index + num_samples_to_check
     for curr_index in range(starting_index, end_index):
 

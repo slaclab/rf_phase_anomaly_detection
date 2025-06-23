@@ -28,7 +28,7 @@ class ProcessB(CustomProcessObject):
                 queue_two: 'Manager.Queue',
                 pv_list: list[str],
                 logging_kwargs: Optional[dict] = default_logging_kwargs
-                ):
+                ) -> None:
         self.queue_one = queue_one
         self.queue_two = queue_two
 
@@ -41,7 +41,8 @@ class ProcessB(CustomProcessObject):
         # holds up to 5 minutes of 120hz data (36000 points) per pv.
         self.buffer = Buffer(pv_list, BUFFER_LENGTH, logging_kwargs) # 3600 = 120hz * 60sec * 5mins
 
-    def __call__(self):
+    def __call__(self) -> None:
+
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
 

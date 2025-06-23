@@ -1,0 +1,19 @@
+from datetime import timedelta
+
+# Constants
+BEAM_RATE_PV = "ca://IOC:BSY0:MP01:PC_RATE"
+BEAM_SPLIT_PV = "ca://IOC:IN20:EV01:RG02_ACTRATE"
+IN_TMIT_PV = "ca://BPMS:IN20:221:TMITCUHBR" #?? do we want the "BR" at end of this pv-name
+STOPPER_PV = "ca://STPR:BSYH:2:STD2_IN_A"
+
+BEAM_RATE_TABLE = {1: 0, 4: 1, 5: 10, 6: 30, 7: 60, 8: 120}
+BEAM_SPLIT_TABLE_HXR = {
+    1: 0, 2: 0, 3: 1, 4: 10, 5: 30, 6: 60,
+    7: 90, 8: 110, 9: 119, 10: 120, 11: 1,
+    12: 10, 13: 0, 14: 0
+}
+
+MIN_VIOLATION_DUR = timedelta(seconds=90)
+EXP_TMIT_FREQ = 1
+ALLOWED_TMIT_DIFF = 0.05
+EXP_TMIT_MIN = 0.5e9
