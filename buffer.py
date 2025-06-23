@@ -37,13 +37,13 @@ class Buffer:
         self.index = 0 # tracks the next write index
         # default buffer length is 36000 to store 5 mins of data at 120hz.
         # we allocate the buffer initially to avoid potential memory-copies during array append operation.
-        self.buffer_map = {
+        self.data_map = {
             pv: SlidingWindowArray(buffer_len, dtype=np.float64) for pv in self.pv_list
         }
         # just store the timestamp data from the first pv we read from the snapshot,
         # and assume the other pv's data is timed the same.
-        self.buffer_map["pv_timestamps"] = SlidingWindowArray(buffer_len, dtype=np.float64)
-        self.buffer_map["beam_checks"] = SlidingWindowArray(buffer_len, dtype=bool)
+        self.data_map["pv_timestamps"] = SlidingWindowArray(buffer_len, dtype=np.float64)
+        self.data_map["beam_checks"] = SlidingWindowArray(buffer_len, dtype=bool)
 
         self.valid_windows = np.empty(0, dtype=object) # will hold tuples of (window_start_index, window_end_index)
 
@@ -60,7 +60,7 @@ class Buffer:
             for j, e in enumerate(entries):
                 values[j] = e.get("value", np.nan)
 
-            self.buffer_map[pv].put(values)
+            self.data_map[pv].put(values)
 
             times = None
             # update buffer's timestamps arr with the first pv's times,
@@ -73,18 +73,18 @@ class Buffer:
                     nanos = ts.get("nanoseconds", 0)
                     timestamps[j] = seconds + nanos * 1e-9
 
-                self.buffer_map["pv_timestamps"].put(timestamps)
+                self.data_map["pv_timestamps"].put(timestamps)
 
-        self_index = self.buffer_map[self.pv_list[0]].index  # use first pv as index reference
+        self_index = self.data_map[self.pv_list[0]].index  # use first pv as index reference
 
         do_beam_checks(
-            stopper_pv_data=self.buffer_map[STOPPER_PV],
-            beam_rate_pv_data=self.buffer_map[BEAM_RATE_PV],
-            beam_split_pv_data=self.buffer_map[BEAM_SPLIT_PV],
-            in_tmit_pv_data=self.buffer_map[IN_TMIT_PV],
+            stopper_pv_data=self.data_map[STOPPER_PV],
+            beam_rate_pv_data=self.data_map[BEAM_RATE_PV],
+            beam_split_pv_data=self.data_map[BEAM_SPLIT_PV],
+            in_tmit_pv_data=self.data_map[IN_TMIT_PV],
             starting_index=self.index,
             num_samples_to_check=SAMPLES_PER_SECOND,
-            beam_checks=self.buffer_map["beam_checks"]
+            beam_checks=self.data_map["beam_checks"]
         )
 
         self.update_violation_window_list()
@@ -100,13 +100,13 @@ class Buffer:
         Appends 'num_new_data_points' of data new values into the buffer mapping for a given pv. If the buffer is full, old data is shifted to make room.
         Also appends timestamp data if 'timestamps' arg is not None.
         """
-        if key not in self.buffer_map:
+        if key not in self.data_map:
             raise KeyError(f"key '{key}' not found in buffer")
 
         if len(values) != SAMPLES_PER_SECOND:
             raise ValueError(f"Expected array of length SAMPLES_PER_SECOND, got {len(values)}")
 
-        curr_pv_arr = self.buffer_map[key]            
+        curr_pv_arr = self.data_map[key]            
         idx = self.index
 
         if idx + num_new_data_points <= self.buffer_len:
@@ -132,7 +132,7 @@ class Buffer:
         windows = []
         start = None
 
-        beam_check_arr = self.buffer_map["beam_checks"]
+        beam_check_arr = self.data_map["beam_checks"]
         for i, val in enumerate(beam_check_arr.get()): # .get() with no args returns the entire arr
             if val is False:
                 if start is None:
@@ -162,7 +162,7 @@ class Buffer:
         Will return all the valid data for specified pv in buffer if start_index and end_index are None,
         else will return the data in the specified range. (or an empty array if the specified range is not valid)
         """
-        if key not in self.buffer_map:
+        if key not in self.data_map:
             raise KeyError(f"key '{key}' not found in buffer map")
 
         if start_index < 0 or start_index > self.index or end_index > self.index:
@@ -171,14 +171,14 @@ class Buffer:
 
         s = start_index if start_index   is not None else 0
         e = end_index if end_index is not None else self.index
-        return self.buffer_map[key][s:e]
+        return self.data_map[key][s:e]
 
     def clear(self) -> None:
         """
         Clear buffer contents for all PVs.
         """
-        for key in self.buffer_map:
-            self.buffer_map[key][:] = np.empty(self.buffer_len, dtype=np.float64) # ':' will hopefully modify in place
+        for key in self.data_map:
+            self.data_map[key][:] = np.empty(self.buffer_len, dtype=np.float64) # ':' will hopefully modify in place
         self.pv_timestamps[:] = np.empty(self.buffer_len, dtype=np.float64)
         self.passes_beam_checks[:] = np.empty(self.buffer_len, dtype=bool)
         self.index = 0
@@ -195,7 +195,7 @@ class Buffer:
         os.makedirs(directory, exist_ok=True)
         
         for pv in self.pv_list:
-            valid_data = self.buffer_map[pv][:self.index]
+            valid_data = self.data_map[pv][:self.index]
             filename = pv.lstrip("ca://").replace(':', '_') + ".txt"
             filepath = os.path.join(directory, filename)
             self.logger.debug(f"writing dump file {filepath} for {pv}")
