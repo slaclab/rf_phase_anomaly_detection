@@ -73,7 +73,7 @@ if __name__ == '__main__':
                 snapshot_period_ms=1000,
                 logging_kwargs=logging_kwargs.copy()
             )
-    
+
         process_objects = [
             k2eg_proc,
             ProcessB(queue_one, queue_two, pv_list=list_of_pvs, logging_kwargs=logging_kwargs.copy()),

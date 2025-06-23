@@ -30,7 +30,7 @@ class Buffer:
     """
     def __init__(self, pv_list: list[str], buffer_len: int, logger: logging.Logger) -> None:
         self.pv_list = pv_list
-        
+
         # max length of buffer
         self.buffer_len = buffer_len
 
@@ -157,14 +157,14 @@ class Buffer:
     def dump_to_human_readable(self, directory: str = "buffer_dump_txt") -> None:
         """
         Debug util: dump each PV's data to a separate text file, 1 value per line.
-        
+
         Call like this:
             dir_name = f"buffer_txt_dump_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             self.logger.debug(f"dump dir: {dir_name}")
             self.buffer.dump_to_human_readable(directory=dir_name)
         """
         os.makedirs(directory, exist_ok=True)
-        
+
         for pv in self.pv_list:
             valid_data = self.data_map[pv][:self.index]
             filename = pv.lstrip("ca://").replace(':', '_') + ".txt"

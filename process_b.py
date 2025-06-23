@@ -66,7 +66,7 @@ class ProcessB(CustomProcessObject):
             # parse the k2eg snapshot and update buffer
             self.buffer.update(r)
 
-            # process data in buffer and get stuff to pass to process_c and CoAD
+            # process data in buffer and get stuff to pass to process_c and CoAD,
             # do here...
 
             end = time.perf_counter()
@@ -92,4 +92,4 @@ class ProcessB(CustomProcessObject):
         self.logger.debug("shutting down process_b")
 
         for handler in self.logger.handlers:
-            handler.close() 
+            handler.close()

@@ -51,7 +51,7 @@ def do_beam_checks(
         full_rate = BEAM_RATE_TABLE.get(beam_rate, 0) == 120
 
         # Beam split check (must be 120Hz HXR)
-        beam_split = beam_split_pv_data[curr_index] 
+        beam_split = beam_split_pv_data[curr_index]
         hxr_split = BEAM_SPLIT_TABLE_HXR.get(beam_split, 0) == 120
 
         # TMIT check (must be real charge + logged at ~1Hz)
