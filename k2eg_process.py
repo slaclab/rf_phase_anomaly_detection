@@ -43,7 +43,14 @@ class K2EGHandler:
 
         k2eg requires that you set an environment variable named
         K2EG_PYTHON_CONFIGURATION_PATH_FOLDER that points to a directory
-        containing a file named 'lcls.ini'.
+        containing a file named 'lcls-ext.ini'.  Which contains the following
+        with no quotes:
+        '''
+        [DEFAULT]
+        kafka_broker_url=172.24.5.187:9094
+        k2eg_cmd_topic=sdfk2eg-cmd-topic
+        '''
+        
         """
         self.pv_list = pv_list
         self.snapshot_period_ms = snapshot_period_ms
@@ -61,7 +68,7 @@ class K2EGHandler:
             type=SnapshotType.TIMED_BUFFERED,
             pv_field_filter_list=["value"]   # emit just the PV values
         )
-        self.dml = k2eg.dml('lcls', APP_NAME)
+        self.dml = k2eg.dml('lcls-ext', APP_NAME)
         self.snapshot_is_running = False
 
     def __enter__(self):
