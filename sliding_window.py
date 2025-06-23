@@ -23,13 +23,15 @@ class SlidingWindowArray:
             raise ValueError(f"too many values ({n}) for buffer size {self.buffer_len}")
 
         if self.index + n <= self.buffer_len:
+            # have enough room without shifting, just write to next open index (this only happens during initial buffer fill-up)
             self.data[self.index:self.index + n] = values
             self.index += n
         else:
+            # shift left and append to the end, this should be quick on a np.arr
             shift = n
             self.data[:-shift] = self.data[shift:]
             self.data[-shift:] = values
-            self.index = self.buffer_len  # remains "full"
+            self.index = self.buffer_len  # remains full
 
     def get(self, start: Optional[int] = None, end: Optional[int] = None) -> np.ndarray:
         s = start if start is not None else 0

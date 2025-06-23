@@ -17,7 +17,6 @@ from beam_check_config import (
     EXP_TMIT_MIN,
 )
 from sliding_window import SlidingWindowArray
-from anomaly_candidate import AnomalyCandidate
 
 SAMPLES_PER_SECOND = 120 # hz
 BUFFER_DURATION_SEC = 60 * 5  # 5 mins
@@ -36,8 +35,8 @@ class Buffer:
         self.buffer_len = buffer_len
 
         self.index = 0 # tracks the next write index
-        # default buffer length is 36000 to store 5 mins of data at 120hz.
-        # we allocate the buffer initially to avoid potential memory-copies during array append operation.
+        # default array length is 36000 to store 5 mins of data at 120hz.
+        # we allocate the arrays initially to avoid potential memory-copies during array append operation.
         self.data_map = {
             pv: SlidingWindowArray(buffer_len, dtype=np.float64) for pv in self.pv_list
         }
@@ -45,8 +44,8 @@ class Buffer:
         # and assume the other pv's data is timed the same.
         self.data_map["pv_timestamps"] = SlidingWindowArray(buffer_len, dtype=np.float64)
         self.data_map["beam_checks"] = SlidingWindowArray(buffer_len, dtype=bool)
-
-        self.valid_windows = np.empty(0, dtype=object) # will hold tuples of (window_start_index, window_end_index)
+        # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
+        self.data_map["valid_windows"] = set() # will hold tuples of (window_start_index, window_end_index)
 
         self.logger = logger
 
@@ -64,7 +63,7 @@ class Buffer:
             self.data_map[pv].put(values)
 
             # update buffer's timestamps arr with the first pv's times,
-            # and assume the other pv have same timing.
+            # and assume the other pv have same timing (for now).
             if i == 0:
                 times = None
                 timestamps = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
@@ -92,50 +91,16 @@ class Buffer:
 
         self.update_violation_window_list()
 
-        # Update buffer index tracking
-        if self.index != self.buffer_len:
-            self.index += SAMPLES_PER_SECOND
-        else:
-            self.index == self.buffer_len - SAMPLES_PER_SECOND
-
     def clean_data(self) -> None:
         # forward fill data not updated during timestamp, check if corresponding pv timestamps are close enough, etc
         return
-
-    def append(self, pv_name: str, num_new_data_points: int, values: np.ndarray, timestamps: Optional[np.ndarray]) -> None:
-        """
-        Appends 'num_new_data_points' of data new values into the buffer mapping for a given pv. If the buffer is full, old data is shifted to make room.
-        Also appends timestamp data if 'timestamps' arg is not None.
-        """
-        if pv_name not in self.data_map:
-            raise KeyError(f"pv_name '{pv_name}' not found in buffer")
-
-        if len(values) != SAMPLES_PER_SECOND:
-            raise ValueError(f"Expected array of length SAMPLES_PER_SECOND, got {len(values)}")
-
-        curr_pv_arr = self.data_map[pv_name]            
-        idx = self.index
-
-        if idx + num_new_data_points <= self.buffer_len:
-            # have enough room without shifting, just write to next open index (this only happens during initial buffer fill-up)
-            #self.logger.debug(f"initial filling of buffer, current index {idx}")
-            curr_pv_arr[idx:idx+num_new_data_points] = values
-            if timestamps is not None:
-                self.pv_timestamps[idx:idx+num_new_data_points] = timestamps
-        else:
-            # shift left and append to the end, this should be quick on a np.arr
-            #self.logger.debug(f"buffer is full, removing oldest data")
-            curr_pv_arr[:-num_new_data_points] = curr_pv_arr[num_new_data_points:]
-            curr_pv_arr[-num_new_data_points:] = values
-            if timestamps is not None:
-                self.pv_timestamps[:-num_new_data_points] = self.pv_timestamps[num_new_data_points:]
-                self.pv_timestamps[-num_new_data_points:] = timestamps
 
     def update_violation_window_list(self) -> list[tuple[int, int]]:
         """
         Search buffer's passes_beam_checks array to find contiguous regions of failing beam check of >= TEMP_VIOLATION_LENGTH seconds.
         Returns list of (start_index, end_index) tuples, where end_index is the first index where the beam-checks start to pass again.
         """
+
         windows = []
         start = None
 
@@ -157,7 +122,7 @@ class Buffer:
             if window_len >= MIN_WINDOW_LEN:
                 windows.append((start, len(self.passes_beam_checks)))
 
-        return windows
+        self.data_map["valid_windows"].update(windows)
 
     def find_candidates(self) -> list[dict]:
         # placeholder: candidate determination logic here.
@@ -185,10 +150,9 @@ class Buffer:
         Clear buffer contents for all PVs.
         """
         for pv_name in self.data_map:
-            self.data_map[pv_name][:] = np.empty(self.buffer_len, dtype=np.float64) # ':' will hopefully modify in place
-        self.pv_timestamps[:] = np.empty(self.buffer_len, dtype=np.float64)
-        self.passes_beam_checks[:] = np.empty(self.buffer_len, dtype=bool)
-        self.index = 0
+            self.data_map[pv_name].clear()
+        self.data_map["pv_timestamps"].clear()
+        self.data_check["beam_checks"].clear()
 
     def dump_to_human_readable(self, directory: str = "buffer_dump_txt") -> None:
         """
