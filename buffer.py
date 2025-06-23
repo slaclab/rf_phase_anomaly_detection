@@ -16,10 +16,12 @@ from beam_check_config import (
     ALLOWED_TMIT_DIFF,
     EXP_TMIT_MIN,
 )
+from sliding_window import SlidingWindowArray
 
 SAMPLES_PER_SECOND = 120 # hz
 BUFFER_DURATION_SEC = 60 * 5  # 5 mins
 BUFFER_LENGTH = SAMPLES_PER_SECOND * BUFFER_DURATION_SEC
+MIN_WINDOW_LEN = SAMPLES_PER_SECOND * 90
 
 class Buffer:
     """
@@ -36,12 +38,12 @@ class Buffer:
         # default buffer length is 36000 to store 5 mins of data at 120hz.
         # we allocate the buffer initially to avoid potential memory-copies during array append operation.
         self.buffer_map = {
-            pv: np.empty(buffer_len, dtype=np.float64) for pv in self.pv_list
+            pv: SlidingWindowArray(buffer_len, dtype=np.float64) for pv in self.pv_list
         }
         # just store the timestamp data from the first pv we read from the snapshot,
         # and assume the other pv's data is timed the same.
-        self.pv_timestamps = np.empty(buffer_len, dtype=np.float64)
-        self.passes_beam_checks = np.empty(buffer_len, dtype=bool)
+        self.buffer_map["pv_timestamps"] = SlidingWindowArray(buffer_len, dtype=np.float64)
+        self.buffer_map["beam_checks"] = SlidingWindowArray(buffer_len, dtype=bool)
 
         self.valid_windows = np.empty(0, dtype=object) # will hold tuples of (window_start_index, window_end_index)
 
@@ -58,19 +60,23 @@ class Buffer:
             for j, e in enumerate(entries):
                 values[j] = e.get("value", np.nan)
 
+            self.buffer_map[pv].put(values)
+
             times = None
             # update buffer's timestamps arr with the first pv's times,
             # and assume the other pv have same timing.
             if i == 0:
-                times = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
+                timestamps = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
                 for j, e in enumerate(entries):
                     ts = e.get("timeStamp", {})
                     seconds = ts.get("secondsPastEpoch", 0)
                     nanos = ts.get("nanoseconds", 0)
-                    times[j] = seconds + nanos * 1e-9
+                    timestamps[j] = seconds + nanos * 1e-9
 
-            self.append(pv, SAMPLES_PER_SECOND, values, times)
-        
+                self.buffer_map["pv_timestamps"].put(timestamps)
+
+        self_index = self.buffer_map[self.pv_list[0]].index  # use first pv as index reference
+
         do_beam_checks(
             stopper_pv_data=self.buffer_map[STOPPER_PV],
             beam_rate_pv_data=self.buffer_map[BEAM_RATE_PV],
@@ -78,7 +84,7 @@ class Buffer:
             in_tmit_pv_data=self.buffer_map[IN_TMIT_PV],
             starting_index=self.index,
             num_samples_to_check=SAMPLES_PER_SECOND,
-            passes_beam_checks=self.passes_beam_checks
+            beam_checks=self.buffer_map["beam_checks"]
         )
 
         self.update_violation_window_list()
@@ -126,7 +132,8 @@ class Buffer:
         windows = []
         start = None
 
-        for i, val in enumerate(self.passes_beam_checks):
+        beam_check_arr = self.buffer_map["beam_checks"]
+        for i, val in enumerate(beam_check_arr.get()): # .get() with no args returns the entire arr
             if val is False:
                 if start is None:
                     start = i  # begin a new potential failure window
@@ -139,9 +146,9 @@ class Buffer:
 
         # handle trailing window that runs to end of buffer
         if start is not None:
-            window_len = len(self.buffer.passes_beam_checks) - start
+            window_len = len(self.passes_beam_checks) - start
             if window_len >= MIN_WINDOW_LEN:
-                windows.append((start, len(self.buffer.passes_beam_checks)))
+                windows.append((start, len(self.passes_beam_checks)))
 
         return windows
 
@@ -152,18 +159,18 @@ class Buffer:
     def get(self, key: str, start_index: Optional[int] = None, end_index: Optional[int] = None) -> np.ndarray:
         """
         Get data from the buffer map for given pv.
-        Will return all the valid data for specified pv in buffer if the start and end are None,
+        Will return all the valid data for specified pv in buffer if start_index and end_index are None,
         else will return the data in the specified range. (or an empty array if the specified range is not valid)
         """
         if key not in self.buffer_map:
             raise KeyError(f"key '{key}' not found in buffer map")
 
         if start_index < 0 or start_index > self.index or end_index > self.index:
-            raise IndexError(f"start and end indicies not valid in buffer: {start}, {end}")
+            raise IndexError(f"start and end indicies not valid in buffer: {start_index}, {end_index}")
             return []
 
-        s = start if start is not None else 0
-        e = end if end is not None else self.index
+        s = start_index if start_index   is not None else 0
+        e = end_index if end_index is not None else self.index
         return self.buffer_map[key][s:e]
 
     def clear(self) -> None:

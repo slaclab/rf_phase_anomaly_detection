@@ -13,13 +13,14 @@ def do_beam_checks(
     in_tmit_pv_data: np.ndarray,
     starting_index: int,
     num_samples_to_check: int,
-    passes_beam_checks: np.ndarray
+    beam_checks: np.ndarray
 ) -> None:
     """
     Apply beam checks to data in buffer_map, from starting_index to starting_index+num_samples_to_check.
     Fills buffer.passes_beam_checks with boolean results.
     """
 
+    # for now, don't do any beamchecks
     return True
 
     """
