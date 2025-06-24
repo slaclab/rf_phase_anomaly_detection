@@ -30,3 +30,13 @@ BPM_NAMES = [
 
 # Used in anomaly candidates
 ANOMALY_CANDIDATE_WINDOW_SIZE = 533
+
+# Dispersion parameters
+X_DISPERSIVE_BPMS = {
+    "BPMS:LTUH:250:XBR": 1.25e-1,
+    "BPMS:LTUH:450:XBR": -1.25e-1
+}
+Y_DISPERSIVE_BPMS = {
+    "BPMS:DMPH:502:YBR": 9.64e-1,
+    "BPMS:DMPH:693:Y": 4.69e-1
+}

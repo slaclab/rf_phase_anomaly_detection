@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
-from beam_check_config import MAD_LENGTH, CONSECUTIVE_LENGTH
+from beam_check_config import MAD_LENGTH, CONSECUTIVE_LENGTH, X_DISPERSIVE_BPMS, Y_DISPERSIVE_BPMS
 
 
 def compute_score_1(
@@ -37,6 +37,14 @@ def compute_score_1(
     """
     individual_scores = []
     for pv_name, time_series in bpm_signals.items():
+        if pv_name in X_DISPERSIVE_BPMS:
+            disp = X_DISPERSIVE_BPMS[pv_name]
+            time_series = time_series / (disp * 10) #convert mm to % energy
+        elif pv_name in Y_DISPERSIVE_BPMS:
+            disp = Y_DISPERSIVE_BPMS[pv_name]
+            time_series = time_series / (disp * 10)
+        
+        # Compute MAD-based score
         median = np.median(
             sliding_window_view(time_series, window_shape=MAD_LENGTH),
             axis=-1
