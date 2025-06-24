@@ -3,25 +3,26 @@ from typing import Dict
 import numpy as np
 
 from beam_check_config import BEAM_RATE_TABLE, BEAM_SPLIT_TABLE_HXR, EXP_TMIT_MIN
+from sliding_window import SlidingWindowArray
 
 # note: can't pass in buffer object directly b/c of circular import
-# (buffer.py would import beam_check.py, and beam_check.py would import buffer.py ...).
+# (buffer.py would import beam_check.py, and beam_check.py would import buffer.py ...)
 def do_beam_checks(
-    stopper_pv_data: np.ndarray,
-    beam_rate_pv_data: np.ndarray,
-    beam_split_pv_data: np.ndarray,
-    in_tmit_pv_data: np.ndarray,
+    stopper_pv_data: SlidingWindowArray,
+    beam_rate_pv_data: SlidingWindowArray,
+    beam_split_pv_data: SlidingWindowArray,
+    in_tmit_pv_data: SlidingWindowArray,
     starting_index: int,
     num_samples_to_check: int,
-    beam_checks: np.ndarray
-) -> None:
+    beam_checks: SlidingWindowArray
+) -> np.ndarray:
     """
     Apply beam checks to data in buffer_map, from starting_index to starting_index+num_samples_to_check.
     Fills buffer.passes_beam_checks with boolean results.
     """
 
     # for now, we don't do any beamchecks
-    return True
+    return np.full(num_samples_to_check, True, dtype=bool)
 
     """
     # vectorized version

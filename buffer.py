@@ -79,7 +79,7 @@ class Buffer:
 
         self.clean_data()
 
-        do_beam_checks(
+        beam_checks_result = do_beam_checks(
             stopper_pv_data=self.data_map[STOPPER_PV],
             beam_rate_pv_data=self.data_map[BEAM_RATE_PV],
             beam_split_pv_data=self.data_map[BEAM_SPLIT_PV],
@@ -88,6 +88,7 @@ class Buffer:
             num_samples_to_check=SAMPLES_PER_SECOND,
             beam_checks=self.data_map["beam_checks"]
         )
+        self.data_map["beam_checks"].put(beam_checks_result)
 
         self.update_violation_window_list()
 
