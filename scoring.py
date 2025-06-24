@@ -14,6 +14,18 @@ def compute_score_1(
     Computes median-absolute deviation with a 600 point rolling window
     and then aggregates across all channels with a geometric mean.
 
+    This function partially replicates the function 
+    bpm_extractor.scorer.score from
+    https://github.com/slaclab/SLAC-AD-REF/blob/trig-bpm-fixed/papers/phase/BPM_Source_final.py#L156C12-L156C105
+
+    First, the dispersions are used to scale some of the BPM readings:
+    https://github.com/slaclab/SLAC-AD-REF/blob/trig-bpm-fixed/papers/phase/energy_anomaly_8ch.py#L124
+    Second, MAD is computed for each channel
+    https://github.com/slaclab/SLAC-AD-REF/blob/trig-bpm-fixed/papers/phase/energy_anomaly_8ch.py#L143
+    Third, the geometric mean is taken across all 8 channels
+    https://github.com/slaclab/SLAC-AD-REF/blob/trig-bpm-fixed/papers/phase/energy_anomaly_8ch.py#L150
+
+
     Parameters
     ----------
     bpm_signals : dict[str, np.ndarray]
@@ -21,7 +33,7 @@ def compute_score_1(
 
     Returns
     -------
-        np.ndarray of the MAD for the last part of the input arrays
+        np.ndarray of the MAD for the entire array
     """
     individual_scores = []
     for pv_name, time_series in bpm_signals.items():
@@ -36,9 +48,12 @@ def compute_score_1(
             sliding_window_view(deviation, window_shape=MAD_LENGTH),
             axis=-1
         )
-        clipped_mad = np.clip(mad, a_min=1e-3, a_max=None)
+        clipped_mad = np.hstack((
+            1e-3 * np.ones(MAD_LENGTH - 1),
+            np.clip(mad, a_min=1e-3, a_max=None)
+        ))
         individual_scores.append(
-            deviation[-mad.shape[0]:] / (1.4826 * clipped_mad)
+            deviation / (1.4826 * clipped_mad)
         )
     scores = np.array(individual_scores)
     # do geometric mean across the BPMs
@@ -53,6 +68,8 @@ def compute_score_20(
     https://arxiv.org/abs/2505.16052
 
     Computes the geometric mean of a 20 point rolling window.
+    https://github.com/slaclab/SLAC-AD-REF/blob/trig-bpm-fixed/papers/phase/energy_anomaly_8ch.py#L155
+
     Parameters
     ----------
     bpm_scores : np.ndarray
