@@ -21,7 +21,8 @@ from beam_check_config import (
 )
 from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
-from anomaly_candidates import AnomalyCandidate
+from anomaly_candidates import AnomalyCandidate, CandidateBucket
+
 
 SAMPLES_PER_SECOND = 120 # hz
 BUFFER_DURATION_SEC = 60 * 5  # 5 mins
@@ -111,6 +112,8 @@ class Buffer:
             bpm_score_20 = compute_score_20(bpm_score_1)
             self.data_map["bpm_score_1"].put(bpm_score_1[-SAMPLES_PER_SECOND:])
             self.data_map["bpm_score_20"].put(bpm_score_20[-SAMPLES_PER_SECOND:])
+            #Candidate Gen
+            self.bpm_candidate_bucket.update_slow_indexes(-SAMPLES_PER_SECOND)
         
         return -120 if was_full_before_new_data else 0
 
@@ -150,6 +153,22 @@ class Buffer:
     def find_candidates(self) -> list[AnomalyCandidate]:
         # placeholder: candidate determination logic here.
         return []
+
+    #Should we put threshold in beam_check_config?
+    def detect_bpm_candidates(self, threshold: float=50) -> CandidateBucket:
+        scores = self.data_map["bpm_score_20"]
+        timestamps = self.data_map["pv_timestamps"]
+        bucket = CandidateBucket()
+
+        for i in range (self.index):
+            if scores[i] > threshold:
+                slow_time  = int(timestamps[i] * 1e9)  # Convert to ns since epoch
+                candidate = AnomalyCandidate(slow_index=i, slow_time=slow_time_ns)
+                bucket.put(candidate)
+
+    return bucket
+
+
 
     def get(self, pv_name: str, start_index: Optional[int] = None, end_index: Optional[int] = None) -> np.ndarray:
         """
