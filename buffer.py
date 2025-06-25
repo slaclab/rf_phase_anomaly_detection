@@ -22,7 +22,7 @@ from beam_check_config import (
 )
 from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
-from anomaly_candidates import AnomalyCandidate, CandidateBucket
+from anomaly_candidate import AnomalyCandidate, CandidateBucket
 
 
 class Buffer:
@@ -60,7 +60,7 @@ class Buffer:
 
         Return
         ------
-            Two integers.  The first is the number of indexes data might have 
+            Two integers.  The first is the number of indexes data might have
             been moved back.  The second is the length of the snapshot.
         """
         snapshot_length = 120
@@ -113,9 +113,9 @@ class Buffer:
             self.data_map["bpm_score_20"].put(bpm_score_20[-SAMPLES_PER_SECOND:])
             #Candidate Gen
             self.bpm_candidate_bucket.update_slow_indexes(-SAMPLES_PER_SECOND)
-        
+
         return (
-            -snapshot_length if was_full_before_new_data else 0, 
+            -snapshot_length if was_full_before_new_data else 0,
             snapshot_length
         )
 

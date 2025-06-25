@@ -74,7 +74,7 @@ class ProcessB(CustomProcessObject):
             new_candidates: List[AnomalyCandidate] = self.buffer.find_candidates(look_back_this_far=length_of_update)
             for candidate in new_candidates:
                 self.candidate_bucket.put(candidate)
-            
+
             # check for candidates ready for process C
             while self.candidate_bucket.oldest_candidate_slow_index <= self.buffer.index - 5 * SAMPLES_PER_SECOND:
                 candidate = self.candidate_bucket.get()  # get the oldest candidate
