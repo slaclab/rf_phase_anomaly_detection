@@ -14,13 +14,10 @@ from beam_check_config import (
     EXP_TMIT_FREQ,
     ALLOWED_TMIT_DIFF,
     EXP_TMIT_MIN,
-<<<<<<< process_b_score_integration
     MAD_LENGTH,
     CONSECUTIVE_LENGTH,
-    BPM_NAMES
-=======
+    BPM_NAMES,
     SAMPLES_PER_SECOND
->>>>>>> process_b_refactoring
 )
 from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
@@ -85,11 +82,6 @@ class Buffer:
 
                 self.data_map["pv_timestamps"].put(timestamps)
 
-<<<<<<< process_b_score_integration
-=======
-        self.index = self.data_map[self.pv_list[0]].index  # use first pv as index reference
->>>>>>> process_b_refactoring
-
         self.clean_data()
 
         beam_checks_result = do_beam_checks(
@@ -101,8 +93,9 @@ class Buffer:
             starting_index=self.index,
             num_samples_to_check=SAMPLES_PER_SECOND,
         )
-<<<<<<< process_b_score_integration
-        
+
+        self.data_map["beam_checks"].put(beam_checks_result)
+
         self.index = self.data_map[self.pv_list[0]].index  # use first pv as index reference
 
         was_full_before_new_data = self.data_map["bpm_score_20"].is_full()
@@ -119,53 +112,13 @@ class Buffer:
             self.bpm_candidate_bucket.update_slow_indexes(-SAMPLES_PER_SECOND)
         
         return -120 if was_full_before_new_data else 0
-=======
-        self.data_map["beam_checks"].put(beam_checks_result)
-
-        # check for >=90 seconds of beamchecks failing,
-        # beam_checks[starting_index] will only be False if the past 90 seconds of beam_check are also False
-        # if starting_index >= MIN_WINDOW_LEN:
-        # violation_window = min_violation_window_length_check[starting_index - MIN_WINDOW_LEN : starting_index]
->>>>>>> process_b_refactoring
-
+        
     def clean_data(self) -> None:
         # forward fill data not updated during timestamp, check if corresponding pv timestamps are close enough, etc
         return
 
-<<<<<<< process_b_score_integration
-    def update_violation_window_list(self) -> list[tuple[int, int]]:
-        """
-        Search buffer's passes_beam_checks array to find contiguous regions of failing beam check of >= TEMP_VIOLATION_LENGTH seconds.
-        Returns list of (start_index, end_index) tuples, where end_index is the first index where the beam-checks start to pass again.
-        """
-
-        windows = []
-        start = None
-
-        beam_check_arr = self.data_map["beam_checks"]
-        for i, val in enumerate(beam_check_arr.get()): # .get() with no args returns the entire arr
-            if val is False:
-                if start is None:
-                    start = i  # begin a new potential failure window
-            else:
-                if start is not None:
-                    window_len = i - start
-                    if window_len >= MIN_WINDOW_LEN:
-                        windows.append((start, i))
-                    start = None  # end current window
-
-        # handle trailing window that runs to end of buffer
-        if start is not None:
-            window_len = len(self.passes_beam_checks) - start
-            if window_len >= MIN_WINDOW_LEN:
-                windows.append((start, len(self.passes_beam_checks)))
-
-        self.data_map["valid_windows"].update(windows)
 
     def find_candidates(self) -> list[AnomalyCandidate]:
-=======
-    def find_candidates(self) -> list[dict]:
->>>>>>> process_b_refactoring
         # placeholder: candidate determination logic here.
         return []
 
