@@ -1,5 +1,6 @@
 from queue import PriorityQueue
 
+from beam_check_config import ANOMALY_CANDIDATE_WINDOW_SIZE
 
 class AnomalyCandidate:
     def __init__(self, slow_index: int, slow_time: int):
@@ -18,7 +19,10 @@ class AnomalyCandidate:
         self._slow_index = slow_index
         self.slow_time = slow_time
 
-        self.window = [-533, 533]
+        self.window = [
+            -ANOMALY_CANDIDATE_WINDOW_SIZE, 
+            ANOMALY_CANDIDATE_WINDOW_SIZE
+            ]
 
         self.fast_index = None
         self.score = None
