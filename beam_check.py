@@ -2,7 +2,6 @@ from datetime import datetime, timedelta
 from typing import Dict
 import numpy as np
 
-from beam_check_config import BEAM_RATE_TABLE, BEAM_SPLIT_TABLE_HXR, EXP_TMIT_MIN
 from sliding_window import SlidingWindowArray
 
 # note: can't pass in buffer object directly b/c of circular import
@@ -12,18 +11,19 @@ def do_beam_checks(
     beam_rate_pv_data: SlidingWindowArray,
     beam_split_pv_data: SlidingWindowArray,
     in_tmit_pv_data: SlidingWindowArray,
+    #min_violation_window_length_check: SlidingWindowArray,
     starting_index: int,
     num_samples_to_check: int,
-    beam_checks: SlidingWindowArray
 ) -> np.ndarray:
     """
     Apply beam checks to data in buffer_map, from starting_index to starting_index+num_samples_to_check.
     Fills buffer.passes_beam_checks with boolean results.
     """
 
-    # for now, we don't do any beamchecks
-    return np.full(num_samples_to_check, True, dtype=bool)
+    # for now, we don't do any actual beamchecks
+    result = np.full(num_samples_to_check, True, dtype=bool)
 
+    return result
     """
     # vectorized version
     end_index = starting_index + num_samples_to_check
