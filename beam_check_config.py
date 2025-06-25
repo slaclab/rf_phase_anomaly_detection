@@ -17,7 +17,6 @@ EXP_TMIT_FREQ = 1
 ALLOWED_TMIT_DIFF = 0.05
 EXP_TMIT_MIN = 0.5e9
 
-<<<<<<< process_b_score_integration
 # Score parameters
 MAD_LENGTH = 600
 CONSECUTIVE_LENGTH = 20
@@ -38,9 +37,8 @@ DISPERSIVE_BPMS = {
     "BPMS:DMPH:502:YBR": 9.64e-1,
     "BPMS:DMPH:693:YBR": 4.69e-1
 }
-=======
+
 SAMPLES_PER_SECOND = 120 # hz
 BUFFER_DURATION_SEC = 60 * 5  # 5 mins
 BUFFER_LENGTH = SAMPLES_PER_SECOND * BUFFER_DURATION_SEC
 MIN_WINDOW_LEN = SAMPLES_PER_SECOND * 90
->>>>>>> process_b_refactoring
