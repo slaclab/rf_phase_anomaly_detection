@@ -12,9 +12,14 @@ import numpy as np
 # local imports
 from mp_logging import create_worker_logger, default_logging_kwargs
 from process import CustomProcessObject
-from buffer import Buffer, SAMPLES_PER_SECOND, BUFFER_DURATION_SEC, BUFFER_LENGTH
+from buffer import Buffer
 import k2eg_spoofer
+<<<<<<< process_b_score_integration
 from anomaly_candidate import AnomalyCandidate, CandidateBucket
+=======
+from anomaly_candidate import AnomalyCandidate
+from beam_check_config import  SAMPLES_PER_SECOND, BUFFER_DURATION_SEC, BUFFER_LENGTH
+>>>>>>> process_b_refactoring
 
 # we care about windows where beam-checks fail only if longer than this length
 TEMP_VIOLATION_LENGTH = SAMPLES_PER_SECOND * 90 # 90 seconds
