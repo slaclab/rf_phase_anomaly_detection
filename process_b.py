@@ -14,8 +14,8 @@ from mp_logging import create_worker_logger, default_logging_kwargs
 from process import CustomProcessObject
 from buffer import Buffer
 import k2eg_spoofer
-from anomaly_candidate import AnomalyCandidate, CandidateBucket
-from beam_check_config import  SAMPLES_PER_SECOND, BUFFER_DURATION_SEC, BUFFER_LENGTH
+from anomaly_candidate import AnomalyCandidate, CandidateBucket, find_fast_index, find_most_anomalous_rf_station
+from beam_check_config import  SAMPLES_PER_SECOND, BUFFER_DURATION_SEC, BUFFER_LENGTH, BPM_NAMES
 
 # we care about windows where beam-checks fail only if longer than this length
 TEMP_VIOLATION_LENGTH = SAMPLES_PER_SECOND * 90 # 90 seconds
@@ -67,19 +67,43 @@ class ProcessB(CustomProcessObject):
             start = time.perf_counter()
 
             # parse the k2eg snapshot and update buffer
-            index_change = self.buffer.update(r)
+            index_change, length_of_update = self.buffer.update(r)
             # move the indexes of the previously found candidates
             self.candidate_bucket.update_slow_indexes(index_change)
             # add new candidates to the bucket
-            new_candidates: List[AnomalyCandidate] = self.buffer.find_candidates()
+            new_candidates: List[AnomalyCandidate] = self.buffer.find_candidates(look_back_this_far=length_of_update)
             for candidate in new_candidates:
                 self.candidate_bucket.put(candidate)
             
             # check for candidates ready for process C
             while self.candidate_bucket.oldest_candidate_slow_index <= self.buffer.index - 5 * SAMPLES_PER_SECOND:
                 candidate = self.candidate_bucket.get()  # get the oldest candidate
+                # find the fast trigger
+                fast_index = find_fast_index(
+                    self.buffer.get('bpm_score_1', 0, 1000),  # TODO: fill in the start and end with the correct values
+                    candidate.slow_index
+                    )
+                candidate.fast_index = fast_index
+                fast_time = self.buffer.get('pv_timestamp_ns', fast_index, fast_index + 1)[0]
+                # find the most anomalous rf station
+                most_anomalous_rf_pv_name = find_most_anomalous_rf_station()  # TODO: make this function
+                data_window = candidate.window_slice
+                rf_input: np.array = self.buffer.get(
+                    most_anomalous_rf_pv_name, data_window[0], data_window[1]
+                    ).copy()
+                bpm_input = []
+                for pv_name in BPM_NAMES:
+                    bpm_input.append(
+                        self.buffer.get(pv_name, data_window[0], data_window[1]).copy()
+                    )
                 # make a candidate to send to process C
-                # move lines 95 to 101 and update
+                cand = {
+                    'timestamp': fast_time,
+                    'rf_input': rf_input,
+                    'bpm_input': np.vstack(bpm_input),
+                    'rf_pv_name': most_anomalous_rf_pv_name
+                }
+                self.queue_two.put(cand)
 
             # process data in buffer and get stuff to pass to process_c and CoAD,
             # do here...

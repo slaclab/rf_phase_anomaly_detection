@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-# Constants
+# beam quality PV names
 BEAM_RATE_PV = "ca://IOC:BSY0:MP01:PC_RATE"
 BEAM_SPLIT_PV = "ca://IOC:IN20:EV01:RG02_ACTRATE"
 IN_TMIT_PV = "ca://BPMS:IN20:221:TMITCUHBR" #?? do we want the "BR" at end of this pv-name
@@ -13,6 +13,7 @@ BEAM_SPLIT_TABLE_HXR = {
     12: 10, 13: 0, 14: 0
 }
 
+# TMIT timing parameters
 EXP_TMIT_FREQ = 1
 ALLOWED_TMIT_DIFF = 0.05
 EXP_TMIT_MIN = 0.5e9
@@ -27,9 +28,6 @@ BPM_NAMES = [
     'BPMS:DMPH:502:TMITBR', 'BPMS:DMPH:693:TMITBR'
     ]
 
-# Used in anomaly candidates
-ANOMALY_CANDIDATE_WINDOW_SIZE = 533
-
 # Dispersion parameters
 DISPERSIVE_BPMS = {
     "BPMS:LTUH:250:XBR": 1.25e-1,
@@ -38,7 +36,19 @@ DISPERSIVE_BPMS = {
     "BPMS:DMPH:693:YBR": 4.69e-1
 }
 
+# data quality parameters
 SAMPLES_PER_SECOND = 120 # hz
 BUFFER_DURATION_SEC = 60 * 5  # 5 mins
 BUFFER_LENGTH = SAMPLES_PER_SECOND * BUFFER_DURATION_SEC
 MIN_WINDOW_LEN = SAMPLES_PER_SECOND * 90
+
+# Used in anomaly candidates
+ANOMALY_CANDIDATE_WINDOW_SIZE = 533
+
+# candidate generation parameters
+BPM_THRESHOLD = 8
+FEEDBACK_STATIONS = [
+    'KLYS:LI24:11:PHAS_FASTBR', 
+    'KLYS:LI24:21:PHAS_FASTBR', 
+    'KLYS:LI24:31:PHAS_FASTBR'
+    ]

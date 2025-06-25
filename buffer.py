@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 import numpy as np
 import logging
 
@@ -17,7 +17,8 @@ from beam_check_config import (
     MAD_LENGTH,
     CONSECUTIVE_LENGTH,
     BPM_NAMES,
-    SAMPLES_PER_SECOND
+    SAMPLES_PER_SECOND,
+    BPM_THRESHOLD
 )
 from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
@@ -43,7 +44,7 @@ class Buffer:
         }
         # just store the timestamp data from the first pv we read from the snapshot,
         # and assume the other pv's data is timed the same.
-        self.data_map["pv_timestamps"] = SlidingWindowArray(buffer_len, dtype=np.float64)
+        self.data_map["pv_timestamps_ns"] = SlidingWindowArray(buffer_len, dtype=np.float64)
         self.data_map["beam_checks"] = SlidingWindowArray(buffer_len, dtype=bool)
         self.data_map["bpm_score_1"] = SlidingWindowArray(buffer_len, dtype=np.float64)
         self.data_map["bpm_score_20"] = SlidingWindowArray(buffer_len, dtype=np.float64)
@@ -52,14 +53,17 @@ class Buffer:
 
         self.logger = logger
 
-    def update(self, snapshot: dict[str, list[dict]]) -> int:
+
+    def update(self, snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
         """
         Append the latest 120-sample PV snapshot into the buffer for each pv
 
         Return
         ------
-
+            Two integers.  The first is the number of indexes data might have 
+            been moved back.  The second is the length of the snapshot.
         """
+        snapshot_length = 120
         for i, pv in enumerate(self.pv_list):
             entries = snapshot.get(pv, [])
 
@@ -72,15 +76,14 @@ class Buffer:
             # update buffer's timestamps arr with the first pv's times,
             # and assume the other pv have same timing (for now).
             if i == 0:
-                times = None
-                timestamps = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
+                timestamps_ns = np.empty(SAMPLES_PER_SECOND, dtype=int)
                 for j, e in enumerate(entries):
                     ts = e.get("timeStamp", {})
                     seconds = ts.get("secondsPastEpoch", 0)
                     nanos = ts.get("nanoseconds", 0)
-                    timestamps[j] = seconds + nanos * 1e-9
+                    timestamps_ns[j] = int(seconds * 1e9 + nanos)
 
-                self.data_map["pv_timestamps"].put(timestamps)
+                self.data_map["pv_timestamps_ns"].put(timestamps_ns)
 
         self.clean_data()
 
@@ -111,31 +114,30 @@ class Buffer:
             #Candidate Gen
             self.bpm_candidate_bucket.update_slow_indexes(-SAMPLES_PER_SECOND)
         
-        return -120 if was_full_before_new_data else 0
-        
+        return (
+            -snapshot_length if was_full_before_new_data else 0, 
+            snapshot_length
+        )
+
+
     def clean_data(self) -> None:
         # forward fill data not updated during timestamp, check if corresponding pv timestamps are close enough, etc
         return
 
 
-    def find_candidates(self) -> list[AnomalyCandidate]:
-        # placeholder: candidate determination logic here.
-        return []
+    def find_candidates(self, look_back_this_far: int) -> list[AnomalyCandidate]:
+        candidates = []
+        start = self.index - look_back_this_far
+        end = self.index
+        scores = self.data_map["bpm_score_20"].get(start, end)
+        timestamps_ns = self.data_map["pv_timestamps_ns"].get(start, end)
 
-    #Should we put threshold in beam_check_config?
-    def detect_bpm_candidates(self, threshold: float=50) -> CandidateBucket:
-        scores = self.data_map["bpm_score_20"]
-        timestamps = self.data_map["pv_timestamps"]
-        bucket = CandidateBucket()
+        for i, (score, slow_time_ns) in enumerate(zip(scores, timestamps_ns)):
+            if score > BPM_THRESHOLD:
+                candidate = AnomalyCandidate(slow_index=start + i, slow_time=slow_time_ns)
+                candidates.append(candidate)
 
-        for i in range (self.index):
-            if scores[i] > threshold:
-                slow_time  = int(timestamps[i] * 1e9)  # Convert to ns since epoch
-                candidate = AnomalyCandidate(slow_index=i, slow_time=slow_time_ns)
-                bucket.put(candidate)
-
-    return bucket
-
+        return candidates
 
 
     def get(self, pv_name: str, start_index: Optional[int] = None, end_index: Optional[int] = None) -> np.ndarray:
@@ -161,7 +163,7 @@ class Buffer:
         """
         for pv_name in self.data_map:
             self.data_map[pv_name].clear()
-        self.data_map["pv_timestamps"].clear()
+        self.data_map["pv_timestamps_ns"].clear()
         self.data_map["beam_checks"].clear()
 
     def dump_to_human_readable(self, directory: str = "buffer_dump_txt") -> None:

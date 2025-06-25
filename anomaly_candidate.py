@@ -2,6 +2,7 @@ from queue import PriorityQueue
 
 from beam_check_config import ANOMALY_CANDIDATE_WINDOW_SIZE
 
+
 class AnomalyCandidate:
     def __init__(self, slow_index: int, slow_time: int):
         """
@@ -24,7 +25,7 @@ class AnomalyCandidate:
             ANOMALY_CANDIDATE_WINDOW_SIZE
             ]
 
-        self.fast_index = None
+        self._fast_index = None
         self.score = None
         # more things here?
 
@@ -52,13 +53,17 @@ class AnomalyCandidate:
     def slow_index(self):
         return self._slow_index
 
+    @property
+    def fast_index(self):
+        return self._fast_index
+
     @slow_index.setter
     def slow_index(self, new_index: int):
         self._slow_index = new_index
 
     @property
     def window_slice(self) -> list[int]:
-        return [self._slow_index + x for x in self.window]
+        return [self._fast_index + x for x in self.window]
 
     def __iadd__(self, index_change: int):
         self.slow_index += index_change
@@ -88,6 +93,16 @@ class CandidateBucket(PriorityQueue):
         # put the candidates back on
         for candidate in candidates:
             self.put(candidate)
+
+
+def find_fast_index(score_array: np.ndarray, slow_trigger: int) -> int:
+    return slow_trigger
+
+
+
+def find_most_anomalous_rf_station() -> str:
+    return ''
+
 
 
 if __name__ == '__main__':
