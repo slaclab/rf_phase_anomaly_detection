@@ -3,7 +3,7 @@ import numpy as np
 import logging
 
 from mp_logging import create_worker_logger
-from beam_check import do_beam_checks
+from beam_check import do_beam_checks, BEAM_CHECK_PVS
 from beam_check_config import (
     BEAM_RATE_PV,
     BEAM_SPLIT_PV,
@@ -63,7 +63,8 @@ class Buffer:
             Two integers.  The first is the number of indexes data might have
             been moved back.  The second is the length of the snapshot.
         """
-        snapshot_length = 120
+        snapshot_length = SAMPLES_PER_SECOND
+        beam_check_data = {}
         for i, pv in enumerate(self.pv_list):
             entries = snapshot.get(pv, [])
 
@@ -72,6 +73,8 @@ class Buffer:
                 values[j] = e.get("value", np.nan)
 
             self.data_map[pv].put(values)
+            if pv in BEAM_CHECK_PVS:
+                beam_check_data[pv] = values
 
             # update buffer's timestamps arr with the first pv's times,
             # and assume the other pv have same timing (for now).
@@ -87,32 +90,25 @@ class Buffer:
 
         self.clean_data()
 
-        beam_checks_result = do_beam_checks(
-            stopper_pv_data=self.data_map[STOPPER_PV],
-            beam_rate_pv_data=self.data_map[BEAM_RATE_PV],
-            beam_split_pv_data=self.data_map[BEAM_SPLIT_PV],
-            in_tmit_pv_data=self.data_map[IN_TMIT_PV],
-            #min_violation_window_length_check=self.data_map["min_violation_window_length_check"],
-            starting_index=self.index,
-            num_samples_to_check=SAMPLES_PER_SECOND,
-        )
-
+        # do the beam checks and put the data on the beam_check buffer
+        beam_checks_result = do_beam_checks(beam_check_data)
         self.data_map["beam_checks"].put(beam_checks_result)
 
         self.index = self.data_map[self.pv_list[0]].index  # use first pv as index reference
 
         was_full_before_new_data = self.data_map["bpm_score_20"].is_full()
 
-        total_length = SAMPLES_PER_SECOND + MAD_LENGTH - 1
+        total_length = snapshot_length + MAD_LENGTH - 1
         if self.index > total_length:
             bpm_score_1 = compute_score_1({
-                name: self.data_map.get(name, self.index - total_length, self.index) for name in BPM_NAMES
+                name: self.data_map.get(name, self.index - total_length, self.index) 
+                for name in BPM_NAMES
             })
             bpm_score_20 = compute_score_20(bpm_score_1)
-            self.data_map["bpm_score_1"].put(bpm_score_1[-SAMPLES_PER_SECOND:])
-            self.data_map["bpm_score_20"].put(bpm_score_20[-SAMPLES_PER_SECOND:])
+            self.data_map["bpm_score_1"].put(bpm_score_1[-snapshot_length:])
+            self.data_map["bpm_score_20"].put(bpm_score_20[-snapshot_length:])
             #Candidate Gen
-            self.bpm_candidate_bucket.update_slow_indexes(-SAMPLES_PER_SECOND)
+            self.bpm_candidate_bucket.update_slow_indexes(-snapshot_length)
 
         return (
             -snapshot_length if was_full_before_new_data else 0,
