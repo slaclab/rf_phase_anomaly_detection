@@ -78,9 +78,7 @@ class Predict:
         rf_input = torch.tensor(rf_input, dtype=torch.float64)
         bpm_input = torch.tensor(bpm_input, dtype=torch.float64)
 
-        anomalous = predict_label(
-            self.configs, self.networks, (rf_input, bpm_input)
-        )
+        anomalous = predict_label(self.configs, self.networks, (rf_input, bpm_input))
         if anomalous and self.write_to_pv:
             # Create anomaly table with the given station marked as anomalous
             anomaly_table = create_anomaly_table(pv_name, self.klystrons_list)

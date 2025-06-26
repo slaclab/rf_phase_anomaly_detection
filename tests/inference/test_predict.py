@@ -6,7 +6,7 @@ import traceback
 import os
 
 import pytest
-from torch import zeros, Tensor
+from torch import zeros
 
 import k2eg
 from k2eg.dml import OperationTimeout
@@ -30,7 +30,8 @@ class TestPredict:
     test_writing_to_k2eg(pv_name, labels_value, rootdir)
         Test direct writing to K2EG.
     """
-    timestamp = 1000 # unused for now
+
+    timestamp = 1000  # unused for now
 
     def test_predict(
         self,
@@ -103,7 +104,9 @@ class TestPredict:
             predictor.predict(in1, in2, "pv", self.timestamp)
 
     def test_predict_write_table_to_k2eg(
-        self, test_data_set: List[Tuple[npt.NDArray[number], npt.NDArray[number], str]], rootdir: str
+        self,
+        test_data_set: List[Tuple[npt.NDArray[number], npt.NDArray[number], str]],
+        rootdir: str,
     ) -> None:
         """
         Test writing prediction results to K2EG.
