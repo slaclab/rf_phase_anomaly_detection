@@ -1,4 +1,6 @@
 from typing import Dict, Any, Tuple, List
+import numpy.typing as npt
+from numpy import number
 from unittest import mock
 import traceback
 import os
@@ -22,16 +24,17 @@ class TestPredict:
     test_predict_with_wrong_type()
         Test prediction with incorrect input types.
     test_predict_with_empty_input()
-        Test prediction with empty or NaN input tensors.
+        Test prediction with empty or NaN input.
     test_predict_write_table_to_k2eg(test_data_set, rootdir)
         Test writing prediction results to K2EG.
     test_writing_to_k2eg(pv_name, labels_value, rootdir)
         Test direct writing to K2EG.
     """
+    timestamp = 1000 # unused for now
 
     def test_predict(
         self,
-        test_data_set: List[Tuple[Tensor, Tensor, str]],
+        test_data_set: List[Tuple[npt.NDArray[number], npt.NDArray[number], str]],
         configs: Dict[str, Any],
     ) -> None:
         """
@@ -49,7 +52,7 @@ class TestPredict:
         # Get data that should return a prediction of True
         rf_data, bpm_data, pv_name = test_data_set[0]
         # Run prediction
-        predictions = predictor.predict(rf_data, bpm_data, pv_name)
+        predictions = predictor.predict(rf_data, bpm_data, pv_name, self.timestamp)
         # Check configs loaded correctly
         assert predictor.configs == configs
         # Check if predictions are of the expected shape
@@ -60,7 +63,7 @@ class TestPredict:
         # Get data that should return a prediction of False
         rf_data, bpm_data, pv_name = test_data_set[1]
         # Run prediction
-        predictions = predictor.predict(rf_data, bpm_data, pv_name)
+        predictions = predictor.predict(rf_data, bpm_data, pv_name, self.timestamp)
         # Check configs loaded correctly
         assert predictor.configs == configs
         # Check if predictions are of the expected shape
@@ -68,18 +71,18 @@ class TestPredict:
         # Check if predictions match the expected output data
         assert not predictions
 
-    def test_predict_with_wrong_type(self) -> None:
+    def test_predict_with_wrong_shape(self) -> None:
         """
-        Test prediction with incorrect input types.
+        Test prediction with incorrect input shapes.
 
         Raises
         ------
-        TypeError
-            If input types are not torch.Tensor.
+        ValueError
+            If input types are the correct shapes.
         """
         predictor = Predict(write_to_pv=False)
-        with pytest.raises(TypeError):
-            predictor.predict([1], [2], [3])
+        with pytest.raises(ValueError):
+            predictor.predict([1], [2], [3], self.timestamp)
 
     def test_predict_with_empty_input(self) -> None:
         """
@@ -97,10 +100,10 @@ class TestPredict:
             in2 = zeros((8, 1066))
             in1[0, 0] = float("nan")
             in2[0, 0] = float("nan")
-            predictor.predict(in1, in2, "pv")
+            predictor.predict(in1, in2, "pv", self.timestamp)
 
     def test_predict_write_table_to_k2eg(
-        self, test_data_set: List[Tuple[Tensor, Tensor, str]], rootdir: str
+        self, test_data_set: List[Tuple[npt.NDArray[number], npt.NDArray[number], str]], rootdir: str
     ) -> None:
         """
         Test writing prediction results to K2EG.
@@ -122,7 +125,7 @@ class TestPredict:
             # Get data that should return a prediction of True
             rf_data, bpm_data, _ = test_data_set[0]
             pv_name = "klys_li21_61"
-            predictions = predictor.predict(rf_data, bpm_data, pv_name)
+            predictions = predictor.predict(rf_data, bpm_data, pv_name, self.timestamp)
         assert predictions
 
     def test_writing_to_k2eg(self, pv_name, labels_value, rootdir):

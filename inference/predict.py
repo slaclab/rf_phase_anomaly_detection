@@ -5,6 +5,8 @@ https://github.com/SLAC-ML/CoincAD/blob/phase/core/CoincAD_train.py
 import os
 from operator import itemgetter
 from typing import Any, Tuple, Dict, List, Optional
+import numpy.typing as npt
+from numpy import number
 
 import torch
 import yaml
@@ -43,39 +45,45 @@ class Predict:
         self.configs = configs if configs else load_configs()
         self.networks = networks if networks else load_models()
         self.write_to_pv = write_to_pv
-        self.klystrons_dict = load_klystron_configs()
+        self.klystrons_list = load_klystron_configs()
 
     def predict(
         self,
-        rf_input_tensor: torch.Tensor,
-        bpm_input_tensor: torch.Tensor,
-        rf_station: str,
+        rf_input: npt.NDArray[number],
+        bpm_input: npt.NDArray[number],
+        pv_name: str,
+        timestamp: float,  # TODO: where do we use this?
     ) -> bool:
         """
         Make predictions using the loaded models and provided a single batch of data.
 
         Parameters
         ----------
-        rf_input_tensor : torch.Tensor
-            Tensor of input data for the first model, with a shape of (D, N), where D is the
+        rf_input : npt.NDArray[number]
+            Numpy array of input data for the first model, with a shape of (D, N), where D is the
             number of RF stations (1) and N is the number of samples (1066).
-        bpm_input_tensor : torch.Tensor
-            Tensor of input data for the second model, with a shape of (D, N), where D (1066) is
+        bpm_input : npt.NDArray[number]
+            Numpy array of input data for the second model, with a shape of (D, N), where D (1066) is
             the number of BPMs (8) and N is the number of samples (1066).
-        rf_station : str
+        pv_name : str
             The PV name of the RF station to write the prediction result to K2EG.
+        timestamp: float
+            Timestamp of the prediction.
 
         Returns
         -------
         bool
             Prediction result, True if an anomaly is detected, False otherwise.
         """
+        rf_input = torch.tensor(rf_input, dtype=torch.float64)
+        bpm_input = torch.tensor(bpm_input, dtype=torch.float64)
+
         anomalous = predict_label(
-            self.configs, self.networks, (rf_input_tensor, bpm_input_tensor)
+            self.configs, self.networks, (rf_input, bpm_input)
         )
         if anomalous and self.write_to_pv:
             # Create anomaly table with the given station marked as anomalous
-            anomaly_table = create_anomaly_table(rf_station, self.klystrons_dict)
+            anomaly_table = create_anomaly_table(pv_name, self.klystrons_list)
             # Write the prediction result to K2EG
             write_prediction_to_k2eg(anomaly_table)
         return anomalous
@@ -142,7 +150,7 @@ def load_configs() -> Dict[str, Any]:
         return yaml.safe_load(file)
 
 
-def load_klystron_configs() -> Dict[str, Any]:
+def load_klystron_configs() -> List:
     """
     Load klystron configurations from a YAML file.
 
@@ -151,11 +159,11 @@ def load_klystron_configs() -> Dict[str, Any]:
 
     Returns
     -------
-    dict
-        Configuration dictionary loaded from the YAML file.
+    List
+        List of klystron names loaded from the YAML file.
     """
     with open(ROOTDIR + "/klystrons.yml", "r") as file:
-        return yaml.safe_load(file)
+        return yaml.safe_load(file)["klystrons"]
 
 
 def predict_label(
@@ -220,7 +228,7 @@ def predict_label(
     return bool(label)
 
 
-def create_anomaly_table(station: str, klystrons: Dict[str, str]) -> NTTable:
+def create_anomaly_table(station: str, klys_list: List) -> NTTable:
     """
     Create an anomaly table where all klystron stations are set to False,
     and the given anomalous station is set to True.
@@ -229,16 +237,15 @@ def create_anomaly_table(station: str, klystrons: Dict[str, str]) -> NTTable:
     ----------
     station : str
         The name of the klystron station to mark as anomalous.
-    klystrons : dict
-        Dictionary containing klystron station names.
-        Expected format: {'klystrons': ['station_1', 'station_2', ...]}.
+    klys_list : List
+        List containing the klystron station names.
+        Expected format: ['station_1', 'station_2', ...].
 
     Returns
     -------
     NTTable
         A table with anomaly states for each klystron station.
     """
-    klys_list = klystrons["klystrons"]
     # Create a table with anomaly states for each klystron, and mark the given station as anomalous
     # Table format:
     # [

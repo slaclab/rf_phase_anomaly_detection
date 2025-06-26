@@ -16,9 +16,11 @@ def rootdir() -> str:
 def test_data_set(rootdir):
     try:
         with open(f"{rootdir}/fixtures/test_data.pt", "rb") as f:
-            test_data_set = torch.load(f, weights_only=False)
+            rf_data, bpm_data, pv_name = torch.load(f, weights_only=False)
+            test_data_set = (rf_data.numpy(), bpm_data.numpy(), pv_name)
         with open(f"{rootdir}/fixtures/test_data_false.pt", "rb") as f:
-            test_data_set_false = torch.load(f, weights_only=False)
+            rf_data, bpm_data, pv_name = torch.load(f, weights_only=False)
+            test_data_set_false = (rf_data.numpy(), bpm_data.numpy(), pv_name)
         return test_data_set, test_data_set_false
     except FileNotFoundError as e:
         pytest.skip(str(e))
