@@ -57,11 +57,11 @@ class Predict:
         Parameters
         ----------
         rf_input_tensor : torch.Tensor
-            Tensor of input data for the first model, with a shape of (D, N), where N is
-            the number of samples (1066) and D is the number of RF stations (1).
+            Tensor of input data for the first model, with a shape of (D, N), where D is the
+            number of RF stations (1) and N is the number of samples (1066).
         bpm_input_tensor : torch.Tensor
-            Tensor of input data for the second model, with a shape of (D, N), where N is
-            the number of samples and D (1066) is the number of BPMs (8).
+            Tensor of input data for the second model, with a shape of (D, N), where D (1066) is
+            the number of BPMs (8) and N is the number of samples (1066).
         rf_station : str
             The PV name of the RF station to write the prediction result to K2EG.
 
@@ -174,9 +174,9 @@ def predict_label(
         List of TorchModule instances representing the models (length should be 2).
     batch : tuple of torch.Tensor
         Tuple of input data for the models, should be torch tensors and have a length of 2. The first
-        element should be the RF data with a shape of (D, N), where N is the number of samples (1066) and D is the
-        number of RFs (1), and the second element should be the BPM data with a shape of (D, N), where D is the number
-        of BPMs (8).
+        element should be the RF data with a shape of (D, N), where D is the number of RFs (1) and N is the number
+        of samples (1066), and the second element should be the BPM data with a shape of (D, N), where D is the number
+        of BPMs (8) and N is the number of samples (1066).
 
     Returns
     -------
