@@ -62,7 +62,7 @@ from lume_model.variables import ScalarVariable
 # Save model 1 (RF)
 # variable specification
 input_variables = [
-    ScalarVariable(name="rf", default_value=0.0, value_range=[-400, 400]),
+    ScalarVariable(name="klys_phase", default_value=0.0, value_range=[-400, 400]),
 ]
 output_variables = [
     ScalarVariable(name="anom_score"),
@@ -82,16 +82,18 @@ rf_module.dump("rf_module.yml")
 
 
 # Save model 2 (BPM)
+bpm_list = ['BPMS:LTUH:250:X',    'BPMS:LTUH:450:X',    'BPMS:DMPH:502:Y',    'BPMS:DMPH:693:Y',    
+            'BPMS:LTUH:250:TMIT', 'BPMS:LTUH:450:TMIT', 'BPMS:DMPH:502:TMIT', 'BPMS:DMPH:693:TMIT']
 # variable specification
 input_variables = [
-    ScalarVariable(name="bpm1", default_value=0.0, value_range=[-200, 200]),
-    ScalarVariable(name="bpm2", default_value=0.0, value_range=[-200, 200]),
-    ScalarVariable(name="bpm3", default_value=0.0, value_range=[-200, 200]),
-    ScalarVariable(name="bpm4", default_value=0.0, value_range=[-200, 200]),
-    ScalarVariable(name="bpm5", default_value=0.0, value_range=[-200, 200]),
-    ScalarVariable(name="bpm6", default_value=0.0, value_range=[-200, 200]),
-    ScalarVariable(name="bpm7", default_value=0.0, value_range=[-200, 200]),
-    ScalarVariable(name="bpm8", default_value=0.0, value_range=[-200, 200]),
+    ScalarVariable(name=bpm_list[0], default_value=0.0, value_range=[-200, 200]),
+    ScalarVariable(name=bpm_list[1], default_value=0.0, value_range=[-200, 200]),
+    ScalarVariable(name=bpm_list[2], default_value=0.0, value_range=[-200, 200]),
+    ScalarVariable(name=bpm_list[3], default_value=0.0, value_range=[-200, 200]),
+    ScalarVariable(name=bpm_list[4], default_value=0.0, value_range=[-200, 200]),
+    ScalarVariable(name=bpm_list[5], default_value=0.0, value_range=[-200, 200]),
+    ScalarVariable(name=bpm_list[6], default_value=0.0, value_range=[-200, 200]),
+    ScalarVariable(name=bpm_list[7], default_value=0.0, value_range=[-200, 200]),
 ]
 output_variables = [
     ScalarVariable(name="anom_score"),
