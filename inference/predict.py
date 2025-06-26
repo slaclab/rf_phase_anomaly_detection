@@ -4,7 +4,7 @@ https://github.com/SLAC-ML/CoincAD/blob/phase/core/CoincAD_train.py
 
 import os
 from operator import itemgetter
-from typing import Any, Tuple, Dict, List
+from typing import Any, Tuple, Dict, List, Optional
 
 import torch
 import yaml
@@ -22,15 +22,26 @@ ROOTDIR = os.path.dirname(os.path.abspath(__file__))
 class Predict:
     """Predict class for making predictions using LUME-models."""
 
-    def __init__(self, configs=None, networks=None, write_to_pv=False):
-        """Initialize the Predict class.
-        Args:
-            configs (dict, optional): Configuration dictionary for the prediction.
-            networks (list, optional): List of TorchModule instances representing the models.
-            write_to_pv (bool, optional): Whether to write the prediction result to a PV. Defaults to False.
+    def __init__(
+        self,
+        configs: Optional[Dict[str, Any]] = None,
+        networks: Optional[List[TorchModule]] = None,
+        write_to_pv: bool = False,
+    ) -> None:
         """
-        self.configs = load_configs() or configs
-        self.networks = load_models() or networks
+        Initialize the Predict class.
+
+        Parameters
+        ----------
+        configs : dict, optional
+            Configuration dictionary for the prediction.
+        networks : list, optional
+            List of TorchModule instances representing the models.
+        write_to_pv : bool, optional
+            Whether to write the prediction result to a PV. Defaults to False.
+        """
+        self.configs = configs if configs else load_configs()
+        self.networks = networks if networks else load_models()
         self.write_to_pv = write_to_pv
         self.klystrons_dict = load_klystron_configs()
 
@@ -40,15 +51,24 @@ class Predict:
         bpm_input_tensor: torch.Tensor,
         rf_station: str,
     ) -> bool:
-        """Make predictions using the loaded models and provided a single batch of data.
-        Args:
-            rf_input_tensor (tensor): Tensor of input data for the first model, with a shape of (D, N), where N is
+        """
+        Make predictions using the loaded models and provided a single batch of data.
+
+        Parameters
+        ----------
+        rf_input_tensor : torch.Tensor
+            Tensor of input data for the first model, with a shape of (D, N), where N is
             the number of samples (1066) and D is the number of RF stations (1).
-            bpm_input_tensor (tensor): Tensor of input data for the second model, with a shape of (D, N), where N is
+        bpm_input_tensor : torch.Tensor
+            Tensor of input data for the second model, with a shape of (D, N), where N is
             the number of samples and D (1066) is the number of BPMs (8).
-            rf_station (str): The PV name of the RF station to write the prediction result to K2EG.
-        Returns:
-            bool: Prediction result, True if an anomaly is detected, False otherwise.
+        rf_station : str
+            The PV name of the RF station to write the prediction result to K2EG.
+
+        Returns
+        -------
+        bool
+            Prediction result, True if an anomaly is detected, False otherwise.
         """
         anomalous = predict_label(
             self.configs, self.networks, (rf_input_tensor, bpm_input_tensor)
@@ -61,8 +81,9 @@ class Predict:
         return anomalous
 
 
-def load_models():
-    """Load models using LUME-model TorchModule class.
+def load_models() -> List[TorchModule]:
+    """
+    Load models using LUME-model TorchModule class.
 
     The LUME-models should be dumped into YAML files in the models directory.
     Note that when the models are updated, new YAML files should be created along
@@ -73,36 +94,65 @@ def load_models():
     If model updates are done through MLflow for example, this function should be updated to load the models
     from MLflow instead of the YAML files, but should still return a list of TorchModule instances.
 
-    Returns:
+    Returns
+    -------
+    list of TorchModule
         List of TorchModule instances loaded from YAML files.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the model YAML files are not found in the expected directory.
     """
+    rf_model_path = ROOTDIR + "/models/rf_module.yml"
+    bpm_model_path = ROOTDIR + "/models/bpm_module.yml"
+    if not os.path.exists(rf_model_path) or not os.path.exists(bpm_model_path):
+        raise FileNotFoundError(
+            "Model YAML files not found. Please ensure the models directory contains rf_module.yml and bpm_module.yml."
+        )
     return [
         TorchModule(ROOTDIR + "/models/rf_module.yml"),
         TorchModule(ROOTDIR + "/models/bpm_module.yml"),
     ]
 
 
-def load_configs():
-    """Load configurations from a YAML file.
+def load_configs() -> Dict[str, Any]:
+    """
+    Load configurations from a YAML file.
+
     The configs should have the following keys:
         - predict: dict with keys 'thres', 'exact', 'standardize', 'sigmoid', 'device'
         - network: dict with information about the networks, optional and for reference only.
 
-    Returns:
-        dict: Configuration dictionary loaded from the YAML file.
-    """
+    Returns
+    -------
+    dict
+        Configuration dictionary loaded from the YAML file.
 
+    Raises
+    ------
+    FileNotFoundError
+        If the configuration file 'configs.yml' is not found in the expected directory.
+    """
+    if not os.path.exists(ROOTDIR + "/configs.yml"):
+        raise FileNotFoundError(
+            "Configuration file 'configs.yml' not found in the root directory."
+        )
     with open(ROOTDIR + "/configs.yml", "r") as file:
         return yaml.safe_load(file)
 
 
-def load_klystron_configs():
-    """Load klystron configurations from a YAML file.
+def load_klystron_configs() -> Dict[str, Any]:
+    """
+    Load klystron configurations from a YAML file.
+
     The configs should have the following keys:
         - klystrons: list of klystron station names.
 
-    Returns:
-        dict: Configuration dictionary loaded from the YAML file.
+    Returns
+    -------
+    dict
+        Configuration dictionary loaded from the YAML file.
     """
     with open(ROOTDIR + "/klystrons.yml", "r") as file:
         return yaml.safe_load(file)
@@ -113,17 +163,25 @@ def predict_label(
     networks: List[TorchModule],
     batch: Tuple[torch.Tensor, torch.Tensor],
 ) -> bool:
-    """Make predictions using the loaded models and provided a single batch of data.
+    """
+    Make predictions using the loaded models and provided a single batch of data.
 
-    Args:
-        configs (dict): Configuration dictionary for the prediction.
-        networks (list): List of TorchModule instances representing the models (length should be 2).
-        batch (Tuple): Tuple of input data for the models, should be torch tensors and have a length of 2. The first
+    Parameters
+    ----------
+    configs : dict
+        Configuration dictionary for the prediction.
+    networks : list of TorchModule
+        List of TorchModule instances representing the models (length should be 2).
+    batch : tuple of torch.Tensor
+        Tuple of input data for the models, should be torch tensors and have a length of 2. The first
         element should be the RF data with a shape of (D, N), where N is the number of samples (1066) and D is the
         number of RFs (1), and the second element should be the BPM data with a shape of (D, N), where D is the number
         of BPMs (8).
-    Returns:
-        bool: Prediction result, True if an anomaly is detected, False otherwise.
+
+    Returns
+    -------
+    bool
+        Prediction result, True if an anomaly is detected, False otherwise.
     """
     _validate_input(configs, networks, batch)
 
@@ -163,14 +221,22 @@ def predict_label(
 
 
 def create_anomaly_table(station: str, klystrons: Dict[str, str]) -> NTTable:
-    """Create an anomaly table where all klystron stations are set to False,
-     and the given anomalous station is set to True.
-    Args:
-        station (str): The name of the klystron station to mark as anomalous.
-        klystrons (dict): Dictionary containing klystron station names.
-            Expected format: {'klystrons': ['station_1', 'station_2', ...]}.
-    Returns:
-        NTTable: A table with anomaly states for each klystron station.
+    """
+    Create an anomaly table where all klystron stations are set to False,
+    and the given anomalous station is set to True.
+
+    Parameters
+    ----------
+    station : str
+        The name of the klystron station to mark as anomalous.
+    klystrons : dict
+        Dictionary containing klystron station names.
+        Expected format: {'klystrons': ['station_1', 'station_2', ...]}.
+
+    Returns
+    -------
+    NTTable
+        A table with anomaly states for each klystron station.
     """
     klys_list = klystrons["klystrons"]
     # Create a table with anomaly states for each klystron, and mark the given station as anomalous
@@ -190,20 +256,28 @@ def create_anomaly_table(station: str, klystrons: Dict[str, str]) -> NTTable:
     return table_format.wrap(anomaly_table)
 
 
-def write_prediction_to_p4p_sim(anomaly_table: NTTable):
-    """For testing purposes, write the anomaly table to a simulated server.
-    Args:
-        anomaly_table (NTTable): The anomaly table to write to K2EG.
+def write_prediction_to_p4p_sim(anomaly_table: NTTable) -> None:
+    """
+    For testing purposes, write the anomaly table to a simulated server.
+
+    Parameters
+    ----------
+    anomaly_table : NTTable
+        The anomaly table to write to K2EG.
     """
     context = Context()
     anomaly_pv = "KLYS:SYS0:1:ANOM_STATES"
     context.put(anomaly_pv, anomaly_table)
 
 
-def write_prediction_to_k2eg(anomaly_table: NTTable):
-    """Write the anomaly table to K2EG.
-    Args:
-        anomaly_table (NTTable): The anomaly table to write to K2EG.
+def write_prediction_to_k2eg(anomaly_table: NTTable) -> None:
+    """
+    Write the anomaly table to K2EG.
+
+    Parameters
+    ----------
+    anomaly_table : NTTable
+        The anomaly table to write to K2EG.
     """
     anomaly_pv = "KLYS:SYS0:1:ANOM_STATES"
     k2eg_client = k2eg.dml("rf-phase-ad", "app-three")
@@ -218,12 +292,47 @@ def write_prediction_to_k2eg(anomaly_table: NTTable):
             raise e
 
 
-def standardize_tensor(x):
+def standardize_tensor(x: torch.Tensor) -> torch.Tensor:
+    """
+    Standardize a tensor by subtracting the mean and dividing by the standard deviation.
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        Input tensor.
+
+    Returns
+    -------
+    torch.Tensor
+        Standardized tensor.
+    """
     return (x - torch.mean(x)) / torch.std(x)
 
 
-def _validate_input(configs, networks, batch):
-    """Validate the input batch for the predict function."""
+def _validate_input(
+    configs: Dict[str, Any],
+    networks: List[TorchModule],
+    batch: Tuple[torch.Tensor, torch.Tensor],
+) -> None:
+    """
+    Validate the input batch for the predict function.
+
+    Parameters
+    ----------
+    configs : dict
+        Configuration dictionary.
+    networks : list
+        List of TorchModule instances.
+    batch : tuple
+        Tuple containing RF and BPM data tensors.
+
+    Raises
+    ------
+    ValueError
+        If input validation fails.
+    TypeError
+        If input types are incorrect.
+    """
     if len(batch) != 2:
         raise ValueError(
             f"Batch must contain exactly two elements: RF data and BPM data. A length of {len(batch)} was provided."
