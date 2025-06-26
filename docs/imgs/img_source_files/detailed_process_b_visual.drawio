@@ -31,14 +31,11 @@
         <mxCell id="_4e8fVjvvUdrHk3SvOK6-10" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;Process A &lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-size: 12px; font-weight: normal;&quot;&gt;K2EG Snapshot Collection&lt;/span&gt;&lt;/h1&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;fillColor=none;strokeColor=none;" vertex="1" parent="1">
           <mxGeometry x="490" y="190" width="310" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="_4e8fVjvvUdrHk3SvOK6-11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.626;entryY=-0.05;entryDx=0;entryDy=0;entryPerimeter=0;exitX=0.49;exitY=0.997;exitDx=0;exitDy=0;exitPerimeter=0;" edge="1" parent="1" source="_4e8fVjvvUdrHk3SvOK6-12" target="_4e8fVjvvUdrHk3SvOK6-15">
+        <mxCell id="_4e8fVjvvUdrHk3SvOK6-11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="_4e8fVjvvUdrHk3SvOK6-66">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="425.3" y="975" as="sourcePoint" />
-            <mxPoint x="426.0238" y="1061.02" as="targetPoint" />
+            <mxPoint x="424" y="960" as="sourcePoint" />
+            <mxPoint x="425" y="1020" as="targetPoint" />
           </mxGeometry>
-        </mxCell>
-        <mxCell id="_4e8fVjvvUdrHk3SvOK6-12" value="Buffer" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/social-media-vol-1/24/_buffer-128.png;imageBorder=default;" vertex="1" parent="1">
-          <mxGeometry x="369.8" y="850" width="110" height="110" as="geometry" />
         </mxCell>
         <mxCell id="_4e8fVjvvUdrHk3SvOK6-13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.546;entryY=-0.022;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="_4e8fVjvvUdrHk3SvOK6-15" target="_4e8fVjvvUdrHk3SvOK6-20">
           <mxGeometry relative="1" as="geometry">
@@ -54,7 +51,7 @@
           </mxGeometry>
         </mxCell>
         <mxCell id="_4e8fVjvvUdrHk3SvOK6-15" value="" style="sketch=0;html=1;aspect=fixed;strokeColor=none;shadow=0;fillColor=#3B8DF1;verticalAlign=top;labelPosition=center;verticalLabelPosition=bottom;shape=mxgraph.gcp2.systems_check" vertex="1" parent="1">
-          <mxGeometry x="386.51" y="1020" width="59.4" height="60" as="geometry" />
+          <mxGeometry x="396.01" y="1021" width="59.4" height="60" as="geometry" />
         </mxCell>
         <mxCell id="_4e8fVjvvUdrHk3SvOK6-16" value="" style="shape=waypoint;sketch=0;size=6;pointerEvents=1;points=[];fillColor=#3B8DF1;resizable=0;rotatable=0;perimeter=centerPerimeter;snapToPoint=1;verticalAlign=top;strokeColor=none;shadow=0;" vertex="1" parent="1">
           <mxGeometry x="405.5" y="1121" width="20" height="20" as="geometry" />
@@ -134,14 +131,14 @@
         <mxCell id="_4e8fVjvvUdrHk3SvOK6-57" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;&lt;font style=&quot;font-size: 21px;&quot;&gt;Data Integrity Cleaning&lt;/font&gt;&lt;/h1&gt;&lt;div&gt;1. Drop bad snapshots (time-span &amp;gt; 2 seconds)&lt;/div&gt;&lt;div&gt;2: Bucket data-points across PVs by timestamp&amp;nbsp;&lt;/div&gt;&lt;div&gt;2. Forward-fill prev values into missing timestamp buckets&lt;/div&gt;&lt;div&gt;3. Forward-fill prev values for PVs with no data at all in curr snapshot&lt;/div&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;strokeColor=default;" vertex="1" parent="1">
           <mxGeometry x="290" y="660" width="280" height="150" as="geometry" />
         </mxCell>
-        <mxCell id="_4e8fVjvvUdrHk3SvOK6-61" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.482;exitY=1;exitDx=0;exitDy=0;exitPerimeter=0;" edge="1" parent="1" source="_4e8fVjvvUdrHk3SvOK6-57" target="_4e8fVjvvUdrHk3SvOK6-12">
+        <mxCell id="_4e8fVjvvUdrHk3SvOK6-61" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.482;exitY=1;exitDx=0;exitDy=0;exitPerimeter=0;" edge="1" parent="1" source="_4e8fVjvvUdrHk3SvOK6-57" target="_4e8fVjvvUdrHk3SvOK6-66">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="420" y="820" as="sourcePoint" />
-            <mxPoint x="420" y="877" as="targetPoint" />
+            <mxPoint x="424.79999999999995" y="850" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="_4e8fVjvvUdrHk3SvOK6-63" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;" vertex="1" parent="1">
-          <mxGeometry x="70" y="10" width="730" height="2040" as="geometry" />
+        <mxCell id="_4e8fVjvvUdrHk3SvOK6-66" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Buffer&lt;/font&gt;" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;" vertex="1" parent="1">
+          <mxGeometry x="365.71" y="880" width="120" height="80" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
