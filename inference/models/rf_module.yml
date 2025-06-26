@@ -1,10 +1,10 @@
 model_class: TorchModule
-input_order: [rf]
+input_order: [klys_phase]
 output_order: [anom_score]
 model:
   model_class: TorchModel
   input_variables:
-    rf:
+    klys_phase:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false

@@ -1,52 +1,52 @@
 model_class: TorchModule
-input_order: [bpm1, bpm2, bpm3, bpm4, bpm5, bpm6, bpm7, bpm8]
+input_order: [BPMS:LTUH:250:X, BPMS:LTUH:450:X, BPMS:DMPH:502:Y, BPMS:DMPH:693:Y, BPMS:LTUH:250:TMIT, BPMS:LTUH:450:TMIT, BPMS:DMPH:502:TMIT, BPMS:DMPH:693:TMIT]
 output_order: [anom_score]
 model:
   model_class: TorchModel
   input_variables:
-    bpm1:
+    BPMS:LTUH:250:X:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
       value_range: [-200.0, 200.0]
       value_range_tolerance: 1.0e-08
-    bpm2:
+    BPMS:LTUH:450:X:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
       value_range: [-200.0, 200.0]
       value_range_tolerance: 1.0e-08
-    bpm3:
+    BPMS:DMPH:502:Y:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
       value_range: [-200.0, 200.0]
       value_range_tolerance: 1.0e-08
-    bpm4:
+    BPMS:DMPH:693:Y:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
       value_range: [-200.0, 200.0]
       value_range_tolerance: 1.0e-08
-    bpm5:
+    BPMS:LTUH:250:TMIT:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
       value_range: [-200.0, 200.0]
       value_range_tolerance: 1.0e-08
-    bpm6:
+    BPMS:LTUH:450:TMIT:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
       value_range: [-200.0, 200.0]
       value_range_tolerance: 1.0e-08
-    bpm7:
+    BPMS:DMPH:502:TMIT:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
       value_range: [-200.0, 200.0]
       value_range_tolerance: 1.0e-08
-    bpm8:
+    BPMS:DMPH:693:TMIT:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
