@@ -83,7 +83,7 @@ class ProcessB(CustomProcessObject):
                 fast_index = find_fast_index(
                     self.buffer,
                     slow_index=candidate.slow_index,
-                    window_size=20 #should we put this in config?
+                    window_size=20, #should we put this in config?
                     samples_per_second=SAMPLES_PER_SECOND
                 )
                 candidate.fast_index = fast_index
@@ -93,9 +93,9 @@ class ProcessB(CustomProcessObject):
                 most_anomalous_rf_pv_name, deviation_score, system_level_flag = find_most_anomalous_rf_station(  
                 self.buffer,
                 slow_index=candidate.slow_index,
-                window_size=20 #should we put this in config?
+                window_size=20, #should we put this in config?
                 rf_pv_names=RF_PV_NAMES,
-                phas_thresh: float = 2.5,
+                phas_thresh=2.5,
                 ) #What can we do with devation score and flag?
 
                 data_window = candidate.window_slice
