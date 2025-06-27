@@ -1,7 +1,7 @@
 from queue import PriorityQueue
 import numpy as np
 
-from beam_check_config import ANOMALY_CANDIDATE_WINDOW_SIZE
+from beam_check_config import ANOMALY_CANDIDATE_WINDOW_SIZE, FEEDBACK_STATION
 
 class AnomalyCandidate:
     def __init__(self, slow_index: int, slow_time: int):
@@ -95,14 +95,142 @@ class CandidateBucket(PriorityQueue):
             self.put(candidate)
 
 
-def find_fast_index(score_array: np.ndarray, slow_trigger: int) -> int:
-    return slow_trigger
+def find_fast_index(
+    buffer,
+    slow_index: int,
+    window_size: int, 
+    samples_per_second: int, 
+    lookback_seconds: int = 5
+    ) -> int:
+    """
+    Implements the  fast trigger from Section IV A of
+    https://arxiv.org/abs/2505.16052
 
+    Computes a simple heuristic to determine the earliest time point within the sequence where the anomaly occurs)
+    https://github.com/SLAC-ML/CoincAD/blob/phase/core/h5_dataloader_bpm_trigger_2024_TriggerMulti_8ch_centerPhasTrigger_asym_cleanup_final.ipynb
+    Function - get_fast_trigger_idx
 
+    Parameters
+    ----------
+    buffer: Buffer
+        The rolling buffer object that stores phase PVs.
+    slow_index: int
+        Index of the slow trigger in the buffer.
+    window_size: int
+        Number of samples to include before the slow_index.
+    samples_per_second: int
+        Sampling rate of data (typically 120)
+    lookback_seconds: int
+        How far back from the slow index to search (default 5s)
 
-def find_most_anomalous_rf_station() -> str:
-    return ''
+    Returns
+    -------
+        Absolute index in buffer where fast trigger was detected 
+    """
+    # Calculate number of samples to look back from the slow trigger index
+    lookback = lookback_seconds * samples_per_second
 
+    buffer_index = buffer.index
+    start = max(0, slow_index - lookback)
+    end = min(buffer_index, slow_index)
+    
+    # Get the bpm_score_1 values for the lookback window
+    bpm_score_1 - buffer.get("bpm_score_1", start, end)
+
+    # Compute the relative slow index 
+    rel_slow_idx = slow_index - start
+
+    # Define the region to calculate baseline and detect change
+    window_start = max(0, rel_slow_index - window_size)
+    window_end = rel_slow_idx
+    window = bpm_score_1[window_start:window_end]
+    
+    if len(window)<10:
+        return slow_index #fallback if data is too small
+    
+    # Split into two parts: baseline (first part of the window) and trigger_window (last_half)
+    baseline_end = max(1, len(window) - window_size // 2)
+    baseline = window[:baseline_end]
+    trigger_window = window[baseline_end:]
+
+    # Compute mean and std from baseline window
+    baseline_mean = np.mean(baseline)
+    baseline_std = np.std(baseline) + 1e-6 #avoid divide-by-zero
+
+    # Compute z-scores in trigger window 
+    z_scores = np.abs(trigger_window - baseline_mean) / baseline_std
+
+    # Find first point above threshold (z > 1.25)
+    above_thresh = np.where(z_scores > 1.25)[0]
+    
+    if len(above_thresh) > 0:
+        rel_fast_idx = window_start + baseline_end + above_thresh[0] # Found anomaly; get first one
+    else:
+        rel_fast_idx = window_start + baseline_end + len(trigger_window)//2 # No clear anomaly; default to center of trigger_window
+
+    # Return fast trigger index in absolute buffer coordinates
+    return start + rel_fast_idx
+
+def find_most_anomalous_rf_station(
+    buffer,
+    slow_index: int,
+    window_size: int,
+    rf_pv_names: list[str],
+    phas_thresh: float = 2.5,
+) -> tuple[str, float, int]:
+    """
+    Implements the  RF Candidate Selection from Appendix C of
+    https://arxiv.org/abs/2505.16052
+
+    Identifies the most anomalous klystron station identification based on phase deviation 
+    https://github.com/SLAC-ML/CoincAD/blob/phase/core/h5_dataloader_bpm_trigger_2024_TriggerMulti_8ch_centerPhasTrigger_asym_cleanup_final.ipynb
+    Function - most_anomalous_klys
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The rolling buffer object that stores phase PVs.
+    slow_index : int
+        Index of the slow trigger in the buffer.
+    window_size : int
+        Number of samples to include before the slow_index.
+    rf_pv_names : list[str]
+        List of RF PV names corresponding to phas_fast channels.
+    phas_thresh : float
+        Threshold to flag a system-level phase scan.
+
+    Returns
+    -------
+    Tuple[str, float, int]
+        The most anomalous RF PV name, its deviation score, and a system_level flag (0 or 1).
+    """
+    min_index = max(0, slow_index - window_size)
+
+    # (window_size, num_rf_pvs)
+    window = np.stack([
+        buffer.get(pv, min_index, slow_index) for pv in rf_pv_names
+    ], axis=1)
+
+    # Absolute deviation from 0 (centered signal)
+    window_abs = np.abs(window)
+
+    # Max deviation per RF PV in this window
+    max_per_rf = np.nanmax(window_abs, axis=0)  # shape: (num_rf_pvs,)
+
+    # System-level anomaly check: more than 10 RFs over threshold
+    system_level = int(np.sum(max_per_rf > phas_thresh) > 10)
+
+    # Rank the top 5 highest deviations
+    top5_indices = np.argsort(max_per_rf)[-5:][::-1]
+
+    # Return the top *non-feedback* station
+    for i in top5_indices:
+        pv = rf_pv_names[i]
+        if pv not in FEEDBACK_STATION:
+            return pv, max_per_rf[i], system_level
+
+    # If all top stations are feedback stations, return top anyway
+    return rf_pv_names[top5_indices[0]], max_per_rf[top5_indices[0]], system_level
 
 
 if __name__ == '__main__':

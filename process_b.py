@@ -15,7 +15,7 @@ from process import CustomProcessObject
 from buffer import Buffer
 import k2eg_spoofer
 from anomaly_candidate import AnomalyCandidate, CandidateBucket, find_fast_index, find_most_anomalous_rf_station
-from beam_check_config import  SAMPLES_PER_SECOND, BUFFER_DURATION_SEC, BUFFER_LENGTH, BPM_NAMES
+from beam_check_config import  SAMPLES_PER_SECOND, BUFFER_DURATION_SEC, BUFFER_LENGTH, BPM_NAMES, RF_PV_NAMES
 
 # we care about windows where beam-checks fail only if longer than this length
 TEMP_VIOLATION_LENGTH = SAMPLES_PER_SECOND * 90 # 90 seconds
@@ -78,15 +78,26 @@ class ProcessB(CustomProcessObject):
             # check for candidates ready for process C
             while self.candidate_bucket.oldest_candidate_slow_index <= self.buffer.index - 5 * SAMPLES_PER_SECOND:
                 candidate = self.candidate_bucket.get()  # get the oldest candidate
+                
                 # find the fast trigger
                 fast_index = find_fast_index(
-                    self.buffer.get('bpm_score_1', 0, 1000),  # TODO: fill in the start and end with the correct values
-                    candidate.slow_index
-                    )
+                    self.buffer,
+                    slow_index=candidate.slow_index,
+                    window_size=20 #should we put this in config?
+                    samples_per_second=SAMPLES_PER_SECOND
+                )
                 candidate.fast_index = fast_index
                 fast_time = self.buffer.get('pv_timestamp_ns', fast_index, fast_index + 1)[0]
+                
                 # find the most anomalous rf station
-                most_anomalous_rf_pv_name = find_most_anomalous_rf_station()  # TODO: make this function
+                most_anomalous_rf_pv_name, deviation_score, system_level_flag = find_most_anomalous_rf_station(  
+                self.buffer,
+                slow_index=candidate.slow_index,
+                window_size=20 #should we put this in config?
+                rf_pv_names=RF_PV_NAMES,
+                phas_thresh: float = 2.5,
+                ) #What can we do with devation score and flag?
+
                 data_window = candidate.window_slice
                 rf_input: np.array = self.buffer.get(
                     most_anomalous_rf_pv_name, data_window[0], data_window[1]
