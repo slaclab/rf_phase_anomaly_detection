@@ -11,12 +11,8 @@ from numpy import number
 import torch
 import yaml
 
-from p4p.nt import NTTable
-from p4p.client.thread import Context
-import k2eg
-from k2eg.dml import OperationTimeout
 from lume_model.models.torch_module import TorchModule
-
+from anom_table import set_anomaly_state, TimedBoolDict
 
 ROOTDIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -46,13 +42,14 @@ class Predict:
         self.networks = networks if networks else load_models()
         self.write_to_pv = write_to_pv
         self.klystrons_list = load_klystron_configs()
+        self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv)
 
     def predict(
         self,
         rf_input: npt.NDArray[number],
         bpm_input: npt.NDArray[number],
         pv_name: str,
-        timestamp: float,  # TODO: where do we use this?
+        timestamp: float,  # in nanoseconds since epoch
     ) -> bool:
         """
         Make predictions using the loaded models and provided a single batch of data.
@@ -79,11 +76,10 @@ class Predict:
         bpm_input = torch.tensor(bpm_input, dtype=torch.float64)
 
         anomalous = predict_label(self.configs, self.networks, (rf_input, bpm_input))
-        if anomalous and self.write_to_pv:
-            # Create anomaly table with the given station marked as anomalous
-            anomaly_table = create_anomaly_table(pv_name, self.klystrons_list)
-            # Write the prediction result to K2EG
-            write_prediction_to_k2eg(anomaly_table)
+        if anomalous:
+            # Update anomaly state in the timed dict
+            # if write to PV is enabled, it will also write to K2EG
+            set_anomaly_state(self.anom_state_dict, pv_name, anomalous)
         return anomalous
 
 
@@ -224,77 +220,6 @@ def predict_label(
     label = S > thres[0] and Q > thres[1]
 
     return bool(label)
-
-
-def create_anomaly_table(station: str, klys_list: List) -> NTTable:
-    """
-    Create an anomaly table where all klystron stations are set to False,
-    and the given anomalous station is set to True.
-
-    Parameters
-    ----------
-    station : str
-        The name of the klystron station to mark as anomalous.
-    klys_list : List
-        List containing the klystron station names.
-        Expected format: ['station_1', 'station_2', ...].
-
-    Returns
-    -------
-    NTTable
-        A table with anomaly states for each klystron station.
-    """
-    # Create a table with anomaly states for each klystron, and mark the given station as anomalous
-    # Table format:
-    # [
-    #     {'station': 'station_1', 'anomaly_state': Bool},
-    #     {'station': 'station_2', 'anomaly_state': Bool},
-    #     ...
-    # ]
-    # where each dict is a row and its keys are columns.
-    anomaly_table = [
-        {"station": klys, "anomaly_state": True if klys == station else False}
-        for klys in klys_list
-    ]
-    # Generate output format.
-    table_format = NTTable([("station", "s"), ("anomaly_state", "?")])
-    return table_format.wrap(anomaly_table)
-
-
-def write_prediction_to_p4p_sim(anomaly_table: NTTable) -> None:
-    """
-    For testing purposes, write the anomaly table to a simulated server.
-
-    Parameters
-    ----------
-    anomaly_table : NTTable
-        The anomaly table to write to K2EG.
-    """
-    context = Context()
-    anomaly_pv = "KLYS:SYS0:1:ANOM_STATES"
-    context.put(anomaly_pv, anomaly_table)
-
-
-def write_prediction_to_k2eg(anomaly_table: NTTable) -> None:
-    """
-    Write the anomaly table to K2EG.
-
-    Parameters
-    ----------
-    anomaly_table : NTTable
-        The anomaly table to write to K2EG.
-    """
-    anomaly_pv = "KLYS:SYS0:1:ANOM_STATES"
-    k2eg_client = k2eg.dml("rf-phase-ad", "app-three")
-    try:
-        k2eg_client.put(f"pva://{anomaly_pv}", anomaly_table, 5.0)
-        k2eg_client.close()
-    except Exception as e:
-        k2eg_client.close()
-        if isinstance(e, OperationTimeout):
-            print(f"Operation timed out while writing to {anomaly_pv}.")
-        else:
-            raise e
 
 
 def standardize_tensor(x: torch.Tensor) -> torch.Tensor:
