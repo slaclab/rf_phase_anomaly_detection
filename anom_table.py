@@ -5,6 +5,7 @@ from p4p.nt import NTTable
 from p4p.client.thread import Context
 import k2eg
 from k2eg.dml import OperationTimeout
+from k2eg.dml import dml as k2eg_dml
 
 
 class TimedBoolDict:
@@ -25,6 +26,10 @@ class TimedBoolDict:
         A dictionary that holds timers for each key, which reset the value to False after 5 minutes.
     lock : threading.Lock
         A lock to ensure thread safety when accessing or modifying the data and timers.
+    reset_time : int
+        The time in seconds after which the value is reset to False if it was set to True. Default is 300 seconds (5 minutes).
+    k2eg_client : k2eg_dml
+        The K2EG client used to write the anomaly state to K2EG if `write_to_pv` is True.
     Methods
     -------
     set_key(key: str, value: bool)
@@ -35,11 +40,14 @@ class TimedBoolDict:
     get_dict()
         Returns a copy of the current state of the dictionary.
     """
-    def __init__(self, keys: List[str], write_to_pv: bool = True):
+    def __init__(self, keys: List[str], write_to_pv: bool = True, reset_time: int = 300):
         self.data: Dict[str, bool] = {k: False for k in keys}
         self.write_to_pv: bool = write_to_pv
+        self.reset_time: int = reset_time  # Reset time in seconds (5 minutes is default)
         self.timers: Dict[str, threading.Timer] = {}
         self.lock = threading.Lock()
+        if self.write_to_pv:
+            self.k2eg_client = k2eg.dml("rf-phase-ad", "app-three")
 
     def set_key(self, key: str, value: bool):
         """
@@ -66,7 +74,7 @@ class TimedBoolDict:
                 if key in self.timers:
                     self.timers[key].cancel()
                 # Start/reset timer for 5 minutes
-                timer = threading.Timer(300, self._reset_key, args=(key,))
+                timer = threading.Timer(self.reset_time, self._reset_key, args=(key,))
                 self.timers[key] = timer
                 timer.start()
             else:
@@ -76,7 +84,7 @@ class TimedBoolDict:
                     del self.timers[key]
             if self.write_to_pv:
                 anomaly_table = create_anomaly_table(self.data)
-                write_prediction_to_k2eg(anomaly_table)
+                write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
 
     def _reset_key(self, key: str):
         """
@@ -98,7 +106,7 @@ class TimedBoolDict:
                 del self.timers[key]
             if self.write_to_pv:
                 anomaly_table = create_anomaly_table(self.data)
-                write_prediction_to_k2eg(anomaly_table)
+                write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
 
     def get_dict(self):
         """
@@ -160,7 +168,7 @@ def write_prediction_to_p4p_sim(anomaly_table: NTTable) -> None:
     context.put(anomaly_pv, anomaly_table)
 
 
-def write_prediction_to_k2eg(anomaly_table: NTTable) -> None:
+def write_prediction_to_k2eg(anomaly_table: NTTable, k2eg_client: k2eg_dml) -> None:
     """
     Write the anomaly table to K2EG.
 
@@ -168,17 +176,14 @@ def write_prediction_to_k2eg(anomaly_table: NTTable) -> None:
     ----------
     anomaly_table : NTTable
         The anomaly table to write to K2EG.
+    k2eg_client : k2eg_dml
+        The K2EG client to use for writing the anomaly table.
     """
     anomaly_pv = "KLYS:SYS0:1:ANOM_STATES"
-    k2eg_client = k2eg.dml("rf-phase-ad", "app-three")
+
     try:
-        k2eg_client.put(f"pva://{anomaly_pv}", anomaly_table, 5.0)
-        k2eg_client.close()
+        k2eg_client.put(f"pva://{anomaly_pv}", anomaly_table, 10.0)
     except Exception as e:
-        try:
-            k2eg_client.close()
-        except Exception as close_e:
-            pass
         if isinstance(e, OperationTimeout):
             print(f"Operation timed out while writing to {anomaly_pv}.")
         else:
