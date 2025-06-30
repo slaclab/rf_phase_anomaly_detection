@@ -1,9 +1,18 @@
-import pytest; pytest.skip("Not a test module", allow_module_level=True)
+"""Test for anomaly state management in Predict class.
+If you want to run online (writing to PV), set `write_to_pv=True` in the Predict constructor.
+Run from the project root directory with:
+`python -m tests.anom_table_k2eg_test`
+"""
+
 import sys
+if "pytest" in sys.modules:
+    import pytest; pytest.skip("Not a test module", allow_module_level=True)
+
 import os
 import logging
 import time
 import torch
+
 from inference.predict import Predict
 
 logging.basicConfig(level=logging.DEBUG)
@@ -29,7 +38,7 @@ def main():
     This function simulates setting and resetting anomaly states for multiple stations
     over a period of time, checking the expected behavior of the anomaly state dictionary.
     """
-    pred = Predict(write_to_pv=True)
+    pred = Predict(write_to_pv=False)
     pred.anom_state_dict.reset_time = 50 # seconds, setting a shorter reset time for testing
 
     # Five random keys
@@ -64,41 +73,43 @@ def main():
     pred.predict(**data_false)
     time.sleep(20)
 
-    print(f"After 25s, {stations[0]} should be True")
+    print(f"After 25s, {stations[0]} should be True\n")
 
     # Set anomaly state for the second station
     data_true["pv_name"] = stations[1]
     pred.predict(**data_true)
     time.sleep(10)
 
-    print(f"After 35s, {stations[0]} and {stations[1]} should be True")
+    print(f"After 35s, {stations[0]} and {stations[1]} should be True\n")
 
     # Set anomaly state for the third station
     data_true["pv_name"] = stations[2]
     pred.predict(**data_true)
     time.sleep(30)
 
-    print(f"After 65s, {stations[1]} and {stations[2]} should be True")
+    print(f"After 65s, {stations[1]} and {stations[2]} should be True\n")
 
     # Set the third station to True again, should not reset after 50s
     data_true["pv_name"] = stations[2]
     pred.predict(**data_true)
     time.sleep(9)
 
-    print(f"After 74s, {stations[1]} and {stations[2]} should be True")
+    print(f"After 74s, {stations[1]} and {stations[2]} should be True\n")
 
     # Set the second station to True again, should not reset after 50s
     data_true["pv_name"] = stations[1]
     pred.predict(**data_true)
     time.sleep(1)
 
-    print(f"After 75s, {stations[2]} should be True")
+    print(f"After 75s, {stations[1]} and {stations[2]} should be True\n")
 
     time.sleep(41)
-    print(f"All stations should be False")
-    print(dict(pred.anom_state_dict.get_dict()))
+    print(f"After 116s, {stations[1]} should be True\n")
 
-    pred.anom_state_dict.shut_down() # clean up the timers
+    time.sleep(8)
+    print(f"All stations should be False")
+
+    #pred.anom_state_dict.shut_down() # clean up the timers
 
 if __name__ == "__main__":
     main()

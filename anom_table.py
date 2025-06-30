@@ -88,7 +88,7 @@ class TimedBoolDict:
             if self.write_to_pv:
                 anomaly_table = create_anomaly_table(self.data)
                 write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
-            logger.debug(f"Current state dict: {dict(self.get_dict())}")
+            logger.debug(f"Setting {key} to 1. Current state dict: \n{dict(self.get_dict())}")
 
     def _reset_key(self, key: str):
         """
@@ -111,7 +111,7 @@ class TimedBoolDict:
             if self.write_to_pv:
                 anomaly_table = create_anomaly_table(self.data)
                 write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
-            logger.debug(f"Current state dict: {dict(self.get_dict())}")
+            logger.debug(f"Resetting key {key} to 0. Current state dict: \n{dict(self.get_dict())}")
 
     def get_dict(self):
         """
