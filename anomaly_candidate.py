@@ -1,7 +1,7 @@
 from queue import PriorityQueue
 import numpy as np
 
-from beam_check_config import ANOMALY_CANDIDATE_WINDOW_SIZE, FEEDBACK_STATION
+from beam_check_config import ANOMALY_CANDIDATE_WINDOW_SIZE, FEEDBACK_STATIONS
 
 class AnomalyCandidate:
     def __init__(self, slow_index: int, slow_time: int):
@@ -226,7 +226,7 @@ def find_most_anomalous_rf_station(
     # Return the top *non-feedback* station
     for i in top5_indices:
         pv = rf_pv_names[i]
-        if pv not in FEEDBACK_STATION:
+        if pv not in FEEDBACK_STATIONS:
             return pv, max_per_rf[i], system_level
 
     # If all top stations are feedback stations, return top anyway
