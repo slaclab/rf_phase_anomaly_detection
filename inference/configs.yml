@@ -21,7 +21,7 @@ predict:
   device: null
   exact: false
   sigmoid: true
-  standardize: false
+  standardize: true
   thres:
   - 0.2759
   - 0.4483

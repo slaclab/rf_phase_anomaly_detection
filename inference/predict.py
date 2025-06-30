@@ -203,11 +203,13 @@ def predict_label(
     Y_sigm = []
     for i, net in enumerate(networks):
         X = batch[i].double().to(device)
-        Y = torch.squeeze(net(X))
         if standardize:
-            # Note that we do not want to standardize unless standardization was used
-            # during training when calculating the loss
-            Y = standardize_tensor(Y)
+            X = standardize_tensor(X)
+        Y = torch.squeeze(net(X))
+        # if standardize:
+        #     # Note that we do not want to standardize unless standardization was used
+        #     # during training when calculating the loss
+        #     Y = standardize_tensor(Y)
         if sigm:
             Y_sigm.append(torch.sigmoid(Y))
         else:
@@ -224,7 +226,7 @@ def predict_label(
 
 def standardize_tensor(x: torch.Tensor) -> torch.Tensor:
     """
-    Standardize a tensor by subtracting the mean and dividing by the standard deviation.
+    Standardize the input tensor based on how the model was trained.
 
     Parameters
     ----------
@@ -237,9 +239,9 @@ def standardize_tensor(x: torch.Tensor) -> torch.Tensor:
         Standardized tensor.
     """
     if x.shape[0] == 1:
-        return x - torch.median(x, dim=1)
+        return x - torch.median(x, dim=1, keepdim=True)[0]
     if x.shape[0] == 8:
-        denom = [
+        denom = torch.tensor([
             5.8287e-02,
             6.3393e-02,
             7.5411e-01,
@@ -248,8 +250,8 @@ def standardize_tensor(x: torch.Tensor) -> torch.Tensor:
             2.8120e08,
             2.7878e08,
             2.7979e08,
-        ]
-        return (x - torch.median(x, dim=1)) / denom
+        ]).unsqueeze(1)
+        return (x - torch.median(x, dim=1, keepdim=True)[0]) / denom
 
 
 def _validate_input(
