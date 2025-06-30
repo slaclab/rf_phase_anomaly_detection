@@ -127,6 +127,22 @@ class TimedBoolDict:
         with self.lock:
             return dict(self.data)
 
+    def shut_down(self):
+        """
+        Cancel all timers and close the K2EG client connection if `write_to_pv` is True.
+        This method should be called when the application is shutting down to clean up resources.
+
+        Returns
+        -------
+        None
+        """
+        with self.lock:
+            for timer in self.timers.values():
+                timer.cancel()
+            self.timers.clear()
+            if self.write_to_pv:
+                self.k2eg_client.close()
+
 
 def create_anomaly_table(anom_dict: Dict[str, bool]) -> NTTable:
     """
