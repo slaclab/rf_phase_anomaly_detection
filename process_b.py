@@ -49,6 +49,7 @@ class ProcessB(CustomProcessObject):
 
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
+            self.buffer.buffer_initalize() # init buffer logging
 
         self.logger.debug(f"running process_b on {len(self.pv_list)} pvs")
         self.logger.debug("starting data processing loop...")

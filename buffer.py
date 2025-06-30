@@ -2,7 +2,6 @@ from typing import Optional
 import numpy as np
 import logging
 
-from mp_logging import create_worker_logger
 from beam_check import do_beam_checks
 from beam_check_config import (
     BEAM_RATE_PV,
@@ -21,7 +20,8 @@ from beam_check_config import (
 )
 from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
-from anomaly_candidates import AnomalyCandidate, CandidateBucket
+from anomaly_candidate import AnomalyCandidate, CandidateBucket
+from mp_logging import create_worker_logger, default_logging_kwargs
 
 
 class Buffer:
@@ -29,7 +29,7 @@ class Buffer:
     Fixed-length buffer for storing a sliding window of 120hz float data per pv.
     By default stores 5 mins (36000 values) of past data.
     """
-    def __init__(self, pv_list: list[str], buffer_len: int, logger: logging.Logger) -> None:
+    def __init__(self, pv_list: list[str], buffer_len: int, logging_kwargs: Optional[dict] = default_logging_kwargs):
         self.pv_list = pv_list
 
         # max length of buffer
@@ -50,7 +50,14 @@ class Buffer:
         # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
         self.data_map["valid_windows"] = set() # will hold tuples of (window_start_index, window_end_index)
 
-        self.logger = logger
+        self.logging_kwargs = logging_kwargs
+        self.logging_kwargs['logger_name'] = 'buffer'
+        self.logger = None
+
+    def buffer_initalize(self):
+        # setup calls that should be ran in the _call_ method of subprocess (to avoid getting called in main process)
+        if self.logger is None:
+            self.logger = create_worker_logger(**self.logging_kwargs)
 
     def update(self, snapshot: dict[str, list[dict]]) -> int:
         """
@@ -110,9 +117,9 @@ class Buffer:
             self.data_map["bpm_score_20"].put(bpm_score_20[-SAMPLES_PER_SECOND:])
             #Candidate Gen
             self.bpm_candidate_bucket.update_slow_indexes(-SAMPLES_PER_SECOND)
-        
+
         return -120 if was_full_before_new_data else 0
-        
+
     def clean_data(self) -> None:
         # forward fill data not updated during timestamp, check if corresponding pv timestamps are close enough, etc
         return
@@ -134,9 +141,7 @@ class Buffer:
                 candidate = AnomalyCandidate(slow_index=i, slow_time=slow_time_ns)
                 bucket.put(candidate)
 
-    return bucket
-
-
+        return bucket
 
     def get(self, pv_name: str, start_index: Optional[int] = None, end_index: Optional[int] = None) -> np.ndarray:
         """
@@ -144,9 +149,6 @@ class Buffer:
         Will return all the valid data for specified pv in buffer if start_index and end_index are None,
         else will return the data in the specified range. (or an empty array if the specified range is not valid)
         """
-        if pv_name not in self.data_map:
-            raise KeyError(f"pv_name '{pv_name}' not found in buffer map")
-
         if start_index < 0 or start_index > self.index or end_index > self.index:
             raise IndexError(f"start and end indicies not valid in buffer: {start_index}, {end_index}")
             return []
@@ -159,6 +161,7 @@ class Buffer:
         """
         Clear buffer contents for all PVs.
         """
+        self.logger.debug("clearing all values from buffer")
         for pv_name in self.data_map:
             self.data_map[pv_name].clear()
         self.data_map["pv_timestamps"].clear()
@@ -173,6 +176,7 @@ class Buffer:
             self.logger.debug(f"dump dir: {dir_name}")
             self.buffer.dump_to_human_readable(directory=dir_name)
         """
+        self.logger.debug(f"dumping buffer data to {directory}")
         os.makedirs(directory, exist_ok=True)
 
         for pv in self.pv_list:
