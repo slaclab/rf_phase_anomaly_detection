@@ -19,10 +19,13 @@ SNAPSHOT_NAME = 'phase_anomaly_detection_buffered_snap'
 def read_pv_list_from_file(pv_list_file: str) -> list[str]:
     with open(pv_list_file, 'r') as f:
         return [
-            f"ca://{u:s}"
-            for u in f.read().splitlines()
+            u for u in f.read().splitlines()
             if not u.startswith('#')
         ]
+
+
+def convert_pvs_to_uris(pv_list: list[str]) -> list[str]:
+    return [f"ca://{u:s}" for u in pv_list]
 
 
 class K2EGHandler:
@@ -40,7 +43,14 @@ class K2EGHandler:
 
         k2eg requires that you set an environment variable named
         K2EG_PYTHON_CONFIGURATION_PATH_FOLDER that points to a directory
-        containing a file named 'lcls.ini'.
+        containing a file named 'lcls-ext.ini'.  Which contains the following
+        with no quotes:
+        '''
+        [DEFAULT]
+        kafka_broker_url=172.24.5.187:9094
+        k2eg_cmd_topic=sdfk2eg-cmd-topic
+        '''
+        
         """
         self.pv_list = pv_list
         self.snapshot_period_ms = snapshot_period_ms
@@ -53,12 +63,12 @@ class K2EGHandler:
             snapshot_name=SNAPSHOT_NAME,
             time_window=snapshot_period_ms,  # time window of emits
             repeat_delay=0,                  # no delay between emits
-            pv_uri_list=self.pv_list,
+            pv_uri_list=convert_pvs_to_uris(self.pv_list),
             triggered=False,                 # emit without a trigger
             type=SnapshotType.TIMED_BUFFERED,
             pv_field_filter_list=["value"]   # emit just the PV values
         )
-        self.dml = k2eg.dml('lcls', APP_NAME)
+        self.dml = k2eg.dml('lcls-ext', APP_NAME)
         self.snapshot_is_running = False
 
     def __enter__(self):
