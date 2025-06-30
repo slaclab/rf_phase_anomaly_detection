@@ -101,9 +101,10 @@ class Buffer:
         total_length = snapshot_length + MAD_LENGTH - 1
         if self.index > total_length:
             bpm_score_1 = compute_score_1({
-                name: self.data_map.get(name, self.index - total_length, self.index) 
+                name: self.data_map["ca://" + name].get(self.index - total_length, self.index) # TODO remove 'ca//' when merge into main
                 for name in BPM_NAMES
             })
+
             bpm_score_20 = compute_score_20(bpm_score_1)
             self.data_map["bpm_score_1"].put(bpm_score_1[-snapshot_length:])
             self.data_map["bpm_score_20"].put(bpm_score_20[-snapshot_length:])
@@ -125,6 +126,12 @@ class Buffer:
         candidates = []
         start = self.index - look_back_this_far
         end = self.index
+
+        # avoid errors when trying to find candidates b4 bpm_score_20 can be calculated,
+        # as in: self.index < snapshot_length + MAD_LENGTH - 1
+        # TODO: figure out if this is correct way to handle this
+        if len(self.data_map["bpm_score_20"]) == 0:
+            return []
         scores = self.data_map["bpm_score_20"].get(start, end)
         timestamps_ns = self.data_map["pv_timestamps_ns"].get(start, end)
 
