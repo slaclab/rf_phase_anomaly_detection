@@ -23,5 +23,5 @@ predict:
   sigmoid: true
   standardize: false
   thres:
-  - 0.5
-  - 0.5
+  - 0.2759
+  - 0.4483

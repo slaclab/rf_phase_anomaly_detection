@@ -43,10 +43,15 @@ class TimedBoolDict:
     get_dict()
         Returns a copy of the current state of the dictionary.
     """
-    def __init__(self, keys: List[str], write_to_pv: bool = True, reset_time: int = 300):
+
+    def __init__(
+        self, keys: List[str], write_to_pv: bool = True, reset_time: int = 300
+    ):
         self.data: Dict[str, bool] = {k: False for k in keys}
         self.write_to_pv: bool = write_to_pv
-        self.reset_time: int = reset_time  # Reset time in seconds (5 minutes is default)
+        self.reset_time: int = (
+            reset_time  # Reset time in seconds (5 minutes is default)
+        )
         self.timers: Dict[str, threading.Timer] = {}
         self.lock = threading.RLock()
         if self.write_to_pv:
@@ -88,7 +93,9 @@ class TimedBoolDict:
             if self.write_to_pv:
                 anomaly_table = create_anomaly_table(self.data)
                 write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
-            logger.debug(f"Setting {key} to 1. Current state dict: \n{dict(self.get_dict())}")
+            logger.debug(
+                f"Setting {key} to 1. Current state dict: \n{dict(self.get_dict())}"
+            )
 
     def _reset_key(self, key: str):
         """
@@ -111,7 +118,9 @@ class TimedBoolDict:
             if self.write_to_pv:
                 anomaly_table = create_anomaly_table(self.data)
                 write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
-            logger.debug(f"Resetting key {key} to 0. Current state dict: \n{dict(self.get_dict())}")
+            logger.debug(
+                f"Resetting key {key} to 0. Current state dict: \n{dict(self.get_dict())}"
+            )
 
     def get_dict(self):
         """
@@ -167,8 +176,7 @@ def create_anomaly_table(anom_dict: Dict[str, bool]) -> NTTable:
     # ]
     # where each dict is a row and its keys are columns.
     anomaly_table = [
-        {"station": klys, "anomaly_state": state}
-        for klys, state in anom_dict.items()
+        {"station": klys, "anomaly_state": state} for klys, state in anom_dict.items()
     ]
     # Generate output format.
     table_format = NTTable([("station", "s"), ("anomaly_state", "?")])
@@ -211,9 +219,7 @@ def write_prediction_to_k2eg(anomaly_table: NTTable, k2eg_client: k2eg_dml) -> N
             raise e
 
 
-def set_anomaly_state(
-    anomaly_state: TimedBoolDict, klys: str, state: bool
-) -> None:
+def set_anomaly_state(anomaly_state: TimedBoolDict, klys: str, state: bool) -> None:
     """
     Set the anomaly state for a given klystron station. This updates the internal state of the anomaly dictionary.
 

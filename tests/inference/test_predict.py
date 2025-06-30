@@ -2,7 +2,6 @@ from typing import Dict, Any, Tuple, List
 from unittest import mock
 import traceback
 import os
-import sys
 
 import numpy.typing as npt
 from numpy import number

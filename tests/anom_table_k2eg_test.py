@@ -5,8 +5,11 @@ Run from the project root directory with:
 """
 
 import sys
+
 if "pytest" in sys.modules:
-    import pytest; pytest.skip("Not a test module", allow_module_level=True)
+    import pytest
+
+    pytest.skip("Not a test module", allow_module_level=True)
 
 import os
 import logging
@@ -39,7 +42,9 @@ def main():
     over a period of time, checking the expected behavior of the anomaly state dictionary.
     """
     pred = Predict(write_to_pv=False)
-    pred.anom_state_dict.reset_time = 50 # seconds, setting a shorter reset time for testing
+    pred.anom_state_dict.reset_time = (
+        50  # seconds, setting a shorter reset time for testing
+    )
 
     # Five random keys
     stations = pred.klystrons_list[0:4]
@@ -52,14 +57,14 @@ def main():
         "timestamp": 1000,  # Example timestamp
         "rf_input": test_data_set_true[0],
         "bpm_input": test_data_set_true[1],
-        "pv_name": None    # Will be set later
+        "pv_name": None,  # Will be set later
     }
 
     data_false = {
         "timestamp": 1000,  # Example timestamp
         "rf_input": test_data_set_false[0],
         "bpm_input": test_data_set_false[1],
-        "pv_name": None
+        "pv_name": None,
     }
 
     # Set the anomaly state for each station
@@ -107,9 +112,10 @@ def main():
     print(f"After 116s, {stations[1]} should be True\n")
 
     time.sleep(8)
-    print(f"All stations should be False")
+    print("All stations should be False")
 
-    #pred.anom_state_dict.shut_down() # clean up the timers
+    # pred.anom_state_dict.shut_down() # clean up the timers
+
 
 if __name__ == "__main__":
     main()
