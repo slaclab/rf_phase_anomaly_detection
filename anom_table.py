@@ -1,11 +1,14 @@
 from typing import List, Dict
 import threading
+import logging
 
 from p4p.nt import NTTable
 from p4p.client.thread import Context
 import k2eg
 from k2eg.dml import OperationTimeout
 from k2eg.dml import dml as k2eg_dml
+
+logger = logging.getLogger(__name__)
 
 
 class TimedBoolDict:
@@ -45,7 +48,7 @@ class TimedBoolDict:
         self.write_to_pv: bool = write_to_pv
         self.reset_time: int = reset_time  # Reset time in seconds (5 minutes is default)
         self.timers: Dict[str, threading.Timer] = {}
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         if self.write_to_pv:
             self.k2eg_client = k2eg.dml("rf-phase-ad", "app-three")
 
@@ -85,6 +88,7 @@ class TimedBoolDict:
             if self.write_to_pv:
                 anomaly_table = create_anomaly_table(self.data)
                 write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
+            logger.debug(f"Current state dict: {dict(self.get_dict())}")
 
     def _reset_key(self, key: str):
         """
@@ -107,6 +111,7 @@ class TimedBoolDict:
             if self.write_to_pv:
                 anomaly_table = create_anomaly_table(self.data)
                 write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
+            logger.debug(f"Current state dict: {dict(self.get_dict())}")
 
     def get_dict(self):
         """
