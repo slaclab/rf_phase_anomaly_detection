@@ -125,7 +125,7 @@ def find_fast_index(
 
     Returns
     -------
-        Absolute index in buffer where fast trigger was detected 
+        Absolute index in buffer where fast trigger was detected
     """
     # Calculate number of samples to look back from the slow trigger index
     lookback = lookback_seconds * samples_per_second
@@ -133,21 +133,21 @@ def find_fast_index(
     buffer_index = buffer.index
     start = max(0, slow_index - lookback)
     end = min(buffer_index, slow_index)
-    
+
     # Get the bpm_score_1 values for the lookback window
     bpm_score_1 - buffer.get("bpm_score_1", start, end)
 
-    # Compute the relative slow index 
+    # Compute the relative slow index
     rel_slow_idx = slow_index - start
 
     # Define the region to calculate baseline and detect change
     window_start = max(0, rel_slow_index - window_size)
     window_end = rel_slow_idx
     window = bpm_score_1[window_start:window_end]
-    
+
     if len(window)<10:
         return slow_index #fallback if data is too small
-    
+
     # Split into two parts: baseline (first part of the window) and trigger_window (last_half)
     baseline_end = max(1, len(window) - window_size // 2)
     baseline = window[:baseline_end]
@@ -157,12 +157,12 @@ def find_fast_index(
     baseline_mean = np.mean(baseline)
     baseline_std = np.std(baseline) + 1e-6 #avoid divide-by-zero
 
-    # Compute z-scores in trigger window 
+    # Compute z-scores in trigger window
     z_scores = np.abs(trigger_window - baseline_mean) / baseline_std
 
     # Find first point above threshold (z > 1.25)
     above_thresh = np.where(z_scores > 1.25)[0]
-    
+
     if len(above_thresh) > 0:
         rel_fast_idx = window_start + baseline_end + above_thresh[0] # Found anomaly; get first one
     else:

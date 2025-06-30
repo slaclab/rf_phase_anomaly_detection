@@ -4,21 +4,21 @@ import numpy as np
 
 from sliding_window import SlidingWindowArray
 from beam_check_config import (
-    BEAM_RATE_PV, 
-    BEAM_SPLIT_PV, 
-    STOPPER_PV, 
+    BEAM_RATE_PV,
+    BEAM_SPLIT_PV,
+    STOPPER_PV,
     IN_TMIT_PV,
     EXP_TMIT_MIN
     )
 
 
-BEAM_CHECK_PVS = [BEAM_RATE_PV, BEAM_SPLIT_PV, STOPPER_PV, 
+BEAM_CHECK_PVS = [BEAM_RATE_PV, BEAM_SPLIT_PV, STOPPER_PV,
     IN_TMIT_PV
 ]
 
 def do_beam_checks(check_signals: dict[str, np.ndarray]) -> np.ndarray:
     """
-    Does some basic checks to see if the beam is healthy enough to look 
+    Does some basic checks to see if the beam is healthy enough to look
     for anomalies.
 
     The checks use cryptic codes, they mean:
@@ -37,7 +37,7 @@ def do_beam_checks(check_signals: dict[str, np.ndarray]) -> np.ndarray:
 
     Returns
     -------
-        numpy array of True and False; True means the beam is healthy 
+        numpy array of True and False; True means the beam is healthy
     enough to use.
     """
     for pv_name in BEAM_CHECK_PVS:

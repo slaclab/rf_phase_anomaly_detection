@@ -78,7 +78,7 @@ class ProcessB(CustomProcessObject):
             # check for candidates ready for process C
             while self.candidate_bucket.oldest_candidate_slow_index <= self.buffer.index - 5 * SAMPLES_PER_SECOND:
                 candidate = self.candidate_bucket.get()  # get the oldest candidate
-                
+
                 # find the fast trigger
                 fast_index = find_fast_index(
                     self.buffer,
@@ -88,9 +88,9 @@ class ProcessB(CustomProcessObject):
                 )
                 candidate.fast_index = fast_index
                 fast_time = self.buffer.get('pv_timestamp_ns', fast_index, fast_index + 1)[0]
-                
+
                 # find the most anomalous rf station
-                most_anomalous_rf_pv_name, deviation_score, system_level_flag = find_most_anomalous_rf_station(  
+                most_anomalous_rf_pv_name, deviation_score, system_level_flag = find_most_anomalous_rf_station(
                 self.buffer,
                 slow_index=candidate.slow_index,
                 window_size=20, #should we put this in config?

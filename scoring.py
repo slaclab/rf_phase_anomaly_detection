@@ -14,7 +14,7 @@ def compute_score_1(
     Computes median-absolute deviation with a 600 point rolling window
     and then aggregates across all channels with a geometric mean.
 
-    This function partially replicates the function 
+    This function partially replicates the function
     bpm_extractor.scorer.score from
     https://github.com/slaclab/SLAC-AD-REF/blob/trig-bpm-fixed/papers/phase/BPM_Source_final.py#L156C12-L156C105
 

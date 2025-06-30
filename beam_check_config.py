@@ -5,7 +5,7 @@ from datetime import timedelta
 # since on main the code is refactored so pv_list stores the addreses without the protocal prefix.
 BEAM_RATE_PV = "ca://IOC:BSY0:MP01:PC_RATE"
 BEAM_SPLIT_PV = "ca://IOC:IN20:EV01:RG02_ACTRATE"
-IN_TMIT_PV = "ca://BPMS:IN20:221:TMITCUHBR" 
+IN_TMIT_PV = "ca://BPMS:IN20:221:TMITCUHBR"
 STOPPER_PV = "ca://STPR:BSYH:2:STD2_IN_A"
 
 BEAM_RATE_TABLE = {1: 0, 4: 1, 5: 10, 6: 30, 7: 60, 8: 120}
