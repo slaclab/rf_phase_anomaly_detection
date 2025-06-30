@@ -1,16 +1,21 @@
 FROM python:3.12-slim
 
 WORKDIR /app
+
 # Set env variable for k2eg
 ENV K2EG_PYTHON_CONFIGURATION_PATH_FOLDER=/app/config
-COPY requirements.txt .
 
+# Install system dependencies, then clean up
 RUN apt-get update && \
     apt-get upgrade -y && \
-    apt-get install --no-install-recommends -qy python3-dev g++ gcc && \
-    apt-get install -y git && \
-    pip install --no-cache-dir -r requirements.txt && \
-    apt-get remove -qy python3-dev g++ gcc --purge && \
+    apt-get install --no-install-recommends -qy python3-dev g++ gcc git && \
     rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+
+RUN pip install torch~=2.7.1 --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r requirements.txt && \
+    apt-get purge -y --auto-remove python3-dev g++ gcc && \
+    rm -rf /root/.cache
 
 COPY . .
