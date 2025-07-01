@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rf-phase-anomaly-detection
+  labels:
+    app: rf-phase-anomaly-detection
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rf-phase-anomaly-detection
+  template:
+    metadata:
+      labels:
+        app: rf-phase-anomaly-detection
+    spec:
+      containers:
+      - name: rf-phase-anomaly-detection
+        image: scr.svc.stanford.edu/smiskov/rf-phase-anomaly-detection:0.2
+        imagePullPolicy: Always
+        command: ["/bin/bash", "-c", "--"]
+        args: ["while true; do sleep 30; done;"]
