@@ -1,7 +1,7 @@
 from queue import PriorityQueue
 import numpy as np
 
-from beam_check_config import ANOMALY_CANDIDATE_WINDOW_SIZE, FEEDBACK_STATIONS
+from beam_check_config import ANOMALY_CANDIDATE_WINDOW_SIZE, FEEDBACK_STATIONS, RF_PV_NAMES
 
 class AnomalyCandidate:
     def __init__(self, slow_index: int, slow_time: int):
@@ -172,28 +172,22 @@ def find_fast_index(
     return start + rel_fast_idx
 
 def find_most_anomalous_rf_station(
-    buffer,
-    slow_index: int,
-    window_size: int,
+    windoow,
     rf_pv_names: list[str],
     phas_thresh: float = 2.5,
 ) -> tuple[str, float, int]:
     """
-    Implements the  RF Candidate Selection from Appendix C of
+    Implements the RF Candidate Selection from Appendix C of
     https://arxiv.org/abs/2505.16052
 
-    Identifies the most anomalous klystron station identification based on phase deviation 
+    Identifies the most anomalous klystron station identification based on phase deviation
     https://github.com/SLAC-ML/CoincAD/blob/phase/core/h5_dataloader_bpm_trigger_2024_TriggerMulti_8ch_centerPhasTrigger_asym_cleanup_final.ipynb
     Function - most_anomalous_klys
 
     Parameters
     ----------
-    buffer : Buffer
-        The rolling buffer object that stores phase PVs.
-    slow_index : int
-        Index of the slow trigger in the buffer.
-    window_size : int
-        Number of samples to include before the slow_index.
+    window : np.ndarray
+        2D array containing rf station data.
     rf_pv_names : list[str]
         List of RF PV names corresponding to phas_fast channels.
     phas_thresh : float
@@ -204,12 +198,6 @@ def find_most_anomalous_rf_station(
     Tuple[str, float, int]
         The most anomalous RF PV name, its deviation score, and a system_level flag (0 or 1).
     """
-    min_index = max(0, slow_index - window_size)
-
-    # (window_size, num_rf_pvs)
-    window = np.stack([
-        buffer.get(pv, min_index, slow_index) for pv in rf_pv_names
-    ], axis=1)
 
     # Absolute deviation from 0 (centered signal)
     window_abs = np.abs(window)
@@ -253,3 +241,12 @@ if __name__ == '__main__':
     bucket.update_slow_indexes(-4)
     print(bucket.queue)
 
+    candidate = bucket.get()
+    window_size = 20
+    window = np.stack([np.random.randn(window_size) for _ in RF_PV_NAMES], axis=1) # (window_size, num_rf_pvs)
+    most_anomalous_rf_pv_name, deviation_score, system_level_flag = find_most_anomalous_rf_station(
+        window,
+        rf_pv_names=RF_PV_NAMES,
+        phas_thresh=2.5,
+    )
+    print(most_anomalous_rf_pv_name, deviation_score, system_level_flag)
