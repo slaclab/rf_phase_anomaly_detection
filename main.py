@@ -7,9 +7,17 @@ from k2eg_process import K2EGProcess, read_pv_list_from_file
 from k2eg_spoof_process import K2EGSpoofProcess
 from process_b import ProcessB
 from process_c import ProcessC
+import signal
+import sys
 
+def signal_handler(sig, frame):
+    # catch ctrl+c here, to avoid dumping a bunch of output to terminal when kill program
+    sys.exit(0)
 
 if __name__ == '__main__':
+
+    # SIGINT is ctrl+c
+    signal.signal(signal.SIGINT, signal_handler)
 
     parser = argparse.ArgumentParser(description="Run with real or spoofed k2eg data.")
     parser.add_argument(
