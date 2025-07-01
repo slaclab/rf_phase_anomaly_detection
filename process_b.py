@@ -90,12 +90,13 @@ class ProcessB(CustomProcessObject):
                 fast_time = self.buffer.get('pv_timestamp_ns', fast_index, fast_index + 1)[0]
 
                 # find the most anomalous rf station
+                window_size = 20
+                min_index = max(0, candidate.slow_index - window_size)
+                window = np.stack([buffer.get(pv, min_index, slow_index) for pv in rf_pv_names], axis=1) # (window_size, num_rf_pvs)
                 most_anomalous_rf_pv_name, deviation_score, system_level_flag = find_most_anomalous_rf_station(
-                self.buffer,
-                slow_index=candidate.slow_index,
-                window_size=20, #should we put this in config?
-                rf_pv_names=RF_PV_NAMES,
-                phas_thresh=2.5,
+                    window,
+                    rf_pv_names=RF_PV_NAMES,
+                    phas_thresh=2.5,
                 ) #What can we do with devation score and flag?
 
                 data_window = candidate.window_slice
