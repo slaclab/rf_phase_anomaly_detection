@@ -1,6 +1,7 @@
 import numpy as np
 from typing import Optional
 
+
 class SlidingWindowArray:
     """
     Fixed-size sliding buffer.
@@ -12,6 +13,7 @@ class SlidingWindowArray:
         data (np.ndarray): underlying data-storage.
         index (int): current write position or length of valid data.
     """
+
     def __init__(self, buffer_len: int, dtype: np.dtype = np.float64):
         self.data = np.empty(buffer_len, dtype=dtype)
         self.buffer_len = buffer_len
@@ -24,7 +26,7 @@ class SlidingWindowArray:
 
         if self.index + n <= self.buffer_len:
             # have enough room without shifting, just write to next open index (this only happens during initial buffer fill-up)
-            self.data[self.index:self.index + n] = values
+            self.data[self.index : self.index + n] = values
             self.index += n
         else:
             # shift left and append to the end, this should be quick on a np.arr
