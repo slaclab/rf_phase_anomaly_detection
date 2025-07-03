@@ -94,44 +94,32 @@ class CandidateBucket(PriorityQueue):
             self.put(candidate)
 
 
-def find_fast_index(
-    buffer, slow_index: int, window_size: int, samples_per_second: int, lookback_seconds: int = 5
-) -> int:
+def find_fast_index(bpm_score_1: np, slow_index: int, window_size: int, start: int, lookback_seconds: int = 5) -> int:
     """
-    Implements the  fast trigger from Section IV A of
-    https://arxiv.org/abs/2505.16052
+        Implements the  fast trigger from Section IV A of
+        https://arxiv.org/abs/2505.16052
 
-    Computes a simple heuristic to determine the earliest time point within the sequence where the anomaly occurs)
-    https://github.com/SLAC-ML/CoincAD/blob/phase/core/h5_dataloader_bpm_trigger_2024_TriggerMulti_8ch_centerPhasTrigger_asym_cleanup_final.ipynb
-    Function - get_fast_trigger_idx
+        Computes a simple heuristic to determine the earliest time point within the sequence where the anomaly occurs)
+        https://github.com/SLAC-ML/CoincAD/blob/phase/core/h5_dataloader_bpm_trigger_2024_TriggerMulti_8ch_centerPhasTrigger_asym_cleanup_final.ipynb
+        Function - get_fast_trigger_idx
 
-    Parameters
-    ----------
-    buffer: Buffer
-        The rolling buffer object that stores phase PVs.
-    slow_index: int
-        Index of the slow trigger in the buffer.
-    window_size: int
-        Number of samples to include before the slow_index.
-    samples_per_second: int
-        Sampling rate of data (typically 120)
-    lookback_seconds: int
-        How far back from the slow index to search (default 5s)
+        Parameters
+        ----------
+        bpm_score_1: np.ndarray
+            bpm-score values for the lookback window
+        slow_index: int
+            Index of the slow trigger in the buffer.
+        window_size: int
+            Number of samples to include before the slow_index.
+        start: int
+            TEMP blah
+        lookback_seconds: int
+    -        How far back from the slow index to search (default 5s
 
-    Returns
-    -------
-        Absolute index in buffer where fast trigger was detected
+        Returns
+        -------
+            Absolute index in buffer where fast trigger was detected
     """
-    # Calculate number of samples to look back from the slow trigger index
-    lookback = lookback_seconds * samples_per_second
-
-    buffer_index = buffer.index
-    start = max(0, slow_index - lookback)
-    end = min(buffer_index, slow_index)
-
-    # Get the bpm_score_1 values for the lookback window
-    bpm_score_1 = buffer.get("bpm_score_1", start, end)
-
     # Compute the relative slow index
     rel_slow_idx = slow_index - start
 
@@ -248,3 +236,13 @@ if __name__ == "__main__":
         phas_thresh=2.5,
     )
     print(most_anomalous_rf_pv_name, deviation_score, system_level_flag)
+
+    bpm_score_1 = np.random.rand(120)
+    start = 0
+    fast_index = find_fast_index(
+        bpm_score_1,
+        slow_index=candidate.slow_index,
+        window_size=20,  # should we put this in config?
+        start=start,
+    )
+    print(fast_index)

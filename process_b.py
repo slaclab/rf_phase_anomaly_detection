@@ -78,12 +78,24 @@ class ProcessB(CustomProcessObject):
             while self.candidate_bucket.oldest_candidate_slow_index <= self.buffer.index - 5 * SAMPLES_PER_SECOND:
                 candidate = self.candidate_bucket.get()  # get the oldest candidate
 
+                # Calculate number of samples to look back from the slow trigger index
+                lookback_seconds = 5
+                lookback = lookback_seconds * SAMPLES_PER_SECOND
+
+                buffer_index = self.buffer.index
+                start = max(0, candidate.slow_index - lookback)
+                end = min(buffer_index, candidate.slow_index)
+
+                # Get the bpm_score_1 values for the lookback window
+                bpm_score_1 = self.buffer.get("bpm_score_1", start, end)
+
                 # find the fast trigger
                 fast_index = find_fast_index(
-                    self.buffer,
+                    bpm_score_1,
                     slow_index=candidate.slow_index,
                     window_size=20,  # should we put this in config?
-                    samples_per_second=SAMPLES_PER_SECOND,
+                    start=start,
+                    lookback_seconds=5,
                 )
                 candidate.fast_index = fast_index
                 fast_time = self.buffer.get("pv_timestamp_ns", fast_index, fast_index + 1)[0]
