@@ -36,6 +36,18 @@ realpath k2eg_spoofer
 # the result of this is the path of k2eg_spoofer on your machine, save for later setting the $PYTHONPATH...
 ```
 
+Its also recommended to setup the pre-commit tool to run before each commit you make.
+This will auto-format your code and tidy things up by removing trailing spaces, extra new-lines, etc.
+```
+pip install pre-commit
+pre-commit install
+```
+
+You can also run pre-commit before actually making a commit with:
+```
+pre-commit run --all-files
+```
+
 To [set/unset](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#macos-and-linux) the required environment variables:
 ```
 cd $CONDA_PREFIX
