@@ -133,13 +133,14 @@ class Buffer:
         if pv_name not in self.data_map:
             raise KeyError(f"pv_name '{pv_name}' not found in buffer map")
 
-        if start_index < 0 or start_index > self.index or end_index > self.index:
-            raise IndexError(f"start and end indices not valid in buffer: {start_index}, {end_index}")
-            return []
-
         s = start_index if start_index is not None else 0
         e = end_index if end_index is not None else self.index
-        return self.data_map[pv_name][s:e]
+
+        if s < 0 or s > self.index or e > self.index:
+            raise IndexError(f"start and end indices not valid in buffer: {s}, {e}")
+            return []
+
+        return self.data_map[pv_name].get(s, e)
 
     def clear(self) -> None:
         """
