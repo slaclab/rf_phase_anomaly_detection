@@ -1,6 +1,5 @@
 from typing import Optional, Tuple
 import numpy as np
-import logging
 import os
 
 from beam_check import do_beam_checks, BEAM_CHECK_PVS
@@ -8,7 +7,7 @@ from beam_check_config import MAD_LENGTH, BPM_NAMES, SAMPLES_PER_SECOND, BPM_THR
 from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
 from anomaly_candidate import AnomalyCandidate, CandidateBucket
-from mp_logging import create_worker_logger, default_logging_kwargs
+from mp_logging import default_logging_kwargs
 
 
 class Buffer:
@@ -16,8 +15,8 @@ class Buffer:
     Fixed-length buffer for storing a sliding window of 120hz float data per pv.
     By default stores 5 mins (36000 values) of past data.
     """
-    def __init__(self, pv_list: list[str], buffer_len: int, logging_kwargs: Optional[dict] = default_logging_kwargs):
 
+    def __init__(self, pv_list: list[str], buffer_len: int, logging_kwargs: Optional[dict] = default_logging_kwargs):
         self.pv_list = pv_list
 
         # max length of buffer
@@ -124,15 +123,15 @@ class Buffer:
 
         return candidates
 
-    #Should we put threshold in beam_check_config?
-    def detect_bpm_candidates(self, threshold: float=50) -> CandidateBucket:
+    # Should we put threshold in beam_check_config?
+    def detect_bpm_candidates(self, threshold: float = 50) -> CandidateBucket:
         scores = self.data_map["bpm_score_20"]
         timestamps = self.data_map["pv_timestamps"]
         bucket = CandidateBucket()
 
-        for i in range (self.index):
+        for i in range(self.index):
             if scores[i] > threshold:
-                slow_time  = int(timestamps[i] * 1e9)  # Convert to ns since epoch
+                slow_time = int(timestamps[i] * 1e9)  # Convert to ns since epoch
                 candidate = AnomalyCandidate(slow_index=i, slow_time=slow_time_ns)
                 bucket.put(candidate)
 

@@ -112,9 +112,9 @@ def find_fast_index(bpm_score_1: np, slow_index: int, window_size: int, start: i
         window_size: int
             Number of samples to include before the slow_index.
         start: int
-            TEMP blah
+            Starting index of the lookback window
         lookback_seconds: int
-    -        How far back from the slow index to search (default 5s
+            How far back from the slow index to search (default 5s)
 
         Returns
         -------
