@@ -30,7 +30,7 @@ git clone git@github.com:slaclab/rf_phase_anomaly_detection.git
 This package requires [k2eg_spoofer](https://github.com/slaclab/k2eg_spoofer) to run anytime live PV data is not available (like during PAMM).
 To also install k2eg_spoofer:
 ```
-cd .. # go to the rf_phase_ad dir
+# you should be back in the phase_ad dir
 git clone git@github.com:slaclab/k2eg_spoofer.git
 realpath k2eg_spoofer
 # the result of this is the path of k2eg_spoofer on your machine, save for later setting the $PYTHONPATH...
@@ -39,6 +39,8 @@ realpath k2eg_spoofer
 Its also recommended to setup the pre-commit tool to run before each commit you make.
 This will auto-format your code and tidy things up by removing trailing spaces, extra new-lines, etc.
 ```
+# you should be in the phase_ad dir
+cd rf_phase_anomaly_detection
 pip install pre-commit
 pre-commit install
 ```
@@ -72,6 +74,8 @@ then reactivate the conda environment to have the environment variables load:
 ```
 conda activate rf_phase_ad
 ```
+
+and then be sure to cd back to the rf_phase_anomaly_detection dir to finally start running the detection pipeline.
 
 ## Running the pipeline
 
