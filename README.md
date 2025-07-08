@@ -19,12 +19,10 @@ conda create --name rf_phase_ad python=3.10
 conda activate rf_phase_ad
 mkdir phase_ad
 cd phase_ad
-git clone https://github.com/slaclab/k2eg-python.git
-cd k2eg-python
-pip install -r requirements.txt
-pip install -e .
-cd ..
 git clone git@github.com:slaclab/rf_phase_anomaly_detection.git
+cd rf_phase_anomaly_detection
+pip install -r requirements.txt
+pip install -r dev-requirements.txt
 ```
 
 This package requires [k2eg_spoofer](https://github.com/slaclab/k2eg_spoofer) to run anytime live PV data is not available (like during PAMM).
