@@ -1,6 +1,8 @@
 from queue import PriorityQueue
+import numpy as np
 
-from beam_check_config import ANOMALY_CANDIDATE_WINDOW_SIZE
+from beam_check_config import ANOMALY_CANDIDATE_WINDOW_SIZE, FEEDBACK_STATIONS, RF_PV_NAMES
+
 
 class AnomalyCandidate:
     def __init__(self, slow_index: int, slow_time: int):
@@ -19,17 +21,14 @@ class AnomalyCandidate:
         self._slow_index = slow_index
         self.slow_time = slow_time
 
-        self.window = [
-            -ANOMALY_CANDIDATE_WINDOW_SIZE, 
-            ANOMALY_CANDIDATE_WINDOW_SIZE
-            ]
+        self.window = [-ANOMALY_CANDIDATE_WINDOW_SIZE, ANOMALY_CANDIDATE_WINDOW_SIZE]
 
-        self.fast_index = None
+        self._fast_index = None
         self.score = None
         # more things here?
 
     def __str__(self):
-        ss = 'AnomalyCandidate'
+        ss = "AnomalyCandidate"
         ss += f"(slow_index={self.slow_index}"
         ss += f", slow_time={self.slow_time})"
         return ss
@@ -46,11 +45,16 @@ class AnomalyCandidate:
 
     def __gt__(self, other):
         return self.slow_index > other.slow_index
+
     # the above are used in the priority queue
 
     @property
     def slow_index(self):
         return self._slow_index
+
+    @property
+    def fast_index(self):
+        return self._fast_index
 
     @slow_index.setter
     def slow_index(self, new_index: int):
@@ -58,7 +62,7 @@ class AnomalyCandidate:
 
     @property
     def window_slice(self) -> list[int]:
-        return [self._slow_index + x for x in self.window]
+        return [self._fast_index + x for x in self.window]
 
     def __iadd__(self, index_change: int):
         self.slow_index += index_change
@@ -90,7 +94,120 @@ class CandidateBucket(PriorityQueue):
             self.put(candidate)
 
 
-if __name__ == '__main__':
+def find_fast_index(bpm_score_1: np, slow_index: int, window_size: int, start: int, lookback_seconds: int = 5) -> int:
+    """
+        Implements the  fast trigger from Section IV A of
+        https://arxiv.org/abs/2505.16052
+
+        Computes a simple heuristic to determine the earliest time point within the sequence where the anomaly occurs)
+        https://github.com/SLAC-ML/CoincAD/blob/phase/core/h5_dataloader_bpm_trigger_2024_TriggerMulti_8ch_centerPhasTrigger_asym_cleanup_final.ipynb
+        Function - get_fast_trigger_idx
+
+        Parameters
+        ----------
+        bpm_score_1: np.ndarray
+            bpm-score values for the lookback window
+        slow_index: int
+            Index of the slow trigger in the buffer.
+        window_size: int
+            Number of samples to include before the slow_index.
+        start: int
+            Starting index of the lookback window
+        lookback_seconds: int
+            How far back from the slow index to search (default 5s)
+
+        Returns
+        -------
+            Absolute index in buffer where fast trigger was detected
+    """
+    # Compute the relative slow index
+    rel_slow_idx = slow_index - start
+
+    # Define the region to calculate baseline and detect change
+    window_start = max(0, rel_slow_idx - window_size)
+    window_end = rel_slow_idx
+    window = bpm_score_1[window_start:window_end]
+
+    if len(window) < 10:
+        return slow_index  # fallback if data is too small
+
+    # Split into two parts: baseline (first part of the window) and trigger_window (last_half)
+    baseline_end = max(1, len(window) - window_size // 2)
+    baseline = window[:baseline_end]
+    trigger_window = window[baseline_end:]
+
+    # Compute mean and std from baseline window
+    baseline_mean = np.mean(baseline)
+    baseline_std = np.std(baseline) + 1e-6  # avoid divide-by-zero
+
+    # Compute z-scores in trigger window
+    z_scores = np.abs(trigger_window - baseline_mean) / baseline_std
+
+    # Find first point above threshold (z > 1.25)
+    above_thresh = np.where(z_scores > 1.25)[0]
+
+    if len(above_thresh) > 0:
+        rel_fast_idx = window_start + baseline_end + above_thresh[0]  # Found anomaly; get first one
+    else:
+        rel_fast_idx = (
+            window_start + baseline_end + len(trigger_window) // 2
+        )  # No clear anomaly; default to center of trigger_window
+
+    # Return fast trigger index in absolute buffer coordinates
+    return start + rel_fast_idx
+
+
+def find_most_anomalous_rf_station(
+    window,
+    rf_pv_names: list[str],
+    phas_thresh: float = 2.5,
+) -> tuple[str, float, int]:
+    """
+    Implements the RF Candidate Selection from Appendix C of
+    https://arxiv.org/abs/2505.16052
+
+    Identifies the most anomalous klystron station identification based on phase deviation
+    https://github.com/SLAC-ML/CoincAD/blob/phase/core/h5_dataloader_bpm_trigger_2024_TriggerMulti_8ch_centerPhasTrigger_asym_cleanup_final.ipynb
+    Function - most_anomalous_klys
+
+    Parameters
+    ----------
+    window : np.ndarray
+        2D array containing rf station data.
+    rf_pv_names : list[str]
+        List of RF PV names corresponding to phas_fast channels.
+    phas_thresh : float
+        Threshold to flag a system-level phase scan.
+
+    Returns
+    -------
+    Tuple[str, float, int]
+        The most anomalous RF PV name, its deviation score, and a system_level flag (0 or 1).
+    """
+
+    # Absolute deviation from 0 (centered signal)
+    window_abs = np.abs(window)
+
+    # Max deviation per RF PV in this window
+    max_per_rf = np.nanmax(window_abs, axis=0)  # shape: (num_rf_pvs,)
+
+    # System-level anomaly check: more than 10 RFs over threshold
+    system_level = int(np.sum(max_per_rf > phas_thresh) > 10)
+
+    # Rank the top 5 highest deviations
+    top5_indices = np.argsort(max_per_rf)[-5:][::-1]
+
+    # Return the top *non-feedback* station
+    for i in top5_indices:
+        pv = rf_pv_names[i]
+        if pv not in FEEDBACK_STATIONS:
+            return pv, max_per_rf[i], system_level
+
+    # If all top stations are feedback stations, return top anyway
+    return rf_pv_names[top5_indices[0]], max_per_rf[top5_indices[0]], system_level
+
+
+if __name__ == "__main__":
     bucket = CandidateBucket()
 
     # this will still work even though the bucket is empty
@@ -110,3 +227,22 @@ if __name__ == '__main__':
     bucket.update_slow_indexes(-4)
     print(bucket.queue)
 
+    candidate = bucket.get()
+    window_size = 20
+    window = np.stack([np.random.randn(window_size) for _ in RF_PV_NAMES], axis=1)  # (window_size, num_rf_pvs)
+    most_anomalous_rf_pv_name, deviation_score, system_level_flag = find_most_anomalous_rf_station(
+        window,
+        rf_pv_names=RF_PV_NAMES,
+        phas_thresh=2.5,
+    )
+    print(most_anomalous_rf_pv_name, deviation_score, system_level_flag)
+
+    bpm_score_1 = np.random.rand(120)
+    start = 0
+    fast_index = find_fast_index(
+        bpm_score_1,
+        slow_index=candidate.slow_index,
+        window_size=20,  # should we put this in config?
+        start=start,
+    )
+    print(fast_index)

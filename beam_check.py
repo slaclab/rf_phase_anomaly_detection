@@ -1,75 +1,48 @@
-from datetime import datetime, timedelta
-from typing import Dict
 import numpy as np
 
-from sliding_window import SlidingWindowArray
+from beam_check_config import BEAM_RATE_PV, BEAM_SPLIT_PV, STOPPER_PV, IN_TMIT_PV, EXP_TMIT_MIN
 
-# note: can't pass in buffer object directly b/c of circular import
-# (buffer.py would import beam_check.py, and beam_check.py would import buffer.py ...)
-def do_beam_checks(
-    stopper_pv_data: SlidingWindowArray,
-    beam_rate_pv_data: SlidingWindowArray,
-    beam_split_pv_data: SlidingWindowArray,
-    in_tmit_pv_data: SlidingWindowArray,
-    #min_violation_window_length_check: SlidingWindowArray,
-    starting_index: int,
-    num_samples_to_check: int,
-) -> np.ndarray:
+
+BEAM_CHECK_PVS = [BEAM_RATE_PV, BEAM_SPLIT_PV, STOPPER_PV, IN_TMIT_PV]
+
+
+def do_beam_checks(check_signals: dict[str, np.ndarray]) -> np.ndarray:
     """
-    Apply beam checks to data in buffer_map, from starting_index to starting_index+num_samples_to_check.
-    Fills buffer.passes_beam_checks with boolean results.
+    Does some basic checks to see if the beam is healthy enough to look
+    for anomalies.
+
+    The checks use cryptic codes, they mean:
+    The beam rate must be 120 Hz (BEAM_RATE_PV == 8)
+    The beam split must be to HXR only (BEAM_SPLIT_PV == 10)
+    The beam stopper must be out (STOPPER_PV == 0)
+    The beam charge must be more than 0.5e9 (IN_TMIT_PV > EXP_TMIT_MIN)
+
+    You can find dictionaries for these PVs in the config file the PV
+    names are imported from.
+
+    Parameters
+    ----------
+    check_signals: dict[str, np.ndarray]
+        A dictionary of PVs to check.
+
+    Returns
+    -------
+        numpy array of True and False; True means the beam is healthy
+    enough to use.
     """
+    for pv_name in BEAM_CHECK_PVS:
+        try:
+            check_signals[pv_name]
+        except KeyError:
+            raise KeyError(f"The PV named {pv_name:s} must be passed to do_beam_checks")
 
-    # for now, we don't do any actual beamchecks
-    result = np.full(num_samples_to_check, True, dtype=bool)
-
-    return result
-    """
-    # vectorized version
-    end_index = starting_index + num_samples_to_check
-    sl = slice(starting_index, end_index)
-
-    stopper_clear = stopper_pv_data[sl] == 0
-    full_rate = np.vectorize(BEAM_RATE_TABLE.get)(beam_rate_pv_data[sl], 0) == 120 # passing the .get function to vectorize
-    hxr_split = np.vectorize(BEAM_SPLIT_TABLE_HXR.get)(beam_split_pv_data[sl], 0) == 120
-    is_real_charge = in_tmit_pv_data[sl] > EXP_TMIT_MIN
-    is_logged_correctly = np.ones_like(stopper_clear, dtype=bool) # need to figure out real check
-
-    passes_beam_checks[sl] = (
-        stopper_clear & full_rate & hxr_split & is_real_charge & is_logged_correctly
+    data_is_good = np.vstack(
+        (
+            check_signals[BEAM_RATE_PV] == 8,  # ensure the beam rate is 120 Hz
+            check_signals[BEAM_SPLIT_PV] == 10,  # ensure the beam is going only to HXR
+            check_signals[STOPPER_PV] == 0,  # ensure the stopper is out
+            check_signals[IN_TMIT_PV] > EXP_TMIT_MIN,  # ensure the charge reading is large enough
+        )
     )
 
-    # for-loop version
-    end_index = starting_index + num_samples_to_check
-    for curr_index in range(starting_index, end_index):
-
-        # Stopper check
-        stopper = stopper_pv_data[curr_index]
-        stopper_clear = stopper == 0
-
-        # Beam rate check (must be 120Hz)
-        beam_rate = beam_rate_pv_data[curr_index]
-        full_rate = BEAM_RATE_TABLE.get(beam_rate, 0) == 120
-
-        # Beam split check (must be 120Hz HXR)
-        beam_split = beam_split_pv_data[curr_index]
-        hxr_split = BEAM_SPLIT_TABLE_HXR.get(beam_split, 0) == 120
-
-        # TMIT check (must be real charge + logged at ~1Hz)
-        tmit = in_tmit_pv_data[curr_index]
-        is_real_charge = tmit > EXP_TMIT_MIN
-
-        '''
-        # (need to understand this check more...)
-        # Sampling interval check (naive diff method)
-        tmit_time = tmit.index
-        dt = tmit_time.to_series().diff().dt.total_seconds()
-        is_logged_correctly = (dt.fillna(EXP_TMIT_FREQ).abs() - EXP_TMIT_FREQ).abs() <= ALLOWED_TMIT_DIFF
-        is_logged_correctly.name = "logged_correctly"
-        '''
-        is_logged_correctly = True
-
-        # combine all checks
-        passes_all_checks = stopper_clear & full_rate & hxr_split & is_real_charge & is_logged_correctly
-        buffer.passes_beam_checks[curr_index] = passes_all_checks
-    """
+    return np.logical_and.reduce(data_is_good, axis=0)
