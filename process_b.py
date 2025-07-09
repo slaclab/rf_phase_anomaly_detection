@@ -55,22 +55,23 @@ class ProcessB(CustomProcessObject):
         while True:
             # need to be sure each iteration of this processing loop is <= 1 second
             # (data comes each second from process_a, so data will pile-up if our processing takes over 1 second)
-            start = time.perf_counter()
+            timer_start = time.perf_counter()
 
             try:
                 r = self.queue_one.get(timeout=0.05)  # wait 50ms
             except Empty:
                 pass
             else:
-                if r is None:  # enqueuing a None should stop this process
+                if r is None:  # enqueuing a None should stop this process immediately
                     break
 
-                self.look_for_new_candidates()
+                # parse the k2eg snapshot and update buffer
+                index_change, length_of_update = self.buffer.update(r)
+                self.look_for_new_candidates(index_change, length_of_update)
             finally:
                 self.look_for_ready_candidates()
 
-            end = time.perf_counter()
-            elapsed_ms = (end - start) * 1000
+            elapsed_ms = (time.perf_counter() - timer_start) * 1000
             self.logger.debug(f"process_b iteration took : {elapsed_ms:.2f} ms")
             if elapsed_ms > 1000:  # have to be <= 1 sec
                 self.logger.warning(f"process_b buffer append is slow!! : {elapsed_ms:.2f} ms")
@@ -80,9 +81,8 @@ class ProcessB(CustomProcessObject):
         for handler in self.logger.handlers:
             handler.close()
 
-    def look_for_new_candidates(self) -> None:
-        # parse the k2eg snapshot and update buffer
-        index_change, length_of_update = self.buffer.update(r)
+    def look_for_new_candidates(self, index_change: int, length_of_update: int) -> None:
+
         # move the indexes of the previously found candidates
         self.candidate_bucket.update_slow_indexes(index_change)
         # add new candidates to the bucket
