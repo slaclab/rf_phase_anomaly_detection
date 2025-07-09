@@ -6,13 +6,10 @@ from typing import Optional
 
 
 class ProcessC(CustomProcessObject):
-    def __init__(self,
-                 queue: 'Manager.Queue',
-                 logging_kwargs: Optional[dict] = default_logging_kwargs
-                 ):
+    def __init__(self, queue: "Manager.Queue", logging_kwargs: Optional[dict] = default_logging_kwargs):
         self.queue = queue
         self.logging_kwargs = logging_kwargs
-        self.logging_kwargs['logger_name'] = 'process_c'
+        self.logging_kwargs["logger_name"] = "process_c"
         self.logger = None
 
     def __call__(self):
@@ -22,7 +19,7 @@ class ProcessC(CustomProcessObject):
         while True:
             if not self.queue.empty():
                 r = self.queue.get()
-                #self.logger.debug(f"ProcessC sees {r}")
+                # self.logger.debug(f"ProcessC sees {r}")
                 if r is None:  # enqueue a None to stop this process
                     break
 
