@@ -94,7 +94,7 @@ class CandidateBucket(PriorityQueue):
             self.put(candidate)
 
 
-def find_fast_index(bpm_score_20: np.ndarray, start_index: int = 0) -> int:
+def find_fast_index(bpm_score_20: np.ndarray) -> int:
     """
         Implements the  fast trigger from Section IV A of
         https://arxiv.org/abs/2505.16052
@@ -107,15 +107,13 @@ def find_fast_index(bpm_score_20: np.ndarray, start_index: int = 0) -> int:
         ----------
         bpm_score_20: np.ndarray
             bpm-score values for the lookback window
-        start_index: int
-            Starting index of the lookback window in the buffer
 
         Returns
         -------
-            Absolute index in buffer where fast trigger was detected
+            Index in bpm_score_20 where fast trigger is detected
     """
     if len(bpm_score_20) < 10:  # fallback if data is too small
-        return start_index + len(bpm_score_20)
+        return len(bpm_score_20)
 
     # Split into two parts: baseline (first part of the window) and trigger_window (last_half)
     baseline_end = max(1, len(bpm_score_20) // 2)
@@ -140,7 +138,7 @@ def find_fast_index(bpm_score_20: np.ndarray, start_index: int = 0) -> int:
         )  # No clear anomaly; default to center of trigger_window
 
     # Return fast trigger index in absolute buffer coordinates
-    return start_index + rel_fast_idx
+    return rel_fast_idx
 
 
 def find_most_anomalous_rf_station(

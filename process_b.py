@@ -114,7 +114,7 @@ class ProcessB(CustomProcessObject):
             bpm_score_20 = self.buffer.get("bpm_score_20", score_start_index, candidate.slow_index)
 
             # find the fast trigger
-            fast_index = find_fast_index(bpm_score_20, start_index=score_start_index)
+            fast_index = score_start_index + find_fast_index(bpm_score_20)
             candidate.fast_index = fast_index
             fast_time = self.buffer.get("pv_timestamp_ns", fast_index, fast_index + 1)[0]
 
