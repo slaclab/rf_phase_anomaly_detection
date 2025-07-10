@@ -119,7 +119,11 @@ class ProcessB(CustomProcessObject):
             fast_time = self.buffer.get("pv_timestamp_ns", fast_index, fast_index + 1)[0]
 
             # prepare anomaly candidate data for process C
+            # TODO: integrate beam check results into slow/fast index selection
             anomaly_data_window = candidate.window_slice
+            data_quality_array = self.buffer.get(
+                "beam_checks", anomaly_data_window[0], anomaly_data_window[1]
+            ).copy()
             rf_input: np.array = self.buffer.get(
                 most_anomalous_rf_pv_name, anomaly_data_window[0], anomaly_data_window[1]
             ).copy()
@@ -136,7 +140,8 @@ class ProcessB(CustomProcessObject):
                     "bpm_input": np.vstack(bpm_input),
                     "rf_pv_name": most_anomalous_rf_pv_name,
                     "anomaly_score": deviation_score,
-                    "system_level_anomaly": system_level_anom
+                    "system_level_anomaly": system_level_anom,
+                    "number_of_bad_datapoints": sum(data_quality_array)
                 }
                 self.queue_two.put(cand)
                 self.logger.debug(f"Anomaly with timestamp {fast_time} sent to process C")
