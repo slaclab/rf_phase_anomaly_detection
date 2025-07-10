@@ -1,7 +1,7 @@
 from queue import PriorityQueue
 import numpy as np
 
-from beam_check_config import ANOMALY_CANDIDATE_WINDOW_SIZE, FEEDBACK_STATIONS, RF_PV_NAMES
+from beam_check_config import (ANOMALY_CANDIDATE_WINDOW_SIZE, FEEDBACK_STATIONS, RF_PV_NAMES, CANDIDATE_PHASE_THRESHOLD)
 
 
 class AnomalyCandidate:
@@ -94,7 +94,7 @@ class CandidateBucket(PriorityQueue):
             self.put(candidate)
 
 
-def find_fast_index(bpm_score_1: np, slow_index: int, window_size: int, start: int, lookback_seconds: int = 5) -> int:
+def find_fast_index(bpm_score_20: np.ndarray, start_index: int = 0) -> int:
     """
         Implements the  fast trigger from Section IV A of
         https://arxiv.org/abs/2505.16052
@@ -105,36 +105,22 @@ def find_fast_index(bpm_score_1: np, slow_index: int, window_size: int, start: i
 
         Parameters
         ----------
-        bpm_score_1: np.ndarray
+        bpm_score_20: np.ndarray
             bpm-score values for the lookback window
-        slow_index: int
-            Index of the slow trigger in the buffer.
-        window_size: int
-            Number of samples to include before the slow_index.
-        start: int
-            Starting index of the lookback window
-        lookback_seconds: int
-            How far back from the slow index to search (default 5s)
+        start_index: int
+            Starting index of the lookback window in the buffer
 
         Returns
         -------
             Absolute index in buffer where fast trigger was detected
     """
-    # Compute the relative slow index
-    rel_slow_idx = slow_index - start
-
-    # Define the region to calculate baseline and detect change
-    window_start = max(0, rel_slow_idx - window_size)
-    window_end = rel_slow_idx
-    window = bpm_score_1[window_start:window_end]
-
-    if len(window) < 10:
-        return slow_index  # fallback if data is too small
+    if len(bpm_score_20) < 10:  # fallback if data is too small
+        return start_index + len(bpm_score_20)
 
     # Split into two parts: baseline (first part of the window) and trigger_window (last_half)
-    baseline_end = max(1, len(window) - window_size // 2)
-    baseline = window[:baseline_end]
-    trigger_window = window[baseline_end:]
+    baseline_end = max(1, len(bpm_score_20) // 2)
+    baseline = bpm_score_20[:baseline_end]
+    trigger_window = bpm_score_20[baseline_end:]
 
     # Compute mean and std from baseline window
     baseline_mean = np.mean(baseline)
@@ -144,24 +130,24 @@ def find_fast_index(bpm_score_1: np, slow_index: int, window_size: int, start: i
     z_scores = np.abs(trigger_window - baseline_mean) / baseline_std
 
     # Find first point above threshold (z > 1.25)
-    above_thresh = np.where(z_scores > 1.25)[0]
+    indexes_above_thresh = np.where(z_scores > 1.25)[0]
 
-    if len(above_thresh) > 0:
-        rel_fast_idx = window_start + baseline_end + above_thresh[0]  # Found anomaly; get first one
+    if len(indexes_above_thresh) > 0:  # Found anomaly; get first one
+        rel_fast_idx = baseline_end + indexes_above_thresh[0]
     else:
         rel_fast_idx = (
-            window_start + baseline_end + len(trigger_window) // 2
+            baseline_end + len(trigger_window) // 2
         )  # No clear anomaly; default to center of trigger_window
 
     # Return fast trigger index in absolute buffer coordinates
-    return start + rel_fast_idx
+    return start_index + rel_fast_idx
 
 
 def find_most_anomalous_rf_station(
-    window,
-    rf_pv_names: list[str],
-    phas_thresh: float = 2.5,
-) -> tuple[str, float, int]:
+    rf_phase_data: np.ndarray,
+    rf_pv_names: list[str] = RF_PV_NAMES,
+    phas_thresh: float = CANDIDATE_PHASE_THRESHOLD,
+) -> tuple[str, float, bool]:
     """
     Implements the RF Candidate Selection from Appendix C of
     https://arxiv.org/abs/2505.16052
@@ -172,7 +158,7 @@ def find_most_anomalous_rf_station(
 
     Parameters
     ----------
-    window : np.ndarray
+    rf_phase_data : np.ndarray
         2D array containing rf station data.
     rf_pv_names : list[str]
         List of RF PV names corresponding to phas_fast channels.
@@ -181,30 +167,30 @@ def find_most_anomalous_rf_station(
 
     Returns
     -------
-    Tuple[str, float, int]
+    Tuple[str, float, bool]
         The most anomalous RF PV name, its deviation score, and a system_level flag (0 or 1).
     """
 
     # Absolute deviation from 0 (centered signal)
-    window_abs = np.abs(window)
+    rf_phase_data_abs = np.abs(rf_phase_data)
 
     # Max deviation per RF PV in this window
-    max_per_rf = np.nanmax(window_abs, axis=0)  # shape: (num_rf_pvs,)
+    max_per_rf = np.nanmax(rf_phase_data_abs, axis=0)  # shape: (num_rf_pvs,)
 
     # System-level anomaly check: more than 10 RFs over threshold
-    system_level = int(np.sum(max_per_rf > phas_thresh) > 10)
+    system_level_anomaly = np.sum(max_per_rf > phas_thresh) > 10
 
     # Rank the top 5 highest deviations
-    top5_indices = np.argsort(max_per_rf)[-5:][::-1]
+    top5_indices = np.argsort(max_per_rf)[::-1]
 
     # Return the top *non-feedback* station
+    # will fail if all rf stations are FEEDBACK_STATIONS
     for i in top5_indices:
         pv = rf_pv_names[i]
         if pv not in FEEDBACK_STATIONS:
-            return pv, max_per_rf[i], system_level
+            return pv, max_per_rf[i], system_level_anomaly
 
-    # If all top stations are feedback stations, return top anyway
-    return rf_pv_names[top5_indices[0]], max_per_rf[top5_indices[0]], system_level
+    return '', 0., system_level_anomaly
 
 
 if __name__ == "__main__":
@@ -232,17 +218,14 @@ if __name__ == "__main__":
     window = np.stack([np.random.randn(window_size) for _ in RF_PV_NAMES], axis=1)  # (window_size, num_rf_pvs)
     most_anomalous_rf_pv_name, deviation_score, system_level_flag = find_most_anomalous_rf_station(
         window,
-        rf_pv_names=RF_PV_NAMES,
-        phas_thresh=2.5,
+        rf_pv_names=RF_PV_NAMES
     )
     print(most_anomalous_rf_pv_name, deviation_score, system_level_flag)
 
-    bpm_score_1 = np.random.rand(120)
+    bpm_score_20 = np.random.rand(120)
     start = 0
     fast_index = find_fast_index(
-        bpm_score_1,
-        slow_index=candidate.slow_index,
-        window_size=20,  # should we put this in config?
-        start=start,
+        bpm_score_20=bpm_score_20,
+        start_index=start
     )
     print(fast_index)
