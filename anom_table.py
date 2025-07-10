@@ -2,11 +2,10 @@ from typing import List, Dict
 import threading
 import logging
 
-from p4p.nt import NTTable
-from p4p.client.thread import Context
 import k2eg
 from k2eg.dml import OperationTimeout
 from k2eg.dml import dml as k2eg_dml
+from k2eg.serialization import NTTable
 
 logger = logging.getLogger(__name__)
 
@@ -179,22 +178,13 @@ def create_anomaly_table(anom_dict: Dict[str, bool]) -> NTTable:
         {"station": klys, "anomaly_state": state} for klys, state in anom_dict.items()
     ]
     # Generate output format.
-    table_format = NTTable([("station", "s"), ("anomaly_state", "?")])
-    return table_format.wrap(anomaly_table)
-
-
-def write_prediction_to_p4p_sim(anomaly_table: NTTable) -> None:
-    """
-    For testing purposes, write the anomaly table to a simulated server.
-
-    Parameters
-    ----------
-    anomaly_table : NTTable
-        The anomaly table to write to K2EG.
-    """
-    context = Context()
-    anomaly_pv = "KLYS:SYS0:1:ANOM_STATES"
-    context.put(anomaly_pv, anomaly_table)
+    #table_format = NTTable([("station", "s"), ("anomaly_state", "?")])
+    #return table_format.wrap(anomaly_table)
+    ntt = NTTable(
+        labels=["station", "anomaly_state"],
+        payload=anomaly_table
+        )
+    return ntt
 
 
 def write_prediction_to_k2eg(anomaly_table: NTTable, k2eg_client: k2eg_dml) -> None:
