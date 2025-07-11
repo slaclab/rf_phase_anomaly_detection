@@ -166,12 +166,12 @@ def create_anomaly_table(anom_dict: Dict[str, bool]) -> NTTable:
     NTTable
         A table with anomaly states for each klystron station.
     """
-    nt_labels = [
-                "station", "anomaly_state"
-            ]
+    nt_labels = ["station", "anomaly_state"]
     table = NTTable(labels=nt_labels)
     table.set_column("station", list(anom_dict.keys()))
-    table.set_column("anomaly_state", [0 if v is False else 1 for v in list(anom_dict.values())])
+    table.set_column(
+        "anomaly_state", [0 if v is False else 1 for v in list(anom_dict.values())]
+    )
     return table
 
 
