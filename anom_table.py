@@ -178,8 +178,6 @@ def create_anomaly_table(anom_dict: Dict[str, bool]) -> NTTable:
         {"station": klys, "anomaly_state": state} for klys, state in anom_dict.items()
     ]
     # Generate output format.
-    #table_format = NTTable([("station", "s"), ("anomaly_state", "?")])
-    #return table_format.wrap(anomaly_table)
     ntt = NTTable(
         labels=["station", "anomaly_state"],
         payload=anomaly_table
