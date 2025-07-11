@@ -100,48 +100,56 @@ class ProcessB(CustomProcessObject):
         while self.candidate_bucket.oldest_candidate_slow_index <= self.buffer.index - acws:
             candidate = self.candidate_bucket.get()  # get the oldest candidate
 
-            score_start_index = max(0, candidate.slow_index - CANDIDATE_LOOKBACK_WINDOW_LENGTH)
+            cand = self.process_candidate(candidate=candidate)
 
-            # find the most anomalous rf station
-            rf_phase_data = np.stack(
-                [self.buffer.get(pv, score_start_index, candidate.slow_index) for pv in RF_PV_NAMES], axis=1
-            )  # (CANDIDATE_WINDOW_SIZE, len(RF_PV_NAMES))
-            most_anomalous_rf_pv_name, deviation_score, system_level_anom = find_most_anomalous_rf_station(
-                rf_phase_data
-            )
-
-            # Get the bpm_score_20 values for the lookback window
-            bpm_score_20 = self.buffer.get("bpm_score_20", score_start_index, candidate.slow_index)
-
-            # find the fast trigger
-            fast_index = score_start_index + find_fast_index(bpm_score_20)
-            candidate.fast_index = fast_index
-            fast_time = self.buffer.get("pv_timestamp_ns", fast_index, fast_index + 1)[0]
-
-            # prepare anomaly candidate data for process C
-            # TODO: integrate beam check results into slow/fast index selection
-            anomaly_data_window = candidate.window_slice
-            data_quality_array = self.buffer.get(
-                "beam_checks", anomaly_data_window[0], anomaly_data_window[1]
-            ).copy()
-            rf_input: np.array = self.buffer.get(
-                most_anomalous_rf_pv_name, anomaly_data_window[0], anomaly_data_window[1]
-            ).copy()
-            bpm_input = []
-            for pv_name in BPM_NAMES:
-                bpm_input.append(
-                    self.buffer.get(pv_name, anomaly_data_window[0], anomaly_data_window[1]).copy()
-                )
-            # send candidate to process C
-            if most_anomalous_rf_pv_name:  # non-empty rf_pv_name
-                cand = {
-                    "anomaly_timestamp": fast_time,
-                    "rf_input": rf_input,
-                    "bpm_input": np.vstack(bpm_input),
-                    "rf_pv_name": most_anomalous_rf_pv_name,
-                    "anomaly_score": deviation_score,
-                    "system_level_anomaly": system_level_anom,
-                    "number_of_bad_datapoints": sum(data_quality_array)
-                }
+            if cand:  # dictionary is not empty
                 self.queue_two.put(cand)
+                fast_time = cand["anomaly_timestamp"]
                 self.logger.debug(f"Anomaly with timestamp {fast_time} sent to process C")
+
+    def process_candidate(self, candidate: AnomalyCandidate) -> dict:
+        score_start_index = max(0, candidate.slow_index - CANDIDATE_LOOKBACK_WINDOW_LENGTH)
+
+        # find the most anomalous rf station
+        rf_phase_data = np.stack(
+            [self.buffer.get(pv, score_start_index, candidate.slow_index) for pv in RF_PV_NAMES], axis=1
+        )  # (CANDIDATE_WINDOW_SIZE, len(RF_PV_NAMES))
+        most_anomalous_rf_pv_name, deviation_score, system_level_anom = find_most_anomalous_rf_station(
+            rf_phase_data
+        )
+
+        # Get the bpm_score_20 values for the lookback window
+        bpm_score_20 = self.buffer.get("bpm_score_20", score_start_index, candidate.slow_index)
+
+        # find the fast trigger
+        fast_index = score_start_index + find_fast_index(bpm_score_20)
+        candidate.fast_index = fast_index
+        fast_time = self.buffer.get("pv_timestamp_ns", fast_index, fast_index + 1)[0]
+
+        # prepare anomaly candidate data for process C
+        # TODO: integrate beam check results into slow/fast index selection
+        anomaly_data_window = candidate.window_slice
+        data_quality_array = self.buffer.get(
+            "beam_checks", anomaly_data_window[0], anomaly_data_window[1]
+        ).copy()
+        rf_input: np.array = self.buffer.get(
+            most_anomalous_rf_pv_name, anomaly_data_window[0], anomaly_data_window[1]
+        ).copy()
+        bpm_input = []
+        for pv_name in BPM_NAMES:
+            bpm_input.append(
+                self.buffer.get(pv_name, anomaly_data_window[0], anomaly_data_window[1]).copy()
+            )
+        # send candidate to process C
+        if most_anomalous_rf_pv_name:  # non-empty rf_pv_name
+            return {
+                "anomaly_timestamp": fast_time,
+                "rf_input": rf_input,
+                "bpm_input": np.vstack(bpm_input),
+                "rf_pv_name": most_anomalous_rf_pv_name,
+                "anomaly_score": deviation_score,
+                "system_level_anomaly": system_level_anom,
+                "number_of_bad_datapoints": sum(data_quality_array)
+            }
+        else:
+            return {}
