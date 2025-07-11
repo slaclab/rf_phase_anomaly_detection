@@ -166,23 +166,13 @@ def create_anomaly_table(anom_dict: Dict[str, bool]) -> NTTable:
     NTTable
         A table with anomaly states for each klystron station.
     """
-    # Create a table with anomaly states for each klystron, and mark the given station as anomalous
-    # Table format:
-    # [
-    #     {'station': 'station_1', 'anomaly_state': Bool},
-    #     {'station': 'station_2', 'anomaly_state': Bool},
-    #     ...
-    # ]
-    # where each dict is a row and its keys are columns.
-    anomaly_table = [
-        {"station": klys, "anomaly_state": state} for klys, state in anom_dict.items()
-    ]
-    # Generate output format.
-    ntt = NTTable(
-        labels=["station", "anomaly_state"],
-        payload=anomaly_table
-        )
-    return ntt
+    nt_labels = [
+                "station", "anomaly_state"
+            ]
+    table = NTTable(labels=nt_labels)
+    table.set_column("station", list(anom_dict.keys()))
+    table.set_column("anomaly_state", [0 if v is False else 1 for v in list(anom_dict.values())])
+    return table
 
 
 def write_prediction_to_k2eg(anomaly_table: NTTable, k2eg_client: k2eg_dml) -> None:
