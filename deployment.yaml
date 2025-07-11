@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: rf-phase-anomaly-detection
-        image: scr.svc.stanford.edu/smiskov/rf-phase-anomaly-detection:0.2
+        image: scr.svc.stanford.edu/smiskov/rf-phase-anomaly-detection:0.3
         imagePullPolicy: Always
         command: ["/bin/bash", "-c", "--"]
         args: ["while true; do sleep 30; done;"]
