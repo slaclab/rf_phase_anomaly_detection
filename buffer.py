@@ -81,7 +81,8 @@ class Buffer:
             self.num_snapshots_processed * int(1e9)
         )  # int(1e9) is 1 second in nanoseconds
 
-        # map of pv top last value from prev snapshot (or 0 if this is the first snapshot)
+        # map of pv to last value from prev snapshot (or 0 if this is the first snapshot)
+        # (used for potential forward-filling)
         prev_snapshot_val_map = {}
         for pv in self.pv_list:
             if self.num_snapshots_processed == 0:
@@ -92,6 +93,7 @@ class Buffer:
         data_map_bucketed = self.data_cleaner.clean_data(
             data_map_with_per_pv_timestamps, prev_snapshot_val_map, bucket_arr_start_time
         )
+        # now update our global map with bucket-data
         for pv, arr in data_map_bucketed.items():
             self.data_map[pv].put(values)
 
