@@ -8,7 +8,7 @@ from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
 from anomaly_candidate import AnomalyCandidate, CandidateBucket
 from mp_logging import default_logging_kwargs
-
+from data_cleaner import DataCleaner
 
 class Buffer:
     """
@@ -18,6 +18,9 @@ class Buffer:
 
     def __init__(self, pv_list: list[str], buffer_len: int, logging_kwargs: Optional[dict] = default_logging_kwargs):
         self.pv_list = pv_list
+
+        self.num_snapshots_processed = 0
+        self.time_of_first_data = 0
 
         # max length of buffer
         self.buffer_len = buffer_len
@@ -35,6 +38,9 @@ class Buffer:
         # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
         self.data_map["valid_windows"] = set()  # will hold tuples of (window_start_index, window_end_index)
 
+        self.data_cleaner = DataCleaner(SAMPLES_PER_SECOND)
+
+
     def update(self, snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
         """
         Append the latest 120-sample PV snapshot into the buffer for each pv
@@ -46,32 +52,46 @@ class Buffer:
         """
         snapshot_length = SAMPLES_PER_SECOND
         beam_check_data = {}
+        # holds the data for integrety checks and cleaning.
+        # (it holds the timestamps for each pv, whereas in self.data_map we store just one (bucketed) timestamp array for all PVs).
+        data_map_with_per_pv_timestamps = {}
         for i, pv in enumerate(self.pv_list):
             entries = snapshot.get(pv, [])
 
             values = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
+            timestamps_ns = np.empty(SAMPLES_PER_SECOND, dtype=int)
             for j, e in enumerate(entries):
                 values[j] = e.get("value", np.nan)
+                ts = e.get("timeStamp", {})
+                seconds = ts.get("secondsPastEpoch", 0)
+                nanos = ts.get("nanoseconds", 0)
+                timestamps_ns[j] = int(seconds * 1e9 + nanos)
 
-            self.data_map[pv].put(values)
+            data_map_with_per_pv_timestamps[pv] = (values, timestamps_ns)
+
             if pv in BEAM_CHECK_PVS:
-                beam_check_data[pv] = values
+                beam_check_data[pv] = values   
 
-            # update buffer's timestamps arr with the first pv's times,
-            # and assume the other pv have same timing (for now).
-            if i == 0:
-                timestamps_ns = np.empty(SAMPLES_PER_SECOND, dtype=int)
-                for j, e in enumerate(entries):
-                    ts = e.get("timeStamp", {})
-                    seconds = ts.get("secondsPastEpoch", 0)
-                    nanos = ts.get("nanoseconds", 0)
-                    timestamps_ns[j] = int(seconds * 1e9 + nanos)
+        if self.time_of_first_data == 0:
+            self.time_of_first_data = min(
+                timestamps_ns.min() for _, timestamps_ns in data_map_with_per_pv_timestamps.values()
+            )
 
-                self.data_map["pv_timestamps_ns"].put(timestamps_ns)
+        bucket_arr_start_time = self.time_of_first_data + (self.num_snapshots_processed * int(1e9)) # int(1e9) is 1 second in nanoseconds
 
-        self.clean_data()
+        # map of pv top last value from prev snapshot (or 0 if this is the first snapshot)
+        prev_snapshot_val_map = {}
+        for pv in self.pv_list:
+            if self.num_snapshots_processed == 0:
+                prev_snapshot_val_map[pv] = 0.0
+            else:
+                prev_snapshot_val_map[pv] = self.data_map[pv].get(-1)
 
-        # do the beam checks and put the data on the beam_check buffer
+        data_map_bucketed = self.data_cleaner.clean_data(data_map_with_per_pv_timestamps, prev_snapshot_val_map, bucket_arr_start_time)
+        for pv, arr in data_map_bucketed.items():
+            self.data_map[pv].put(values)
+
+        # do the beam checks and put the data on beam_check buffer
         beam_checks_result = do_beam_checks(beam_check_data)
         self.data_map["beam_checks"].put(beam_checks_result)
 
@@ -97,11 +117,8 @@ class Buffer:
             # Candidate Gen
             self.bpm_candidate_bucket.update_slow_indexes(-snapshot_length)
 
+        self.num_snapshots_processed += 1
         return (-snapshot_length if was_full_before_new_data else 0, snapshot_length)
-
-    def clean_data(self) -> None:
-        # forward fill data not updated during timestamp, check if corresponding pv timestamps are close enough, etc
-        return
 
     def find_candidates(self, look_back_this_far: int) -> list[AnomalyCandidate]:
         candidates = []
@@ -122,20 +139,6 @@ class Buffer:
                 candidates.append(candidate)
 
         return candidates
-
-    # Should we put threshold in beam_check_config?
-    def detect_bpm_candidates(self, threshold: float = 50) -> CandidateBucket:
-        scores = self.data_map["bpm_score_20"]
-        timestamps = self.data_map["pv_timestamps"]
-        bucket = CandidateBucket()
-
-        for i in range(self.index):
-            if scores[i] > threshold:
-                slow_time = int(timestamps[i] * 1e9)  # Convert to ns since epoch
-                candidate = AnomalyCandidate(slow_index=i, slow_time=slow_time_ns)
-                bucket.put(candidate)
-
-        return bucket
 
     def get(self, pv_name: str, start_index: Optional[int] = None, end_index: Optional[int] = None) -> np.ndarray:
         """
@@ -183,3 +186,30 @@ class Buffer:
             with open(filepath, "w") as f:
                 for v in valid_data:
                     f.write(f"{v}\n")
+
+if __name__ == "__main__":
+    import time
+    import random
+    from datetime import datetime
+    from k2eg_spoofer import K2EGSpoofer  # adjust import as needed
+    from k2eg_process import read_pv_list_from_file
+
+    list_of_pvs = read_pv_list_from_file("resources/pv_list.txt")
+    BUFFER_LENGTH = 36000
+
+    spoofer = K2EGSpoofer(
+        pv_configs=[{'name': name, 'rate_hz': 120, 'drop_rate': 0.0} for name in list_of_pvs],
+        n_emits=4,
+        emit_rate_hz=1
+    )
+    spoofed_data = list(spoofer())
+
+    # create buffer and fill it with spoofed data
+    buffer = Buffer(list_of_pvs, BUFFER_LENGTH)
+
+    for i, emission in enumerate(spoofed_data):
+        index_change, length_of_update = buffer.update(emission)
+        print(f"updated buffer #{i}: index_change={index_change}, length_of_update={length_of_update}")
+
+        candidates = buffer.find_candidates(look_back_this_far=length_of_update)
+        print(f"Found {len(candidates)} candidates")

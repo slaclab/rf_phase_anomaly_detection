@@ -38,7 +38,9 @@ class SlidingWindowArray:
     def get(self, start: Optional[int] = None, end: Optional[int] = None) -> np.ndarray:
         s = start if start is not None else 0
         e = end if end is not None else self.index
-        if s < 0 or e > self.index or s > e:
+        if (s and s == -1) and not end:
+            return self.data[-1] 
+        if (s and s < 0) or (e and e > self.index) or (s and e and s > e):
             raise IndexError(f"invalid start/end indices: {s}, {e}")
         return self.data[s:e]
 
