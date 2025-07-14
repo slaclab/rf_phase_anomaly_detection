@@ -6,9 +6,10 @@ from beam_check import do_beam_checks, BEAM_CHECK_PVS
 from beam_check_config import MAD_LENGTH, BPM_NAMES, SAMPLES_PER_SECOND, BPM_THRESHOLD
 from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
-from anomaly_candidate import AnomalyCandidate, CandidateBucket
+from anomaly_candidate import AnomalyCandidate
 from mp_logging import default_logging_kwargs
 from data_cleaner import DataCleaner
+
 
 class Buffer:
     """
@@ -40,7 +41,6 @@ class Buffer:
 
         self.data_cleaner = DataCleaner(SAMPLES_PER_SECOND)
 
-
     def update(self, snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
         """
         Append the latest 120-sample PV snapshot into the buffer for each pv
@@ -52,7 +52,7 @@ class Buffer:
         """
         snapshot_length = SAMPLES_PER_SECOND
         beam_check_data = {}
-        # holds the data for integrety checks and cleaning.
+        # holds the data for integrity checks and cleaning.
         # (it holds the timestamps for each pv, whereas in self.data_map we store just one (bucketed) timestamp array for all PVs).
         data_map_with_per_pv_timestamps = {}
         for i, pv in enumerate(self.pv_list):
@@ -70,14 +70,16 @@ class Buffer:
             data_map_with_per_pv_timestamps[pv] = (values, timestamps_ns)
 
             if pv in BEAM_CHECK_PVS:
-                beam_check_data[pv] = values   
+                beam_check_data[pv] = values
 
         if self.time_of_first_data == 0:
             self.time_of_first_data = min(
                 timestamps_ns.min() for _, timestamps_ns in data_map_with_per_pv_timestamps.values()
             )
 
-        bucket_arr_start_time = self.time_of_first_data + (self.num_snapshots_processed * int(1e9)) # int(1e9) is 1 second in nanoseconds
+        bucket_arr_start_time = self.time_of_first_data + (
+            self.num_snapshots_processed * int(1e9)
+        )  # int(1e9) is 1 second in nanoseconds
 
         # map of pv top last value from prev snapshot (or 0 if this is the first snapshot)
         prev_snapshot_val_map = {}
@@ -87,7 +89,9 @@ class Buffer:
             else:
                 prev_snapshot_val_map[pv] = self.data_map[pv].get(-1)
 
-        data_map_bucketed = self.data_cleaner.clean_data(data_map_with_per_pv_timestamps, prev_snapshot_val_map, bucket_arr_start_time)
+        data_map_bucketed = self.data_cleaner.clean_data(
+            data_map_with_per_pv_timestamps, prev_snapshot_val_map, bucket_arr_start_time
+        )
         for pv, arr in data_map_bucketed.items():
             self.data_map[pv].put(values)
 
@@ -187,10 +191,8 @@ class Buffer:
                 for v in valid_data:
                     f.write(f"{v}\n")
 
+
 if __name__ == "__main__":
-    import time
-    import random
-    from datetime import datetime
     from k2eg_spoofer import K2EGSpoofer  # adjust import as needed
     from k2eg_process import read_pv_list_from_file
 
@@ -198,9 +200,7 @@ if __name__ == "__main__":
     BUFFER_LENGTH = 36000
 
     spoofer = K2EGSpoofer(
-        pv_configs=[{'name': name, 'rate_hz': 120, 'drop_rate': 0.0} for name in list_of_pvs],
-        n_emits=4,
-        emit_rate_hz=1
+        pv_configs=[{"name": name, "rate_hz": 120, "drop_rate": 0.0} for name in list_of_pvs], n_emits=4, emit_rate_hz=1
     )
     spoofed_data = list(spoofer())
 

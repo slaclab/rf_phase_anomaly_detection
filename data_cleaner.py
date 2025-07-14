@@ -1,6 +1,7 @@
 from typing import Tuple
 import numpy as np
 
+
 class DataCleaner:
     """
     Cleans and aligns per-PV timestamped data into fixed time buckets.
@@ -30,7 +31,7 @@ class DataCleaner:
     def clean_data(
         self,
         data_map_with_per_pv_timestamps: dict[str, Tuple[np.ndarray, np.ndarray]],
-        prev_snapshot_val_map: dict[str, np.float64], # map of pv to last value in prev snapshot (for forward-filling)
+        prev_snapshot_val_map: dict[str, np.float64],  # map of pv to last value in prev snapshot (for forward-filling)
         bucket_arr_start_time: int,
     ) -> dict[str, np.ndarray]:
         """
@@ -60,11 +61,7 @@ class DataCleaner:
 
         for pv, (values, timestamps_ns) in data_map_with_per_pv_timestamps.items():
             # assign each value to the closest bucket timestamp
-            bucket_values = self._map_values_to_buckets(
-                values,
-                timestamps_ns,
-                bucket_timestamps
-            )
+            bucket_values = self._map_values_to_buckets(values, timestamps_ns, bucket_timestamps)
             # fill in any missing values using prior vals or previous snapshot (if no prev val in curr timestamp)
             bucket_values = self._forward_fill(bucket_values, pv, prev_snapshot_val_map)
             result_map[pv] = bucket_values
@@ -88,10 +85,7 @@ class DataCleaner:
             An array of bucket timestamps spaced evenly across the duration.
         """
         step = duration_ns / self.samples_per_second
-        return np.array(
-            [int(start_ts + (i * step)) for i in range(self.samples_per_second)],
-            dtype=np.int64
-        )
+        return np.array([int(start_ts + (i * step)) for i in range(self.samples_per_second)], dtype=np.int64)
 
     def _map_values_to_buckets(
         self,
@@ -125,10 +119,12 @@ class DataCleaner:
 
             if 0 <= idx < self.samples_per_second:
                 bucket_values[idx] = val  # last write overrides if multiple values map to same bucket
-        
+
         return bucket_values
 
-    def _forward_fill(self, bucket_values: np.ndarray, pv: str, prev_snapshot_val_map: dict[str, np.float64]) -> np.ndarray:
+    def _forward_fill(
+        self, bucket_values: np.ndarray, pv: str, prev_snapshot_val_map: dict[str, np.float64]
+    ) -> np.ndarray:
         for i in range(self.samples_per_second):
             if np.isnan(bucket_values[i]):
                 if i == 0:

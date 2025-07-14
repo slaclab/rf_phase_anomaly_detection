@@ -8,6 +8,7 @@ from beam_check_config import SAMPLES_PER_SECOND
 def data_cleaner():
     return DataCleaner(SAMPLES_PER_SECOND)
 
+
 rng = np.random.default_rng(42)
 
 ## shared constants
@@ -16,12 +17,13 @@ ONE_TIMESTEP = int(1e9 / SAMPLES_PER_SECOND)
 LAST_BUCKET_TIMESTAMP = STARTING_TIMESTAMP + (SAMPLES_PER_SECOND - 1) * ONE_TIMESTEP
 BUCKET_TIMESTAMP_ARRAY = np.linspace(STARTING_TIMESTAMP, LAST_BUCKET_TIMESTAMP, SAMPLES_PER_SECOND, dtype=int)
 
+
 ## test case 1: two PVs with complete data
 def generate_test_case_no_missing_data():
     def gen_pv_data():
         return (
             np.arange(0, SAMPLES_PER_SECOND, dtype=np.float64),
-            BUCKET_TIMESTAMP_ARRAY + rng.integers(-100, 100, size=SAMPLES_PER_SECOND)
+            BUCKET_TIMESTAMP_ARRAY + rng.integers(-100, 100, size=SAMPLES_PER_SECOND),
         )
 
     data_map_with_per_pv_timestamps = {
@@ -40,7 +42,6 @@ def generate_test_case_no_missing_data():
 
 ## test case 2: one PV with full data, one PV missing some data (forward-filling needed)
 def generate_test_case_forward_fill_missing_sections_of_snapshot():
-
     # pv1 has values for all expected timestamps
     pv1_values = np.arange(SAMPLES_PER_SECOND, dtype=np.float64)
     pv1_timestamps = BUCKET_TIMESTAMP_ARRAY + rng.integers(-100, 100, size=SAMPLES_PER_SECOND)
@@ -61,7 +62,7 @@ def generate_test_case_forward_fill_missing_sections_of_snapshot():
     }
 
     # pv2's data is expected to forward-fill the missing values
-    pv2_expected_values = pv1_values.copy() 
+    pv2_expected_values = pv1_values.copy()
     for idx in forward_fill_indices:
         pv2_expected_values[idx] = pv2_expected_values[idx - 1]
 
@@ -76,7 +77,6 @@ def generate_test_case_forward_fill_missing_sections_of_snapshot():
 
 ## test case 3: one PV with full data, one PV is completely empty (forward-filling from prev snapshot needed)
 def generate_test_case_forward_fill_empty_pv_from_prev_snapshot():
-
     # pv1 has values for all expected timestamps
     pv1_values = np.arange(0, SAMPLES_PER_SECOND, dtype=np.float64)
     pv1_timestamps = BUCKET_TIMESTAMP_ARRAY + rng.integers(-100, 100, size=SAMPLES_PER_SECOND)
@@ -92,11 +92,14 @@ def generate_test_case_forward_fill_empty_pv_from_prev_snapshot():
 
     expected_values = {
         "PV1": pv1_values,
-        "PV2": np.full(SAMPLES_PER_SECOND, 42.0), # we expect to fully forward-fill the last value from the prev snapshot (42 is arbitrarily chosen)
+        "PV2": np.full(
+            SAMPLES_PER_SECOND, 42.0
+        ),  # we expect to fully forward-fill the last value from the prev snapshot (42 is arbitrarily chosen)
         "pv_timestamps_ns": BUCKET_TIMESTAMP_ARRAY,
     }
 
     return data_map_with_per_pv_timestamps, expected_values
+
 
 ## test case runner
 @pytest.mark.parametrize(
@@ -105,14 +108,13 @@ def generate_test_case_forward_fill_empty_pv_from_prev_snapshot():
         generate_test_case_no_missing_data(),
         generate_test_case_forward_fill_missing_sections_of_snapshot(),
         generate_test_case_forward_fill_empty_pv_from_prev_snapshot(),
-    ]
+    ],
 )
 def test_clean_data_multiple_pvs(data_cleaner, data_map_with_per_pv_timestamps, expected_values):
-
-    # represents the last values from the prev snapshot (to test forward-filling from prev snapshot) 
+    # represents the last values from the prev snapshot (to test forward-filling from prev snapshot)
     last_vals_prev_snapshot = {
         "PV1": 1.0,
-        "PV2": 42.0 # arbitrarily chosen
+        "PV2": 42.0,  # arbitrarily chosen
     }
 
     cleaned = data_cleaner.clean_data(data_map_with_per_pv_timestamps, last_vals_prev_snapshot, STARTING_TIMESTAMP)
@@ -122,7 +124,9 @@ def test_clean_data_multiple_pvs(data_cleaner, data_map_with_per_pv_timestamps, 
 
         actual = cleaned[pv]
         assert isinstance(actual, np.ndarray), f"cleaned data for '{pv}' is not an arr (function return type is wrong)"
-        assert actual.shape == expected.shape, f"cleaned data for '{pv}' is not correct shape: expected {expected.shape} but got {actual.shape}"
+        assert actual.shape == expected.shape, (
+            f"cleaned data for '{pv}' is not correct shape: expected {expected.shape} but got {actual.shape}"
+        )
 
         # print array of diff values, makes things easier to debug when using 120 len arrays
         if not np.allclose(actual, expected):
