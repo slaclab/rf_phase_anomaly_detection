@@ -36,10 +36,22 @@ class SlidingWindowArray:
             self.index = self.buffer_len  # remains full
 
     def get(self, start: Optional[int] = None, end: Optional[int] = None) -> np.ndarray:
-        s = start if start is not None else 0
-        e = end if end is not None else self.index
+        """
+        Return slice of the buffer from start (inclusive) to end (exclusive).
+
+        - if start arg is None, defaults to 0.
+        - if end arg is None, defaults to self.index (so returns whole array from start arg index)
+        - If start arg == -1 and end arg is None, returns the last value as a 1-elem array.
+        """
+        if start == -1 and end is None:
+            return self.data[self.index - 1 : self.index]
+
+        s = 0 if start is None else start
+        e = self.index if end is None else end
+
         if s < 0 or e > self.index or s > e:
-            raise IndexError(f"invalid start/end indices: {s}, {e}")
+            raise IndexError(f"Invalid start/end indices: {s}, {e}")
+
         return self.data[s:e]
 
     def clear(self) -> None:
