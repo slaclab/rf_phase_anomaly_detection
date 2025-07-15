@@ -65,6 +65,7 @@ class ProcessB(CustomProcessObject):
                 pass
             else:
                 if r is None:  # enqueuing a None should stop this process immediately
+                    self.queue_two.put(None)
                     break
 
                 # parse the k2eg snapshot and update buffer
