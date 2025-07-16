@@ -160,7 +160,7 @@ class K2EGProcess(CustomProcessObject):
         if self.logger is not None:
             self.logger.debug(f"Snapshot {iteration:d} enqueued for {snapshot_name}")
             self.logger.debug(snapshot)
-        self.queue.put(iteration)  # processes B and C expect an integer for now
+        self.queue.put(snapshot)
 
 
 if __name__ == "__main__":
