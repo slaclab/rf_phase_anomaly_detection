@@ -1,6 +1,7 @@
 from typing import Optional, Tuple
 import numpy as np
 import os
+import time
 
 from beam_check import do_beam_checks, BEAM_CHECK_PVS
 from beam_check_config import MAD_LENGTH, BPM_NAMES, SAMPLES_PER_SECOND, BPM_THRESHOLD
@@ -50,11 +51,15 @@ class Buffer:
             Two integers.  The first is the number of indexes data might have
             been moved back.  The second is the length of the snapshot.
         """
+        start_total = time.perf_counter()
+
         snapshot_length = SAMPLES_PER_SECOND
         beam_check_data = {}
         # holds the data for integrity checks and cleaning.
         # (it holds the timestamps for each pv, whereas in self.data_map we store just one (bucketed) timestamp array for all PVs).
         data_map_with_per_pv_timestamps = {}
+
+        t0 = time.perf_counter()
         for i, pv in enumerate(self.pv_list):
             entries = snapshot.get(pv, [])
 
@@ -71,6 +76,7 @@ class Buffer:
 
             if pv in BEAM_CHECK_PVS:
                 beam_check_data[pv] = values
+        print(f"[PROFILE] getting and storing PV snapshot: {(time.perf_counter() - t0) * 1000:.2f} ms")
 
         if self.time_of_first_data == 0:
             self.time_of_first_data = min(
@@ -90,16 +96,23 @@ class Buffer:
             else:
                 prev_snapshot_val_map[pv] = self.data_map[pv].get(-1)
 
+        t1 = time.perf_counter()
         data_map_bucketed = self.data_cleaner.clean_data(
             data_map_with_per_pv_timestamps, prev_snapshot_val_map, bucket_arr_start_time
         )
+        print(f"[PROFILE] data cleaning: {(time.perf_counter() - t1) * 1000:.2f} ms")
+
         # now update our global map with bucket-data
+        t2 = time.perf_counter()
         for pv, arr in data_map_bucketed.items():
             self.data_map[pv].put(values)
+        print(f"[PROFILE] putting new data into buffer: {(time.perf_counter() - t2) * 1000:.2f} ms")
 
         # do the beam checks and put the data on beam_check buffer
+        t3 = time.perf_counter()
         beam_checks_result = do_beam_checks(beam_check_data)
         self.data_map["beam_checks"].put(beam_checks_result)
+        print(f"[PROFILE] doing beam checks: {(time.perf_counter() - t3) * 1000:.2f} ms")
 
         self.index = self.data_map[self.pv_list[0]].index  # use first pv as index reference
 
@@ -107,6 +120,7 @@ class Buffer:
 
         total_length = snapshot_length + MAD_LENGTH - 1
         if self.index > total_length:
+            t4 = time.perf_counter()
             bpm_score_1 = compute_score_1(
                 {
                     name: self.data_map["ca://" + name].get(
@@ -122,11 +136,16 @@ class Buffer:
             self.data_map["bpm_score_20"].put(bpm_score_20[-snapshot_length:])
             # Candidate Gen
             self.bpm_candidate_bucket.update_slow_indexes(-snapshot_length)
+            print(f"[PROFILE] score computing: {(time.perf_counter() - t4) * 1000:.2f} ms")
 
         self.num_snapshots_processed += 1
+        print(f"[PROFILE] total buffer update time: {(time.perf_counter() - start_total) * 1000:.2f} ms")
+
         return (-snapshot_length if was_full_before_new_data else 0, snapshot_length)
 
     def find_candidates(self, look_back_this_far: int) -> list[AnomalyCandidate]:
+        start_t = time.perf_counter()
+
         candidates = []
         start = self.index - look_back_this_far
         end = self.index
@@ -136,6 +155,7 @@ class Buffer:
         # TODO: figure out if this is correct way to handle this
         if len(self.data_map["bpm_score_20"]) == 0:
             return []
+
         scores = self.data_map["bpm_score_20"].get(start, end)
         timestamps_ns = self.data_map["pv_timestamps_ns"].get(start, end)
 
@@ -144,6 +164,7 @@ class Buffer:
                 candidate = AnomalyCandidate(slow_index=start + i, slow_time=slow_time_ns)
                 candidates.append(candidate)
 
+        print(f"[PROFILE] find_candidates: {(time.perf_counter() - start_t) * 1000:.2f} ms")
         return candidates
 
     def get(self, pv_name: str, start_index: Optional[int] = None, end_index: Optional[int] = None) -> np.ndarray:

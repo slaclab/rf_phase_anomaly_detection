@@ -60,7 +60,10 @@ class ProcessB(CustomProcessObject):
             timer_start = time.perf_counter()
 
             try:
+                queue_get_start = time.perf_counter()
                 r = self.queue_one.get(timeout=0.05)  # wait 50ms
+                queue_get_end = time.perf_counter()
+                self.logger.debug(f"[PROFILE] queue_get {(queue_get_end - queue_get_start) * 1000:.2f} ms")
             except Empty:
                 pass
             else:
@@ -69,18 +72,34 @@ class ProcessB(CustomProcessObject):
                     break
 
                 # parse the k2eg snapshot and update buffer
+                update_start = time.perf_counter()
                 index_change, length_of_update = self.buffer.update(r)
+                update_end = time.perf_counter()
+                self.logger.debug(f"[PROFILE] buffer.update() {(update_end - update_start) * 1000:.2f} ms")
+
+                find_cand_start = time.perf_counter()
                 self.look_for_new_candidates(index_change, length_of_update)
+                find_cand_end = time.perf_counter()
+                self.logger.debug(
+                    f"[PROFILE] look_for_new_candidates() {(find_cand_end - find_cand_start) * 1000:.2f} ms"
+                )
+
             finally:
+                ready_start = time.perf_counter()
                 self.look_for_ready_candidates()
+                ready_end = time.perf_counter()
+                self.logger.debug(
+                    f"[PROFILE] look_for_ready_candidates() {(ready_end - ready_start) * 1000:.2f} ms"
+                )
 
             elapsed_ms = (time.perf_counter() - timer_start) * 1000
-            self.logger.debug(f"process_b iteration took : {elapsed_ms:.2f} ms")
+            self.logger.debug(f"[PROFILE] process_b iteration took : {elapsed_ms:.2f} ms")
             if elapsed_ms > 1000:  # have to be <= 1 sec
-                self.logger.warning(f"process_b buffer append is slow!! : {elapsed_ms:.2f} ms")
+                self.logger.warning(f"[PROFILE] process_b iteration is slow!! Took: {elapsed_ms:.2f} ms")
+
+            self.logger.debug("******************************* (end of curr iteration profile logging)")
 
         self.logger.debug("shutting down process_b")
-
         for handler in self.logger.handlers:
             handler.close()
 
@@ -99,9 +118,12 @@ class ProcessB(CustomProcessObject):
         acws = ANOMALY_CANDIDATE_WINDOW_SIZE
         # check for candidates ready for process C
         while self.candidate_bucket.oldest_candidate_slow_index <= self.buffer.index - acws:
-            candidate = self.candidate_bucket.get()  # get the oldest candidate
+            process_start = time.perf_counter()
 
+            candidate = self.candidate_bucket.get()  # get the oldest candidate
             cand = self.process_candidate(candidate=candidate)
+            process_end = time.perf_counter()
+            self.logger.debug(f"process_candidate() {(process_end - process_start) * 1000:.2f} ms")
 
             if cand:  # dictionary is not empty
                 self.queue_two.put(cand)
@@ -109,12 +131,14 @@ class ProcessB(CustomProcessObject):
                 self.logger.debug(f"Anomaly with timestamp {fast_time} sent to process C")
 
     def process_candidate(self, candidate: AnomalyCandidate) -> dict:
+
         score_start_index = max(0, candidate.slow_index - CANDIDATE_LOOKBACK_WINDOW_LENGTH)
 
         # find the most anomalous rf station
         rf_phase_data = np.stack(
             [self.buffer.get(pv, score_start_index, candidate.slow_index) for pv in RF_PV_NAMES], axis=1
         )  # (CANDIDATE_WINDOW_SIZE, len(RF_PV_NAMES))
+
         most_anomalous_rf_pv_name, deviation_score, system_level_anom = find_most_anomalous_rf_station(
             rf_phase_data
         )
