@@ -77,6 +77,7 @@ class Predict:
         write_to_pv : bool, optional
             Whether to write the prediction result to a PV. Defaults to False.
         logger : logging.Logger, optional
+            Logger instance for logging debug and info messages. Defaults to the module's logger.
         """
         self.configs = configs if configs else load_configs()
         self.networks = networks if networks else load_models()
