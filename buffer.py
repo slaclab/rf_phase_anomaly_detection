@@ -61,7 +61,14 @@ class Buffer:
             values = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
             timestamps_ns = np.empty(SAMPLES_PER_SECOND, dtype=int)
             for j, e in enumerate(entries):
-                values[j] = e.get("value", np.nan)
+                if j >= 120:
+                    break
+                try: 
+                    values[j] = e.get("value", np.nan)
+                except:
+                    print("Choices exception")
+                    if isinstance(e, dict):
+                        values[j] = e.get("index", np.nan)
                 ts = e.get("timeStamp", {})
                 seconds = ts.get("secondsPastEpoch", 0)
                 nanos = ts.get("nanoseconds", 0)
