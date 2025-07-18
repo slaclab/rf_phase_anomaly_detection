@@ -1,5 +1,8 @@
 from typing import Tuple
 import numpy as np
+from typing import Optional, List
+
+from mp_logging import create_worker_logger, default_logging_kwargs
 
 
 class DataCleaner:
@@ -19,13 +22,16 @@ class DataCleaner:
     data_map_bucketed = data_cleaner.clean_data(data_map, prev_snapshot_map, start_time)
     """
 
-    def __init__(self, samples_per_second: int):
+    def __init__(self, samples_per_second: int, logging_kwargs: Optional[dict] = default_logging_kwargs):
         """
         Parameters
         ----------
         samples_per_second : int
             The number of data samples expected per second.
         """
+        logging_kwargs["logger_name"] = "data_cleaner"
+        self.logger = create_worker_logger(**logging_kwargs)
+
         self.samples_per_second = samples_per_second
 
     def clean_data(
@@ -51,7 +57,7 @@ class DataCleaner:
         dict[str, np.ndarray]
             A dictionary mapping each PV to its cleaned array of values, and includes a shared "pv_timestamps_ns" array.
         """
-
+        self.logger.debug("starting to clean data...")
         result_map = {}
 
         # generate evenly spaced target timestamps to use as bucket centers
@@ -66,6 +72,7 @@ class DataCleaner:
             bucket_values = self._forward_fill(bucket_values, pv, prev_snapshot_val_map)
             result_map[pv] = bucket_values
 
+        self.logger.debug("done cleaning data")
         return result_map
 
     def _generate_bucket_timestamps(self, start_ts: int, duration_ns: int) -> np.ndarray:

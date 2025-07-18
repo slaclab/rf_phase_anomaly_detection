@@ -7,7 +7,7 @@ from beam_check_config import MAD_LENGTH, BPM_NAMES, SAMPLES_PER_SECOND, BPM_THR
 from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
 from anomaly_candidate import AnomalyCandidate
-from mp_logging import default_logging_kwargs
+from mp_logging import create_worker_logger, default_logging_kwargs
 from data_cleaner import DataCleaner
 
 
@@ -18,6 +18,10 @@ class Buffer:
     """
 
     def __init__(self, pv_list: list[str], buffer_len: int, logging_kwargs: Optional[dict] = default_logging_kwargs):
+
+        logging_kwargs["logger_name"] = "buffer"
+        self.logger = create_worker_logger(**logging_kwargs)
+
         self.pv_list = pv_list
 
         self.num_snapshots_processed = 0
@@ -39,7 +43,7 @@ class Buffer:
         # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
         self.data_map["valid_windows"] = set()  # will hold tuples of (window_start_index, window_end_index)
 
-        self.data_cleaner = DataCleaner(SAMPLES_PER_SECOND)
+        self.data_cleaner = DataCleaner(SAMPLES_PER_SECOND, logging_kwargs.copy())
 
     def update(self, snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
         """
@@ -123,6 +127,7 @@ class Buffer:
             # Candidate Gen
             self.bpm_candidate_bucket.update_slow_indexes(-snapshot_length)
 
+        self.logger.debug(f"num snapshots processed {self.num_snapshots_processed}")
         self.num_snapshots_processed += 1
         return (-snapshot_length if was_full_before_new_data else 0, snapshot_length)
 

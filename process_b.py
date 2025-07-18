@@ -43,7 +43,7 @@ class ProcessB(CustomProcessObject):
         self.logger = None
 
         # holds up to 5 minutes of 120hz data (36000 points) per pv.
-        self.buffer = Buffer(pv_list, BUFFER_LENGTH, logging_kwargs)  # 3600 = 120hz * 60sec * 5mins
+        self.buffer = Buffer(pv_list, BUFFER_LENGTH, logging_kwargs.copy())  # 3600 = 120hz * 60sec * 5mins
         # holds anomaly candidates
         self.candidate_bucket = CandidateBucket()
 
