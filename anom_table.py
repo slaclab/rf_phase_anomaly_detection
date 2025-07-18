@@ -55,6 +55,14 @@ class TimedBoolDict:
         self.lock = threading.RLock()
         if self.write_to_pv:
             self.k2eg_client = k2eg.dml("rf-phase-ad", "app-three")
+            # Always reset the anomaly state to False at initialization
+            anomaly_table = create_anomaly_table(self.data)
+            write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
+            logger.debug(
+                "Reset anomaly state PV to all False at initialization."
+            )
+        else:
+            self.k2eg_client = None
 
     def set_key(self, key: str, value: bool):
         """
