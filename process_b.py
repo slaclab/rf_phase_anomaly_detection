@@ -51,8 +51,8 @@ class ProcessB(CustomProcessObject):
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
 
-        self.logger.debug(f"running process_b on {len(self.pv_list)} pvs")
-        self.logger.debug("starting data processing loop...")
+        self.logger.info(f"running process_b on {len(self.pv_list)} pvs")
+        self.logger.info("starting data processing loop...")
 
         while True:
             # need to be sure each iteration of this processing loop is <= 1 second
@@ -62,9 +62,11 @@ class ProcessB(CustomProcessObject):
             try:
                 r = self.queue_one.get(timeout=0.05)  # wait 50ms
             except Empty:
+                self.logger.debug("No new data in queue_one (timeout reached).")
                 pass
             else:
                 if r is None:  # enqueuing a None should stop this process immediately
+                    self.logger.info("Received shutdown signal. Stopping process")
                     self.queue_two.put(None)
                     break
 
@@ -85,28 +87,38 @@ class ProcessB(CustomProcessObject):
             handler.close()
 
     def look_for_new_candidates(self, index_change: int, length_of_update: int) -> None:
-
+        self.logger.debug("Looking for new anomaly candidates.")
         # move the indexes of the previously found candidates
         self.candidate_bucket.update_slow_indexes(index_change)
         # add new candidates to the bucket
-        new_candidates: List[AnomalyCandidate] = self.buffer.find_candidates(
+        try:
+            new_candidates: List[AnomalyCandidate] = self.buffer.find_candidates(
             look_back_this_far=length_of_update
-        )
-        for candidate in new_candidates:
-            self.candidate_bucket.put(candidate)
+            )
+            self.logger.info(f"Found {len(new_candidates)} new candidates")
+            for candidate in new_candidates:
+                self.candidate_bucket.put(candidate)
+                self.logger.debug(f"Candidate at slow_index={candidate.slow_index} added to bucket.")
+        except Exception as e:
+            self.logger.error(f"Error while searching for new candidates: {e}", exc_info=True)
 
     def look_for_ready_candidates(self) -> None:
         acws = ANOMALY_CANDIDATE_WINDOW_SIZE
+        self.logger.debug("Checking for ready candidates to forward...")
         # check for candidates ready for process C
         while self.candidate_bucket.oldest_candidate_slow_index <= self.buffer.index - acws:
-            candidate = self.candidate_bucket.get()  # get the oldest candidate
-
-            cand = self.process_candidate(candidate=candidate)
-
-            if cand:  # dictionary is not empty
-                self.queue_two.put(cand)
-                fast_time = cand["anomaly_timestamp"]
-                self.logger.debug(f"Anomaly with timestamp {fast_time} sent to process C")
+            try:
+                candidate = self.candidate_bucket.get()  # get the oldest candidate
+                self.logger.debug(f"Processing candidate at slow_index={candidate.slow_index}")
+                cand = self.process_candidate(candidate=candidate)
+                if cand:  # dictionary is not empty
+                    self.queue_two.put(cand)
+                    fast_time = cand["anomaly_timestamp"]
+                    self.logger.info(f"Anomaly with timestamp {fast_time} sent to process C")
+                else:
+                    self.logger.warning("Empty candidate data returned. Skipping.")
+            except Exception as e:
+                self.logger.error("Failed to process or queue candidate: {e}", exc_info=True)
 
     def process_candidate(self, candidate: AnomalyCandidate) -> dict:
         score_start_index = max(0, candidate.slow_index - CANDIDATE_LOOKBACK_WINDOW_LENGTH)
@@ -114,10 +126,19 @@ class ProcessB(CustomProcessObject):
         # find the most anomalous rf station
         rf_phase_data = np.stack(
             [self.buffer.get(pv, score_start_index, candidate.slow_index) for pv in RF_PV_NAMES], axis=1
-        )  # (CANDIDATE_WINDOW_SIZE, len(RF_PV_NAMES))
-        most_anomalous_rf_pv_name, deviation_score, system_level_anom = find_most_anomalous_rf_station(
-            rf_phase_data
-        )
+            )  # (CANDIDATE_WINDOW_SIZE, len(RF_PV_NAMES)))
+
+        try:
+            most_anomalous_rf_pv_name, deviation_score, system_level_anom = find_most_anomalous_rf_station(
+                rf_phase_data
+            )
+            self.logger.info(
+                f"Most anomalous RF PV: {most_anomalous_rf_pv_name}, "
+                f"score={deviation_score:.4f}, system_anom={system_level_anom}"
+            )
+        except Exception as e:
+            self.logger.error("Error in identifying most anomalous RF station.", exc_info=True)
+            return{}
 
         # Get the bpm_score_20 values for the lookback window
         bpm_score_20 = self.buffer.get("bpm_score_20", score_start_index, candidate.slow_index)
@@ -126,9 +147,9 @@ class ProcessB(CustomProcessObject):
         fast_index = score_start_index + find_fast_index(bpm_score_20)
         candidate.fast_index = fast_index
         fast_time = self.buffer.get("pv_timestamp_ns", fast_index, fast_index + 1)[0]
+        self.logger.info(f"Fast index: {fast_index}, timestamp: {fast_time}")
 
         # prepare anomaly candidate data for process C
-        # TODO: integrate beam check results into slow/fast index selection
         anomaly_data_window = candidate.window_slice
         data_quality_array = self.buffer.get(
             "beam_checks", anomaly_data_window[0], anomaly_data_window[1]
