@@ -72,7 +72,7 @@ class TestPredict:
         # Check if predictions match the expected output data
         assert not predictions
 
-        predictor.anom_state_dict.shut_down()
+        predictor.shut_down()
 
     def test_predict_with_wrong_shape(self) -> None:
         """
@@ -86,7 +86,7 @@ class TestPredict:
         predictor = Predict(write_to_pv=False)
         with pytest.raises(ValueError):
             predictor.predict([1], [2], [3], self.timestamp)
-        predictor.anom_state_dict.shut_down()
+        predictor.shut_down()
 
     def test_predict_with_empty_input(self) -> None:
         """
@@ -105,7 +105,7 @@ class TestPredict:
             in1[0, 0] = float("nan")
             in2[0, 0] = float("nan")
             predictor.predict(in1, in2, "pv", self.timestamp)
-        predictor.anom_state_dict.shut_down()
+        predictor.shut_down()
 
     # def test_predict_write_table_to_k2eg(
     #     self,

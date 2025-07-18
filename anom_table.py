@@ -7,7 +7,14 @@ from k2eg.dml import OperationTimeout
 from k2eg.dml import dml as k2eg_dml
 from k2eg.serialization import NTTable
 
+# Set up logging
 logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+formatter = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 
 class TimedBoolDict:
@@ -30,6 +37,8 @@ class TimedBoolDict:
         A lock to ensure thread safety when accessing or modifying the data and timers.
     reset_time : int
         The time in seconds after which the value is reset to False if it was set to True. Default is 300 seconds (5 minutes).
+    logger : logging.Logger
+        A logger instance for logging debug messages.
     k2eg_client : k2eg_dml
         The K2EG client used to write the anomaly state to K2EG if `write_to_pv` is True.
     Methods
@@ -44,21 +53,34 @@ class TimedBoolDict:
     """
 
     def __init__(
-        self, keys: List[str], write_to_pv: bool = True, reset_time: int = 300
+        self, keys: List[str], write_to_pv: bool = True, logger: logging.Logger = logger
     ):
+        """
+        Initializes the TimedBoolDict with the given keys, whether to write to K2EG, and the reset time.
+
+        Parameters
+        ----------
+        keys: List[str]
+            A list of keys for which the boolean values will be stored.
+        write_to_pv: bool
+            A flag indicating whether to write the anomaly state to K2EG. Default is True.
+        logger: logging.Logger
+            A logger instance for logging debug messages. Default is the module's logger.
+        """
         self.data: Dict[str, bool] = {k: False for k in keys}
         self.write_to_pv: bool = write_to_pv
         self.reset_time: int = (
-            reset_time  # Reset time in seconds (5 minutes is default)
+            300  # Reset time in seconds (5 minutes is default)
         )
         self.timers: Dict[str, threading.Timer] = {}
         self.lock = threading.RLock()
+        self.logger = logger
         if self.write_to_pv:
             self.k2eg_client = k2eg.dml("rf-phase-ad", "app-three")
             # Always reset the anomaly state to False at initialization
             anomaly_table = create_anomaly_table(self.data)
             write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
-            logger.debug(
+            self.logger.debug(
                 "Reset anomaly state PV to all False at initialization."
             )
         else:
@@ -83,6 +105,9 @@ class TimedBoolDict:
         None
         """
         with self.lock:
+            self.logger.debug(
+                f"Setting {key} to 1... Current state dict: \n{dict(self.get_dict())}"
+            )
             self.data[key] = value
             if value:
                 # Cancel existing timer if present
@@ -100,8 +125,8 @@ class TimedBoolDict:
             if self.write_to_pv:
                 anomaly_table = create_anomaly_table(self.data)
                 write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
-            logger.debug(
-                f"Setting {key} to 1. Current state dict: \n{dict(self.get_dict())}"
+            self.logger.debug(
+                f"Set {key} to 1. Current state dict: \n{dict(self.get_dict())}"
             )
 
     def _reset_key(self, key: str):
@@ -119,14 +144,17 @@ class TimedBoolDict:
         None
         """
         with self.lock:
+            self.logger.debug(
+                f"Resetting key {key} to 0... Current state dict: \n{dict(self.get_dict())}"
+            )
             self.data[key] = False
             if key in self.timers:
                 del self.timers[key]
             if self.write_to_pv:
                 anomaly_table = create_anomaly_table(self.data)
                 write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
-            logger.debug(
-                f"Resetting key {key} to 0. Current state dict: \n{dict(self.get_dict())}"
+            self.logger.debug(
+                f"Reset key {key} to 0. Current state dict: \n{dict(self.get_dict())}"
             )
 
     def get_dict(self):

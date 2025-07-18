@@ -5,6 +5,7 @@ https://github.com/SLAC-ML/CoincAD/blob/phase/core/CoincAD_train.py
 import os
 from operator import itemgetter
 from typing import Any, Tuple, Dict, List, Optional
+import logging
 import numpy.typing as npt
 from numpy import number
 
@@ -16,15 +17,53 @@ from anom_table import set_anomaly_state, TimedBoolDict
 
 ROOTDIR = os.path.dirname(os.path.abspath(__file__))
 
+# Set up logging
+logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+formatter = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
 
 class Predict:
-    """Predict class for making predictions using LUME-models."""
+    """
+    Predict class for making anomaly predictions using LUME-models.
+
+    This class loads model configurations and TorchModule networks, manages anomaly state tracking,
+    and provides a method to make predictions on input data. Optionally, it can write anomaly states
+    to a process variable (PV) using K2EG.
+
+    Attributes
+    ----------
+    configs : dict
+        Configuration dictionary for prediction settings.
+    networks : list of TorchModule
+        List of loaded TorchModule models for prediction.
+    write_to_pv : bool
+        Whether to write anomaly states to a PV.
+    klystrons_list : list
+        List of klystron station names.
+    logger : logging.Logger
+        Logger instance for debug and info messages.
+    anom_state_dict : TimedBoolDict
+        Thread-safe dictionary for tracking anomaly states with timed reset.
+
+    Methods
+    -------
+    predict(rf_input, bpm_input, pv_name, timestamp)
+        Make a prediction using the loaded models and update anomaly state.
+    shut_down()
+        Clean up resources and close any open connections.
+    """
 
     def __init__(
         self,
         configs: Optional[Dict[str, Any]] = None,
         networks: Optional[List[TorchModule]] = None,
         write_to_pv: bool = False,
+        logger: Optional[logging.Logger] = logger,
     ) -> None:
         """
         Initialize the Predict class.
@@ -37,12 +76,14 @@ class Predict:
             List of TorchModule instances representing the models.
         write_to_pv : bool, optional
             Whether to write the prediction result to a PV. Defaults to False.
+        logger : logging.Logger, optional
         """
         self.configs = configs if configs else load_configs()
         self.networks = networks if networks else load_models()
         self.write_to_pv = write_to_pv
         self.klystrons_list = load_klystron_configs()
-        self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv)
+        self.logger = logger
+        self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.logger)
 
     def predict(
         self,
@@ -76,11 +117,28 @@ class Predict:
         bpm_input = torch.tensor(bpm_input, dtype=torch.float64)
 
         anomalous = predict_label(self.configs, self.networks, (rf_input, bpm_input))
+        if not anomalous:
+            self.logger.debug(
+                f"No anomaly detected for {pv_name} at timestamp {timestamp}."
+            )
         if anomalous:
             # Update anomaly state in the timed dict
             # if write to PV is enabled, it will also write to K2EG
+            self.logger.info(
+                f"Anomaly detected for {pv_name} at timestamp {timestamp}."
+            )
             set_anomaly_state(self.anom_state_dict, pv_name, anomalous)
         return anomalous
+
+    def shut_down(self) -> None:
+        """
+        Shutdown the Predict class, releasing any resources if necessary.
+
+        This method is called to clean up the Predict instance, especially when
+        it is no longer needed or before the program exits.
+        """
+        self.anom_state_dict.shut_down()
+        self.logger.info("Shut down Predict class and closing K2EG client.")
 
 
 def load_models() -> List[TorchModule]:

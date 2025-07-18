@@ -23,7 +23,18 @@ class ProcessC(CustomProcessObject):
             self.logger = create_worker_logger(**self.logging_kwargs)
 
         # Initialize predictor (loads models and configs)
-        predictor = Predict(write_to_pv=True)
+        predictor = Predict(
+            write_to_pv=True,
+            logger=self.logger
+        )
+
+        # TEMPORARY: Silence lume-model out of range warnings
+        predictor.networks[0].model.input_validation_config = {
+            n: "none" for n in predictor.networks[0].model.input_names
+        }
+        predictor.networks[1].model.input_validation_config = {
+            n: "none" for n in predictor.networks[1].model.input_names
+        }
 
         while True:
             if not self.queue.empty():
@@ -42,5 +53,7 @@ class ProcessC(CustomProcessObject):
                 result = predictor.predict(**r)
                 self.logger.debug(f"ProcessC result: {result}")
 
+        # Shut down the predictor/timed dict and close the logger
+        predictor.shut_down()
         for handler in self.logger.handlers:
             handler.close()
