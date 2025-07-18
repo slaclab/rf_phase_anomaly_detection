@@ -1,3 +1,9 @@
 k2eg
+p4p
 numpy
 pandas
+pyyaml
+pytest
+# Note that this will need to be updated at the next lume-model version release
+# Update to: lume-model @ git+https://github.com/slaclab/lume-model@add-conv-support
+lume-model[torch] @ git+https://github.com/slaclab/lume-model@add-conv-support # until merged to main
