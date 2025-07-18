@@ -20,9 +20,7 @@ ROOTDIR = os.path.dirname(os.path.abspath(__file__))
 # Set up logging
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
-formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
@@ -84,7 +82,9 @@ class Predict:
         self.write_to_pv = write_to_pv
         self.klystrons_list = load_klystron_configs()
         self.logger = logger
-        self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.logger)
+        self.anom_state_dict = TimedBoolDict(
+            self.klystrons_list, self.write_to_pv, self.logger
+        )
 
     def predict(
         self,
@@ -300,16 +300,18 @@ def standardize_tensor(x: torch.Tensor) -> torch.Tensor:
     if x.shape[0] == 1:
         return x - torch.median(x, dim=1, keepdim=True)[0]
     if x.shape[0] == 8:
-        denom = torch.tensor([
-            5.8287e-02,
-            6.3393e-02,
-            7.5411e-01,
-            3.6302e-01,
-            2.0103e07,
-            2.8120e08,
-            2.7878e08,
-            2.7979e08,
-        ]).unsqueeze(1)
+        denom = torch.tensor(
+            [
+                5.8287e-02,
+                6.3393e-02,
+                7.5411e-01,
+                3.6302e-01,
+                2.0103e07,
+                2.8120e08,
+                2.7878e08,
+                2.7979e08,
+            ]
+        ).unsqueeze(1)
         return (x - torch.median(x, dim=1, keepdim=True)[0]) / denom
 
 

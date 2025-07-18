@@ -23,10 +23,7 @@ class ProcessC(CustomProcessObject):
             self.logger = create_worker_logger(**self.logging_kwargs)
 
         # Initialize predictor (loads models and configs)
-        predictor = Predict(
-            write_to_pv=True,
-            logger=self.logger
-        )
+        predictor = Predict(write_to_pv=True, logger=self.logger)
 
         # TEMPORARY: Silence lume-model out of range warnings
         predictor.networks[0].model.input_validation_config = {
