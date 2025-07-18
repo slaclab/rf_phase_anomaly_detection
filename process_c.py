@@ -36,7 +36,7 @@ class ProcessC(CustomProcessObject):
         while True:
             if not self.queue.empty():
                 r = self.queue.get()
-                self.logger.debug(f"ProcessC sees {r}")
+                # self.logger.debug(f"ProcessC sees {r}")
                 if r is None:  # enqueue a None to stop this process
                     break
 

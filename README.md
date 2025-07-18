@@ -5,29 +5,50 @@ This repo holds the backend code for RF anomaly detection using Jason's algorith
 
 This section to be updated while code is implemented:
 
-k2eg_process - handles k2eg snapshots  
-process_b - does data cleaning and accelerator health inspection; generates anomaly candidates  
-process_c - runs CoAD to confirm candidates  
+k2eg_process - handles k2eg snapshots
+process_b - does data cleaning and accelerator health inspection; generates anomaly candidates
+process_c - runs CoAD to confirm candidates
 
 ## Installation instructions on S3DF
 
 This package requires k2eg to function on S3DF.
-To install k2eg:
+To install k2eg along with this current repo:
 
 ```
 conda create --name rf_phase_ad python=3.10
 conda activate rf_phase_ad
 mkdir phase_ad
 cd phase_ad
-git clone https://github.com/slaclab/k2eg-python.git
-cd k2eg-python
-pip install -r requirements.txt
-pip install -e .
-cd ..
 git clone git@github.com:slaclab/rf_phase_anomaly_detection.git
+cd rf_phase_anomaly_detection
+pip install -r requirements.txt
+pip install -r dev-requirements.txt
 ```
 
-To [set/unset](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#macos-and-linux) the required environment variable:
+This package requires [k2eg_spoofer](https://github.com/slaclab/k2eg_spoofer) to run anytime live PV data is not available (like during PAMM).
+To also install k2eg_spoofer:
+```
+# you should be back in the phase_ad dir
+git clone git@github.com:slaclab/k2eg_spoofer.git
+realpath k2eg_spoofer
+# the result of this is the path of k2eg_spoofer on your machine, save for later setting the $PYTHONPATH...
+```
+
+Its also recommended to setup the pre-commit tool to run before each commit you make.
+This will auto-format your code and tidy things up by removing trailing spaces, extra new-lines, etc.
+```
+# you should be in the phase_ad dir
+cd rf_phase_anomaly_detection
+pip install pre-commit
+pre-commit install
+```
+
+You can also run pre-commit before actually making a commit with:
+```
+pre-commit run --all-files
+```
+
+To [set/unset](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#macos-and-linux) the required environment variables:
 ```
 cd $CONDA_PREFIX
 mkdir -p ./etc/conda/activate.d
@@ -36,15 +57,51 @@ touch ./etc/conda/activate.d/env_vars.sh
 touch ./etc/conda/deactivate.d/env_vars.sh
 ```
 
-then edit `./etc/conda/activate.d/env_vars.sh` to include
+then edit `./etc/conda/activate.d/env_vars.sh` to include:
 ```
 export K2EG_PYTHON_CONFIGURATION_PATH_FOLDER=/sdf/sw/k2eg/configuration
+export PYTHONPATH="${PYTHONPATH}:<your_k2eg_spoofer_path"
 ```
 
-and edit `/etc/conda/deactivate.d/env_vars.sh` to include
+and edit `./etc/conda/deactivate.d/env_vars.sh` to include
 ```
 unset K2EG_PYTHON_CONFIGURATION_PATH_FOLDER
 ```
+then reactivate the conda environment to have the environment variables load:
+```
+conda activate rf_phase_ad
+```
+and then be sure to cd back to the rf_phase_anomaly_detection dir to finally start running the detection pipeline.
+
+## Running the pipeline
+
+To run the pipeline on real PV data from k2eg, simply run:
+```
+python main.py
+```
+
+To use spoofed (random) data produced locally, you can set the cmdline flag:
+```
+python main.py --spoof_k2eg_data
+```
+
+And log files will be written each run unless disabled with the cmdline flag:
+```
+python main.py --disable_file_logging
+```
+
+## Process B
+#### Part 1 - Beam Checks
+1. Is the beam rate 120 Hz? We require IOC∶BSY0∶MP01∶PCRATE == 8.
+2. Is the entire beam being delivered to the hard x-ray line? We require IOC∶IN20∶EV01∶RG02ACTRATE == 10.
+3. Is the beam stopper being used? We require STPR∶BSYH∶2∶STD2INA == 0, indicating the beam stopper is out.
+4. Does the beam have a standard charge at the injector? We require BPMS∶IN20∶221∶TMITCUH >
+0.5 × 10**9. A lower charge or the charge not being logged can indicate the beam is not being operated in a standard operational mode.
+
+In the future, we do allow temporary (<90 s) violations of these conditions to not disallow short periods of “nonstandard” beam operation caused by automatic feedback or protection-based control mechanisms.
+
+### Part 2 - Candidate Generation
+TODO
 
 ## Docker image deployment on Kubernetes (S3DF)
 For more detailed instructions, refer to this [documentation](https://github.com/slaclab/lcls_cu_injector_ml_model?tab=readme-ov-file#containerization-steps).
