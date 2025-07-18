@@ -120,7 +120,7 @@ class Buffer:
         if self.index > total_length:
             bpm_score_1 = compute_score_1(
                 {
-                    name: self.data_map["ca://" + name].get(
+                    name: self.data_map[name].get(
                         self.index - total_length, self.index
                     )  # TODO remove 'ca//' when merge into main
                     for name in BPM_NAMES
@@ -131,8 +131,6 @@ class Buffer:
 
             self.data_map["bpm_score_1"].put(bpm_score_1[-snapshot_length:])
             self.data_map["bpm_score_20"].put(bpm_score_20[-snapshot_length:])
-            # Candidate Gen
-            self.bpm_candidate_bucket.update_slow_indexes(-snapshot_length)
 
         self.logger.debug(f"num snapshots processed {self.num_snapshots_processed}")
         self.num_snapshots_processed += 1

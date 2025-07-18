@@ -67,6 +67,7 @@ class K2EGHandler:
             pv_field_filter_list=["value"],  # emit just the PV values
         )
         self.dml = k2eg.dml("lcls-ext", APP_NAME)
+        self.dml.snapshot_stop(SNAPSHOT_NAME)
         self.snapshot_is_running = False
 
     def __enter__(self):
@@ -159,7 +160,7 @@ class K2EGProcess(CustomProcessObject):
         iteration = snapshot["iteration"]
         if self.logger is not None:
             self.logger.debug(f"Snapshot {iteration:d} enqueued for {snapshot_name}")
-            self.logger.debug(snapshot)
+            #self.logger.debug(snapshot)
         self.queue.put(snapshot)
 
 

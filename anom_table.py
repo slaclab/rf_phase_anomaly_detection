@@ -76,7 +76,7 @@ class TimedBoolDict:
         self.lock = threading.RLock()
         self.logger = logger
         if self.write_to_pv:
-            self.k2eg_client = k2eg.dml("rf-phase-ad", "app-three")
+            self.k2eg_client = k2eg.dml("lcls-ext", "app-phase-anomaly-detection-put")
             # Always reset the anomaly state to False at initialization
             anomaly_table = create_anomaly_table(self.data)
             write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
@@ -206,7 +206,7 @@ def create_anomaly_table(anom_dict: Dict[str, bool]) -> NTTable:
     table = NTTable(labels=nt_labels)
     table.set_column("station", list(anom_dict.keys()))
     table.set_column(
-        "anomaly_state", [0 if v is False else 1 for v in list(anom_dict.values())]
+        "anomaly_state", list(anom_dict.values())
     )
     return table
 

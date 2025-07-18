@@ -106,8 +106,12 @@ class ProcessB(CustomProcessObject):
         acws = ANOMALY_CANDIDATE_WINDOW_SIZE
         self.logger.debug("Checking for ready candidates to forward...")
         # check for candidates ready for process C
+        self.logger.debug(str(self.candidate_bucket.oldest_candidate_slow_index))
+        self.logger.debug(str(self.buffer.index))
         while self.candidate_bucket.oldest_candidate_slow_index <= self.buffer.index - acws:
+            self.logger.debug("Still looking for ready candidates")
             try:
+                self.logger.debug("Candidate bucket?")
                 candidate = self.candidate_bucket.get()  # get the oldest candidate
                 self.logger.debug(f"Processing candidate at slow_index={candidate.slow_index}")
                 cand = self.process_candidate(candidate=candidate)
@@ -119,6 +123,7 @@ class ProcessB(CustomProcessObject):
                     self.logger.warning("Empty candidate data returned. Skipping.")
             except Exception as e:
                 self.logger.error("Failed to process or queue candidate: {e}", exc_info=True)
+                raise 
 
     def process_candidate(self, candidate: AnomalyCandidate) -> dict:
         score_start_index = max(0, candidate.slow_index - CANDIDATE_LOOKBACK_WINDOW_LENGTH)

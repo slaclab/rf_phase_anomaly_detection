@@ -79,7 +79,7 @@ class CandidateBucket(PriorityQueue):
             index = cand.slow_index
             self.put(cand)
         else:
-            index = -1
+            index = 111111111111111111111111111111111111111
         return index
 
     def update_slow_indexes(self, index_change: int):
