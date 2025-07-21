@@ -10,9 +10,7 @@ from k2eg.serialization import NTTable
 # Set up logging
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
-formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
@@ -69,20 +67,16 @@ class TimedBoolDict:
         """
         self.data: Dict[str, bool] = {k: False for k in keys}
         self.write_to_pv: bool = write_to_pv
-        self.reset_time: int = (
-            300  # Reset time in seconds (5 minutes is default)
-        )
+        self.reset_time: int = 300  # Reset time in seconds (5 minutes is default)
         self.timers: Dict[str, threading.Timer] = {}
         self.lock = threading.RLock()
         self.logger = logger
         if self.write_to_pv:
-            self.k2eg_client = k2eg.dml("rf-phase-ad", "app-three")
+            self.k2eg_client = k2eg.dml("lcls-ext", "app-phase-anomaly-detection-put")
             # Always reset the anomaly state to False at initialization
             anomaly_table = create_anomaly_table(self.data)
             write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
-            self.logger.debug(
-                "Reset anomaly state PV to all False at initialization."
-            )
+            self.logger.debug("Reset anomaly state PV to all False at initialization.")
         else:
             self.k2eg_client = None
 
@@ -205,9 +199,7 @@ def create_anomaly_table(anom_dict: Dict[str, bool]) -> NTTable:
     nt_labels = ["station", "anomaly_state"]
     table = NTTable(labels=nt_labels)
     table.set_column("station", list(anom_dict.keys()))
-    table.set_column(
-        "anomaly_state", [0 if v is False else 1 for v in list(anom_dict.values())]
-    )
+    table.set_column("anomaly_state", list(anom_dict.values()))
     return table
 
 

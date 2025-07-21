@@ -1,9 +1,10 @@
 k2eg
 p4p
 numpy
-torch
 pyyaml
 pytest
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
 # Note that this will need to be updated at the next lume-model version release
 # to: lume-model @ git+https://github.com/slaclab/lume-model@add-conv-support
 lume-model[torch] @ git+https://github.com/slaclab/lume-model@add-conv-support # until merged to main
