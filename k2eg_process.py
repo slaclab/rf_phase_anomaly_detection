@@ -72,7 +72,7 @@ class K2EGHandler:
     def __enter__(self):
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
-        self.logger.debug("Spinning up buffered snapshots")
+        self.logger.info("Spinning up buffered snapshots")
         _ = self.dml.snapshot_recurring(
             self.snapshot_properties,
             handler=self.snapshot_handler,
@@ -85,7 +85,7 @@ class K2EGHandler:
         self.dml.snapshot_stop(SNAPSHOT_NAME)
         self.dml.close()
         self.snapshot_is_running = False
-        self.logger.debug("shutdown snapshot production")
+        self.logger.info("shutdown snapshot production")
 
 
 class K2EGProcess(CustomProcessObject):
@@ -141,7 +141,7 @@ class K2EGProcess(CustomProcessObject):
 
         # put data onto the queue at regular intervals
         with self.k2_handler as k2h:
-            self.logger.debug(f"K2EGHandler.snapshot_is_running: {k2h.snapshot_is_running}")
+            self.logger.info(f"K2EGHandler.snapshot_is_running: {k2h.snapshot_is_running}")
             self.keep_fetching_data = True
             while k2h.snapshot_is_running and self.keep_fetching_data:
                 # this does nothing, replace it with instrumentation

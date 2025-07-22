@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 import numpy as np
 from typing import Optional, List
 
@@ -34,6 +34,8 @@ class DataCleaner:
 
         self.samples_per_second = samples_per_second
 
+        self.logger.info(f"Initialized DataCleaner with samples_per_second={samples_per_second}")
+
     def clean_data(
         self,
         data_map_with_per_pv_timestamps: dict[str, Tuple[np.ndarray, np.ndarray]],
@@ -57,22 +59,28 @@ class DataCleaner:
         dict[str, np.ndarray]
             A dictionary mapping each PV to its cleaned array of values, and includes a shared "pv_timestamps_ns" array.
         """
-        self.logger.debug("starting to clean data...")
+        self.logger.info("Starting to clean data...")
+        self.logger.debug(f"Buckets array starting time: {bucket_arr_start_time}")
+
         result_map = {}
 
         # generate evenly spaced target timestamps to use as bucket centers
         duration_ns = int(1e9)  # 1 second in nanoseconds
         bucket_timestamps = self._generate_bucket_timestamps(bucket_arr_start_time, duration_ns)
         result_map["pv_timestamps_ns"] = bucket_timestamps
+        self.logger.debug(f"Generated {len(bucket_timestamps)} bucket timestamps")
 
         for pv, (values, timestamps_ns) in data_map_with_per_pv_timestamps.items():
+            # self.logger.debug(f"Processing PV: {pv} with {len(values)} values")
             # assign each value to the closest bucket timestamp
             bucket_values = self._map_values_to_buckets(values, timestamps_ns, bucket_timestamps)
+            # self.logger.debug(f"Mapped PV '{pv}' values to buckets with {np.count_nonzero(np.isnan(bucket_values))} non-NaN entries")
             # fill in any missing values using prior vals or previous snapshot (if no prev val in curr timestamp)
             bucket_values = self._forward_fill(bucket_values, pv, prev_snapshot_val_map)
+            # self.logger.debug(f"Forward-filled PV '{pv}' resulting in {np.count_nonzero(~np.isnan(bucket_values))} NaN entries")
             result_map[pv] = bucket_values
 
-        self.logger.debug("done cleaning data")
+        self.logger.info("Done with cleaning data")
         return result_map
 
     def _generate_bucket_timestamps(self, start_ts: int, duration_ns: int) -> np.ndarray:
@@ -126,7 +134,6 @@ class DataCleaner:
 
             if 0 <= idx < self.samples_per_second:
                 bucket_values[idx] = val  # last write overrides if multiple values map to same bucket
-
         return bucket_values
 
     def _forward_fill(
