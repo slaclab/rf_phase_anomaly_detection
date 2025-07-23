@@ -142,7 +142,7 @@ class K2EGProcess(CustomProcessObject):
 
         # put data onto the queue at regular intervals
         with self.k2_handler as k2h:
-            self.logger.debug(f"K2EGHandler.snapshot_is_running: {k2h.snapshot_is_running}")
+            self.logger.info(f"K2EGHandler.snapshot_is_running: {k2h.snapshot_is_running}")
             self.keep_fetching_data = True
             while k2h.snapshot_is_running and self.keep_fetching_data:
                 # this does nothing, replace it with instrumentation
