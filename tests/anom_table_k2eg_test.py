@@ -41,7 +41,7 @@ def main():
     This function simulates setting and resetting anomaly states for multiple stations
     over a period of time, checking the expected behavior of the anomaly state dictionary.
     """
-    pred = Predict(write_to_pv=True)
+    pred = Predict(write_to_pv=False)
     # Silence lume-model out of range warnings
     pred.networks[0].model.input_validation_config = {
         n: "none" for n in pred.networks[0].model.input_names
@@ -61,24 +61,24 @@ def main():
     test_data_set_true, test_data_set_false = get_data()
 
     data_true = {
-        "timestamp": 1000,  # Example timestamp
+        "anomaly_timestamp": 1000,  # Example timestamp
         "rf_input": test_data_set_true[0],
         "bpm_input": test_data_set_true[1],
-        "pv_name": None,  # Will be set later
+        "rf_pv_name": None,  # Will be set later
     }
 
     data_false = {
-        "timestamp": 1000,  # Example timestamp
+        "anomaly_timestamp": 1000,  # Example timestamp
         "rf_input": test_data_set_false[0],
         "bpm_input": test_data_set_false[1],
-        "pv_name": None,
+        "rf_pv_name": None,
     }
 
     # Set the anomaly state for each station
 
     # Set anomaly state for the first station
-    data_true["pv_name"] = stations[0]
-    data_false["pv_name"] = stations[0]
+    data_true["rf_pv_name"] = stations[0]
+    data_false["rf_pv_name"] = stations[0]
     pred.predict(**data_true)
     time.sleep(5)
     # Get no anomaly results for the first station, dict should not change True state
@@ -88,28 +88,28 @@ def main():
     print(f"After 25s, {stations[0]} should be True\n")
 
     # Set anomaly state for the second station
-    data_true["pv_name"] = stations[1]
+    data_true["rf_pv_name"] = stations[1]
     pred.predict(**data_true)
     time.sleep(10)
 
     print(f"After 35s, {stations[0]} and {stations[1]} should be True\n")
 
     # Set anomaly state for the third station
-    data_true["pv_name"] = stations[2]
+    data_true["rf_pv_name"] = stations[2]
     pred.predict(**data_true)
     time.sleep(30)
 
     print(f"After 65s, {stations[1]} and {stations[2]} should be True\n")
 
     # Set the third station to True again, should not reset after 50s
-    data_true["pv_name"] = stations[2]
+    data_true["rf_pv_name"] = stations[2]
     pred.predict(**data_true)
     time.sleep(9)
 
     print(f"After 74s, {stations[1]} and {stations[2]} should be True\n")
 
     # Set the second station to True again, should not reset after 50s
-    data_true["pv_name"] = stations[1]
+    data_true["rf_pv_name"] = stations[1]
     pred.predict(**data_true)
     time.sleep(1)
 

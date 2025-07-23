@@ -50,7 +50,7 @@ class Predict:
 
     Methods
     -------
-    predict(rf_input, bpm_input, pv_name, timestamp)
+    predict(rf_input, bpm_input, rf_pv_name, anomaly_timestamp)
         Make a prediction using the loaded models and update anomaly state.
     shut_down()
         Clean up resources and close any open connections.
@@ -90,8 +90,8 @@ class Predict:
         self,
         rf_input: npt.NDArray[number],
         bpm_input: npt.NDArray[number],
-        pv_name: str,
-        timestamp: float,  # in nanoseconds since epoch
+        rf_pv_name: str,
+        anomaly_timestamp: float,  # in nanoseconds since epoch
     ) -> bool:
         """
         Make predictions using the loaded models and provided a single batch of data.
@@ -104,9 +104,9 @@ class Predict:
         bpm_input : npt.NDArray[number]
             Numpy array of input data for the second model, with a shape of (D, N), where D (1066) is
             the number of BPMs (8) and N is the number of samples (1066).
-        pv_name : str
+        rf_pv_name : str
             The PV name of the RF station to write the prediction result to K2EG.
-        timestamp: float
+        anomalytimestamp: float
             Timestamp of the prediction.
 
         Returns
@@ -120,15 +120,15 @@ class Predict:
         anomalous = predict_label(self.configs, self.networks, (rf_input, bpm_input))
         if not anomalous:
             self.logger.debug(
-                f"No anomaly detected for {pv_name} at timestamp {timestamp}."
+                f"No anomaly detected for {rf_pv_name} at timestamp {anomaly_timestamp}."
             )
         if anomalous:
             # Update anomaly state in the timed dict
             # if write to PV is enabled, it will also write to K2EG
             self.logger.info(
-                f"Anomaly detected for {pv_name} at timestamp {timestamp}."
+                f"Anomaly detected for {rf_pv_name} at timestamp {anomaly_timestamp}."
             )
-            set_anomaly_state(self.anom_state_dict, pv_name, anomalous)
+            set_anomaly_state(self.anom_state_dict, rf_pv_name, anomalous)
         return anomalous
 
     def shut_down(self) -> None:

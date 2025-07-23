@@ -41,13 +41,20 @@ class ProcessC(CustomProcessObject):
                     break
 
                 # Run inference on the received data
-                # r is a dict of the form
-                # { "timestamp": float,
+                # r is a dict of the form (not showing all keys):
+                # { "anomaly_timestamp": float,
                 #   "rf_input": np.array of size (1, 1066),
                 #   "bpm_input": np.array of size (8, 1066),
-                #   "pv_name": string,
+                #   "rf_pv_name": string,
                 # }
-                result = predictor.predict(**r)
+                result = predictor.predict(
+                    {
+                        "rf_input": r["rf_input"],
+                        "bpm_input": r["bpm_input"],
+                        "rf_pv_name": r["rf_pv_name"],
+                        "anomaly_timestamp": r["anomaly_timestamp"],
+                    }
+                )
                 self.logger.debug(f"ProcessC result: {result}")
 
         # Shut down the predictor/timed dict and close the logger
