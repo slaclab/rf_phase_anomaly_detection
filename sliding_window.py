@@ -16,18 +16,18 @@ class SlidingWindowArray:
     """
 
     def __init__(self, buffer_len: int, dtype: np.dtype = np.float64, pv_name: str = "", logging_kwargs: Optional[dict] = default_logging_kwargs):
-        logging_kwargs["logger_name"] = "sliding_window_array"
+        logging_kwargs["logger_name"] = f"sliding_window_array_{pv_name}"
         self.logger = create_worker_logger(**logging_kwargs)
 
         self.data = np.empty(buffer_len, dtype=dtype)
         self.buffer_len = buffer_len
         self.index = 0
 
-        self.logger.info(f"Initialized SlidingWindowArray for pv {pv_name} with size {buffer_len}, dtype {dtype}")
+        # self.logger.info(f"Initialized SlidingWindowArray for pv '{pv_name}' with size {buffer_len}, dtype {dtype}")
 
     def put(self, values: np.ndarray) -> None:
         n = len(values)
-        # self.logger.debug(f"Putting {n} new values into buffer")
+        self.logger.debug(f"Putting {n} new values into buffer")
 
         if n > self.buffer_len:
             self.logger.error(f"Too many values ({n}) for buffer size {self.buffer_len}")

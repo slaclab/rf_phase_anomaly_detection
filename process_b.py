@@ -43,7 +43,7 @@ class ProcessB(CustomProcessObject):
         self.logger = None
 
         # holds up to 5 minutes of 120hz data (36000 points) per pv.
-        self.buffer = Buffer(pv_list, BUFFER_LENGTH, logging_kwargs.copy())  # 3600 = 120hz * 60sec * 5mins
+        self.buffer = Buffer(self.pv_list, BUFFER_LENGTH, self.logging_kwargs.copy())  # 3600 = 120hz * 60sec * 5mins
         # holds anomaly candidates
         self.candidate_bucket = CandidateBucket()
 
@@ -51,14 +51,13 @@ class ProcessB(CustomProcessObject):
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
 
-        self.info.info(f"Starting ProcessB for {len(self.pv_list)} PVs")
-        self.info.debug("Beginning main data processing loop...")
+        self.logger.info(f"Starting ProcessB for {len(self.pv_list)} PVs")
+        self.logger.debug("Beginning main data processing loop...")
 
         while True:
             # need to be sure each iteration of this processing loop is <= 1 second
             # (data comes each second from process_a, so data will pile-up if our processing takes over 1 second)
             timer_start = time.perf_counter()
-
             try:
                 r = self.queue_one.get(timeout=0.05)  # wait 50ms
                 self.logger.debug("No new data in queue_one (timeout reached).")
