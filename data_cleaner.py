@@ -1,6 +1,5 @@
 from typing import Optional, Tuple
 import numpy as np
-from typing import Optional, List
 
 from mp_logging import create_worker_logger, default_logging_kwargs
 

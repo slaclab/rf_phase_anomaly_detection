@@ -36,13 +36,13 @@ class Buffer:
 
         # default array length is 36000 to store 5 mins of data at 120hz.
         # we allocate the arrays initially to avoid potential memory-copies during array append operation.
-        self.data_map = {pv: SlidingWindowArray(buffer_len, dtype=np.float64, logging_kwargs=logging_kwargs.copy()) for pv in self.pv_list}
+        self.data_map = {pv: SlidingWindowArray(buffer_len, dtype=np.float64, pv_name=pv, logging_kwargs=logging_kwargs.copy()) for pv in self.pv_list}
         # just store the timestamp data from the first pv we read from the snapshot,
         # and assume the other pv's data is timed the same.
-        self.data_map["pv_timestamps_ns"] = SlidingWindowArray(buffer_len, dtype=np.float64, logging_kwargs=logging_kwargs.copy())
-        self.data_map["beam_checks"] = SlidingWindowArray(buffer_len, dtype=bool, logging_kwargs=logging_kwargs.copy())
-        self.data_map["bpm_score_1"] = SlidingWindowArray(buffer_len, dtype=np.float64, logging_kwargs=logging_kwargs.copy())
-        self.data_map["bpm_score_20"] = SlidingWindowArray(buffer_len, dtype=np.float64, logging_kwargs=logging_kwargs.copy())
+        self.data_map["pv_timestamps_ns"] = SlidingWindowArray(buffer_len, dtype=np.float64, pv_name="pv_timestamps_ns", logging_kwargs=logging_kwargs.copy())
+        self.data_map["beam_checks"] = SlidingWindowArray(buffer_len, dtype=bool, pv_name="beam_checks", logging_kwargs=logging_kwargs.copy())
+        self.data_map["bpm_score_1"] = SlidingWindowArray(buffer_len, dtype=np.float64, pv_name="bpm_score_1", logging_kwargs=logging_kwargs.copy())
+        self.data_map["bpm_score_20"] = SlidingWindowArray(buffer_len, dtype=np.float64, pv_name="bpm_score_20", logging_kwargs=logging_kwargs.copy())
         # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
         self.data_map["valid_windows"] = set()  # will hold tuples of (window_start_index, window_end_index)
 
@@ -135,8 +135,8 @@ class Buffer:
             # Candidate Gen
             self.bpm_candidate_bucket.update_slow_indexes(-snapshot_length)
         else: # append 0's to keep bpm_score arrays same length as pv arrays
-            self.data_map["bpm_score_1"].put(np.zeros(SAMPLES_PER_SECOND))
-            self.data_map["bpm_score_20"].put(np.zeros(SAMPLES_PER_SECOND))
+            self.data_map["bpm_score_1"].put(np.zeros(snapshot_length))
+            self.data_map["bpm_score_20"].put(np.zeros(snapshot_length))
             self.logger.debug("Not enough data yet for bpm score computation, adding zeros to bpm_score array")
 
         self.logger.debug(f"num snapshots processed {self.num_snapshots_processed}")
@@ -182,7 +182,6 @@ class Buffer:
         if s < 0 or s > self.index or e > self.index:
             self.logger.warning(f"start and end indices not valid in buffer: {s}, {e}")
             raise IndexError(f"start and end indices not valid in buffer: {s}, {e}")
-            return []
 
         return self.data_map[pv_name].get(s, e)
 
