@@ -140,8 +140,6 @@ class Buffer:
 
             self.data_map["bpm_score_1"].put(bpm_score_1[-snapshot_length:])
             self.data_map["bpm_score_20"].put(bpm_score_20[-snapshot_length:])
-            # Candidate Gen
-            self.bpm_candidate_bucket.update_slow_indexes(-snapshot_length)
         else: # append 0's to keep bpm_score arrays same length as pv arrays
             self.data_map["bpm_score_1"].put(np.zeros(snapshot_length))
             self.data_map["bpm_score_20"].put(np.zeros(snapshot_length))
