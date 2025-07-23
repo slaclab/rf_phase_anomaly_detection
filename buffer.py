@@ -39,7 +39,7 @@ class Buffer:
         self.data_map = {pv: SlidingWindowArray(buffer_len, dtype=np.float64, pv_name=pv, logging_kwargs=logging_kwargs.copy()) for pv in self.pv_list}
         # just store the timestamp data from the first pv we read from the snapshot,
         # and assume the other pv's data is timed the same.
-        self.data_map["pv_timestamps_ns"] = SlidingWindowArray(buffer_len, dtype=np.float64, pv_name="pv_timestamps_ns", logging_kwargs=logging_kwargs.copy())
+        self.data_map["pv_timestamps_ns"] = SlidingWindowArray(buffer_len, dtype=np.int64, pv_name="pv_timestamps_ns", logging_kwargs=logging_kwargs.copy())
         self.data_map["beam_checks"] = SlidingWindowArray(buffer_len, dtype=bool, pv_name="beam_checks", logging_kwargs=logging_kwargs.copy())
         self.data_map["bpm_score_1"] = SlidingWindowArray(buffer_len, dtype=np.float64, pv_name="bpm_score_1", logging_kwargs=logging_kwargs.copy())
         self.data_map["bpm_score_20"] = SlidingWindowArray(buffer_len, dtype=np.float64, pv_name="bpm_score_20", logging_kwargs=logging_kwargs.copy())
@@ -111,8 +111,9 @@ class Buffer:
         data_map_bucketed = self.data_cleaner.clean_data(
             data_map_with_per_pv_timestamps, prev_snapshot_val_map, bucket_arr_start_time
         )
+
         # now update our global map with bucket-data
-        for pv, arr in data_map_bucketed.items():
+        for pv, values in data_map_bucketed.items():
             # self.logger.debug(f"Appending bucketed + cleaned data to data_map for PV: {pv}")
             self.data_map[pv].put(values)
 

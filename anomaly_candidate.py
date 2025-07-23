@@ -56,6 +56,10 @@ class AnomalyCandidate:
     def fast_index(self):
         return self._fast_index
 
+    @fast_index.setter
+    def fast_index(self, new_index: int):
+        self._fast_index = new_index
+
     @slow_index.setter
     def slow_index(self, new_index: int):
         self._slow_index = new_index

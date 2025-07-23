@@ -134,7 +134,7 @@ class ProcessB(CustomProcessObject):
         # find the fast trigger
         fast_index = score_start_index + find_fast_index(bpm_score_20)
         candidate.fast_index = fast_index
-        fast_time = self.buffer.get("pv_timestamp_ns", fast_index, fast_index + 1)[0]
+        fast_time = self.buffer.get("pv_timestamps_ns", fast_index, fast_index + 1)[0]
         self.logger.debug(f"Fast trigger index: {fast_index}, timestamp: {fast_time}")
 
         # prepare anomaly candidate data for process C
