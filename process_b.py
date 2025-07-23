@@ -15,6 +15,7 @@ from anomaly_candidate import AnomalyCandidate, CandidateBucket, find_fast_index
 from beam_check_config import (SAMPLES_PER_SECOND, BUFFER_LENGTH, BPM_NAMES,
                                RF_PV_NAMES, CANDIDATE_LOOKBACK_WINDOW_LENGTH,
                                ANOMALY_CANDIDATE_WINDOW_SIZE)
+from k2eg_process import read_pv_list_from_file
 
 # we care about windows where beam-checks fail only if longer than this length
 TEMP_VIOLATION_LENGTH = SAMPLES_PER_SECOND * 90  # 90 seconds
@@ -85,7 +86,7 @@ class ProcessB(CustomProcessObject):
             handler.close()
 
     def look_for_new_candidates(self, index_change: int, length_of_update: int) -> None:
-
+        print("Looking for new candidates")
         # move the indexes of the previously found candidates
         self.candidate_bucket.update_slow_indexes(index_change)
         # add new candidates to the bucket
@@ -96,13 +97,13 @@ class ProcessB(CustomProcessObject):
             self.candidate_bucket.put(candidate)
 
     def look_for_ready_candidates(self) -> None:
+        print("Looking for ready candidates")
         acws = ANOMALY_CANDIDATE_WINDOW_SIZE
         # check for candidates ready for process C
         while self.candidate_bucket.oldest_candidate_slow_index <= self.buffer.index - acws:
             candidate = self.candidate_bucket.get()  # get the oldest candidate
 
             cand = self.process_candidate(candidate=candidate)
-
             if cand:  # dictionary is not empty
                 self.queue_two.put(cand)
                 fast_time = cand["anomaly_timestamp"]
@@ -154,3 +155,28 @@ class ProcessB(CustomProcessObject):
             }
         else:
             return {}
+
+if __name__ == "__main__":
+    from multiprocessing import Queue
+    from k2eg_spoofer import K2EGSpoofer
+
+    full_pv_list = read_pv_list_from_file("resources/pv_list.txt")
+
+    spoofer = K2EGSpoofer(
+        pv_configs=[{'name': name, 'rate_hz': 120, 'drop_rate': 0.0} for name in full_pv_list],
+        n_emits=1,
+        emit_rate_hz=1,
+    )
+    snapshot = list(spoofer())[0]  # spoofer returns a generator
+
+    q1 = Queue()
+    q2 = Queue()
+    q1.put(snapshot)
+
+    process_b = ProcessB(q1, q2, full_pv_list)
+
+    # process a snapshot manually
+    snapshot = q1.get()
+    index_change, length = process_b.buffer.update(snapshot)
+    process_b.look_for_new_candidates(index_change, length)
+    process_b.look_for_ready_candidates()
