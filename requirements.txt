@@ -1,6 +1,7 @@
 k2eg
 p4p
 numpy
+pandas
 pyyaml
 pytest
 --extra-index-url https://download.pytorch.org/whl/cpu
