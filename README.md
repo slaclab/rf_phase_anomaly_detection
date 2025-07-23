@@ -25,16 +25,7 @@ pip install -r requirements.txt
 pip install -r dev-requirements.txt
 ```
 
-This package requires [k2eg_spoofer](https://github.com/slaclab/k2eg_spoofer) to run anytime live PV data is not available (like during PAMM).
-To also install k2eg_spoofer:
-```
-# you should be back in the phase_ad dir
-git clone git@github.com:slaclab/k2eg_spoofer.git
-realpath k2eg_spoofer
-# the result of this is the path of k2eg_spoofer on your machine, save for later setting the $PYTHONPATH...
-```
-
-Its also recommended to setup the pre-commit tool to run before each commit you make.
+It is recommended you set up the pre-commit tool to run before each commit you make.
 This will auto-format your code and tidy things up by removing trailing spaces, extra new-lines, etc.
 ```
 # you should be in the phase_ad dir
@@ -60,7 +51,6 @@ touch ./etc/conda/deactivate.d/env_vars.sh
 then edit `./etc/conda/activate.d/env_vars.sh` to include:
 ```
 export K2EG_PYTHON_CONFIGURATION_PATH_FOLDER=/sdf/sw/k2eg/configuration
-export PYTHONPATH="${PYTHONPATH}:<your_k2eg_spoofer_path"
 ```
 
 and edit `./etc/conda/deactivate.d/env_vars.sh` to include

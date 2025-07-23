@@ -7,7 +7,7 @@ from beam_check_config import MAD_LENGTH, BPM_NAMES, SAMPLES_PER_SECOND, BPM_THR
 from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
 from anomaly_candidate import AnomalyCandidate
-from mp_logging import default_logging_kwargs
+from mp_logging import create_worker_logger, default_logging_kwargs
 from data_cleaner import DataCleaner
 
 
@@ -18,6 +18,10 @@ class Buffer:
     """
 
     def __init__(self, pv_list: list[str], buffer_len: int, logging_kwargs: Optional[dict] = default_logging_kwargs):
+
+        logging_kwargs["logger_name"] = "buffer"
+        self.logger = create_worker_logger(**logging_kwargs)
+
         self.pv_list = pv_list
 
         self.num_snapshots_processed = 0
@@ -27,19 +31,22 @@ class Buffer:
         self.buffer_len = buffer_len
 
         self.index = 0  # tracks the next write index
+
+        self.logger.debug(f"Initializing buffer for {len(pv_list)} PVs, buffer length = {buffer_len}")
+
         # default array length is 36000 to store 5 mins of data at 120hz.
         # we allocate the arrays initially to avoid potential memory-copies during array append operation.
-        self.data_map = {pv: SlidingWindowArray(buffer_len, dtype=np.float64) for pv in self.pv_list}
+        self.data_map = {pv: SlidingWindowArray(buffer_len, dtype=np.float64, pv_name=pv, logging_kwargs=logging_kwargs.copy()) for pv in self.pv_list}
         # just store the timestamp data from the first pv we read from the snapshot,
         # and assume the other pv's data is timed the same.
-        self.data_map["pv_timestamps_ns"] = SlidingWindowArray(buffer_len, dtype=np.float64)
-        self.data_map["beam_checks"] = SlidingWindowArray(buffer_len, dtype=bool)
-        self.data_map["bpm_score_1"] = SlidingWindowArray(buffer_len, dtype=np.float64)
-        self.data_map["bpm_score_20"] = SlidingWindowArray(buffer_len, dtype=np.float64)
+        self.data_map["pv_timestamps_ns"] = SlidingWindowArray(buffer_len, dtype=np.float64, pv_name="pv_timestamps_ns", logging_kwargs=logging_kwargs.copy())
+        self.data_map["beam_checks"] = SlidingWindowArray(buffer_len, dtype=bool, pv_name="beam_checks", logging_kwargs=logging_kwargs.copy())
+        self.data_map["bpm_score_1"] = SlidingWindowArray(buffer_len, dtype=np.float64, pv_name="bpm_score_1", logging_kwargs=logging_kwargs.copy())
+        self.data_map["bpm_score_20"] = SlidingWindowArray(buffer_len, dtype=np.float64, pv_name="bpm_score_20", logging_kwargs=logging_kwargs.copy())
         # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
         self.data_map["valid_windows"] = set()  # will hold tuples of (window_start_index, window_end_index)
 
-        self.data_cleaner = DataCleaner(SAMPLES_PER_SECOND)
+        self.data_cleaner = DataCleaner(SAMPLES_PER_SECOND, logging_kwargs=logging_kwargs.copy())
 
     def update(self, snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
         """
@@ -50,6 +57,8 @@ class Buffer:
             Two integers.  The first is the number of indexes data might have
             been moved back.  The second is the length of the snapshot.
         """
+        self.logger.info("Buffer starting update...")
+
         snapshot_length = SAMPLES_PER_SECOND
         beam_check_data = {}
         # holds the data for integrity checks and cleaning.
@@ -61,7 +70,15 @@ class Buffer:
             values = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
             timestamps_ns = np.empty(SAMPLES_PER_SECOND, dtype=int)
             for j, e in enumerate(entries):
-                values[j] = e.get("value", np.nan)
+                # TODO: handle large snapshots correctly (currently doing hotfix)
+                if j >= 120:
+                    break
+                try: 
+                    values[j] = e.get("value", np.nan)
+                except:
+                    if isinstance(e, dict):
+                        values[j] = e.get("index", np.nan)
+                # end of hotfix
                 ts = e.get("timeStamp", {})
                 seconds = ts.get("secondsPastEpoch", 0)
                 nanos = ts.get("nanoseconds", 0)
@@ -76,6 +93,7 @@ class Buffer:
             self.time_of_first_data = min(
                 timestamps_ns.min() for _, timestamps_ns in data_map_with_per_pv_timestamps.values()
             )
+            self.logger.debug(f"Set time_of_first_data = {self.time_of_first_data}")
 
         bucket_arr_start_time = self.time_of_first_data + (
             self.num_snapshots_processed * int(1e9)
@@ -95,6 +113,7 @@ class Buffer:
         )
         # now update our global map with bucket-data
         for pv, arr in data_map_bucketed.items():
+            # self.logger.debug(f"Appending bucketed + cleaned data to data_map for PV: {pv}")
             self.data_map[pv].put(values)
 
         # do the beam checks and put the data on beam_check buffer
@@ -109,24 +128,28 @@ class Buffer:
         if self.index > total_length:
             bpm_score_1 = compute_score_1(
                 {
-                    name: self.data_map["ca://" + name].get(
+                    name: self.data_map[name].get(
                         self.index - total_length, self.index
-                    )  # TODO remove 'ca//' when merge into main
+                    )
                     for name in BPM_NAMES
                 }
             )
 
             bpm_score_20 = compute_score_20(bpm_score_1)
+            self.logger.debug(f"Computed bpm_score_20")
 
             self.data_map["bpm_score_1"].put(bpm_score_1[-snapshot_length:])
             self.data_map["bpm_score_20"].put(bpm_score_20[-snapshot_length:])
             # Candidate Gen
             self.bpm_candidate_bucket.update_slow_indexes(-snapshot_length)
-        else:
+        else: # append 0's to keep bpm_score arrays same length as pv arrays
             self.data_map["bpm_score_1"].put(np.zeros(snapshot_length))
             self.data_map["bpm_score_20"].put(np.zeros(snapshot_length))
+            self.logger.debug("Not enough data yet for bpm score computation, adding zeros to bpm_score array")
 
+        self.logger.debug(f"num snapshots processed {self.num_snapshots_processed}")
         self.num_snapshots_processed += 1
+        self.logger.info("Buffer done updating")
         return (-snapshot_length if was_full_before_new_data else 0, snapshot_length)
 
     def find_candidates(self, look_back_this_far: int) -> list[AnomalyCandidate]:
@@ -138,6 +161,7 @@ class Buffer:
         # as in: self.index < snapshot_length + MAD_LENGTH - 1
         # TODO: figure out if this is correct way to handle this
         if len(self.data_map["bpm_score_20"]) == 0:
+            self.logger.debug("Skipping candidate search, bpm_score_20 array is empty")
             return []
         scores = self.data_map["bpm_score_20"].get(start, end)
         timestamps_ns = self.data_map["pv_timestamps_ns"].get(start, end)
@@ -145,6 +169,7 @@ class Buffer:
         for i, (score, slow_time_ns) in enumerate(zip(scores, timestamps_ns)):
             if score > BPM_THRESHOLD:
                 candidate = AnomalyCandidate(slow_index=start + i, slow_time=slow_time_ns)
+                self.logger.debug(f"Candidate detected: slow_index: {candidate.slow_index}, score: {score:.2f}")
                 candidates.append(candidate)
 
         return candidates
@@ -156,14 +181,15 @@ class Buffer:
         else will return the data in the specified range. (or an empty array if the specified range is not valid)
         """
         if pv_name not in self.data_map:
+            self.logger.error(f"pv_name '{pv_name}' not found in buffer map")
             raise KeyError(f"pv_name '{pv_name}' not found in buffer map")
 
         s = start_index if start_index is not None else 0
         e = end_index if end_index is not None else self.index
 
         if s < 0 or s > self.index or e > self.index:
+            self.logger.warning(f"start and end indices not valid in buffer: {s}, {e}")
             raise IndexError(f"start and end indices not valid in buffer: {s}, {e}")
-            return []
 
         return self.data_map[pv_name].get(s, e)
 
@@ -171,6 +197,7 @@ class Buffer:
         """
         Clear buffer contents for all PVs.
         """
+        self.logger.info("Clearing all buffer contents")
         for pv_name in self.data_map:
             self.data_map[pv_name].clear()
         self.data_map["pv_timestamps_ns"].clear()

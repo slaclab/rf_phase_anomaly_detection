@@ -67,12 +67,13 @@ class K2EGHandler:
             pv_field_filter_list=["value"],  # emit just the PV values
         )
         self.dml = k2eg.dml("lcls-ext", APP_NAME)
+        self.dml.snapshot_stop(self.snapshot_properties.snapshot_name)
         self.snapshot_is_running = False
 
     def __enter__(self):
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
-        self.logger.debug("Spinning up buffered snapshots")
+        self.logger.info("Spinning up buffered snapshots")
         _ = self.dml.snapshot_recurring(
             self.snapshot_properties,
             handler=self.snapshot_handler,
@@ -85,7 +86,7 @@ class K2EGHandler:
         self.dml.snapshot_stop(SNAPSHOT_NAME)
         self.dml.close()
         self.snapshot_is_running = False
-        self.logger.debug("shutdown snapshot production")
+        self.logger.info("shutdown snapshot production")
 
 
 class K2EGProcess(CustomProcessObject):
@@ -141,14 +142,14 @@ class K2EGProcess(CustomProcessObject):
 
         # put data onto the queue at regular intervals
         with self.k2_handler as k2h:
-            self.logger.debug(f"K2EGHandler.snapshot_is_running: {k2h.snapshot_is_running}")
+            self.logger.info(f"K2EGHandler.snapshot_is_running: {k2h.snapshot_is_running}")
             self.keep_fetching_data = True
             while k2h.snapshot_is_running and self.keep_fetching_data:
                 # this does nothing, replace it with instrumentation
                 # the sleep is to keep the status checks from being
                 # nearly constant
                 self.logger.debug("Waiting for data from K2EGHandler")
-                time.sleep(2.0)
+                time.sleep(0.2)
         self.logger.debug("Finished")
         self.queue.put(None)  # end the downstream processes
 
@@ -159,7 +160,7 @@ class K2EGProcess(CustomProcessObject):
         iteration = snapshot["iteration"]
         if self.logger is not None:
             self.logger.debug(f"Snapshot {iteration:d} enqueued for {snapshot_name}")
-            self.logger.debug(snapshot)
+            # self.logger.debug(snapshot)
         self.queue.put(snapshot)
 
 
