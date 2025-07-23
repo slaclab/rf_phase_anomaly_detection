@@ -123,8 +123,8 @@ class Buffer:
             # Candidate Gen
             self.bpm_candidate_bucket.update_slow_indexes(-snapshot_length)
         else:
-            self.data_map["bpm_score_1"].put(np.zeros(SAMPLES_PER_SECOND))
-            self.data_map["bpm_score_20"].put(np.zeros(SAMPLES_PER_SECOND))
+            self.data_map["bpm_score_1"].put(np.zeros(snapshot_length))
+            self.data_map["bpm_score_20"].put(np.zeros(snapshot_length))
 
         self.num_snapshots_processed += 1
         return (-snapshot_length if was_full_before_new_data else 0, snapshot_length)
