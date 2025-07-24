@@ -1,7 +1,7 @@
 from queue import PriorityQueue
 import numpy as np
 
-from beam_check_config import (ANOMALY_CANDIDATE_WINDOW_SIZE, FEEDBACK_STATIONS, RF_PV_NAMES, CANDIDATE_PHASE_THRESHOLD)
+from beam_check_config import (ANOMALY_CANDIDATE_WINDOW_SIZE, FEEDBACK_STATIONS, CANDIDATE_PHASE_THRESHOLD)
 
 
 class AnomalyCandidate:
@@ -103,9 +103,6 @@ class CandidateBucket(PriorityQueue):
             self.put(candidate)
 
 
-
-
-
 def find_fast_index(bpm_score_20: np.ndarray) -> int:
     """
         Implements the  fast trigger from Section IV A of
@@ -155,7 +152,7 @@ def find_fast_index(bpm_score_20: np.ndarray) -> int:
 
 def find_most_anomalous_rf_station(
     rf_phase_data: np.ndarray,
-    rf_pv_names: list[str] = RF_PV_NAMES,
+    rf_pv_names: list[str],
     phas_thresh: float = CANDIDATE_PHASE_THRESHOLD,
 ) -> tuple[str, float, bool]:
     """
@@ -204,6 +201,11 @@ def find_most_anomalous_rf_station(
 
 
 if __name__ == "__main__":
+    from k2eg_process import read_pv_list_from_file
+
+    rf_pv_names = [n for n in read_pv_list_from_file('resources/pv_list.txt')
+                   if n.endswith('PHAS_FASTBR')]
+
     bucket = CandidateBucket()
 
     # this will still work even though the bucket is empty
@@ -225,17 +227,16 @@ if __name__ == "__main__":
 
     candidate = bucket.get()
     window_size = 20
-    window = np.stack([np.random.randn(window_size) for _ in RF_PV_NAMES], axis=1)  # (window_size, num_rf_pvs)
+    window = np.stack([np.random.randn(window_size) for _ in rf_pv_names], axis=1)  # (window_size, num_rf_pvs)
     most_anomalous_rf_pv_name, deviation_score, system_level_flag = find_most_anomalous_rf_station(
         window,
-        rf_pv_names=RF_PV_NAMES
+        rf_pv_names=rf_pv_names
     )
     print(most_anomalous_rf_pv_name, deviation_score, system_level_flag)
 
     bpm_score_20 = np.random.rand(120)
     start = 0
     fast_index = find_fast_index(
-        bpm_score_20=bpm_score_20,
-        start_index=start
+        bpm_score_20=bpm_score_20
     )
     print(fast_index)
