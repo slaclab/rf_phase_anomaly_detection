@@ -61,9 +61,11 @@ def run_logger_process(
             message = queue.get()
             # check for shutdown
             if message is None:
+                logger.info("Logger queue received signal to terminate")
                 break
             # log the message
             logger.handle(message)
+    logger.info('Logger process terminated')
 
 
 def create_worker_logger(
