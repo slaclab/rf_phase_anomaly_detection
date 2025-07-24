@@ -39,14 +39,16 @@ def force_anomaly(constant_data: dict) -> dict:
                 pv_name.endswith('XBR') or
                 pv_name.endswith('YBR') or
                 pv_name.endswith('FASTBR') or
-                pv_name.endswith('AMPL')
+                pv_name.endswith('AMPL') or
+                pv_name.endswith('TMITCUHBR') or
+                pv_name.endswith('TMITBR')
         ):
             anom_start = len(reading_list) // 4
             anom_end = anom_start + len(reading_list) // 2
             anom_readings = []
             for i, reading in enumerate(reading_list):
                 if (anom_start <= i and i < anom_end):
-                    reading['value'] *= 10
+                    reading['value'] *= 20
                 anom_readings.append(reading)
             anom_data[pv_name] = anom_readings
         else:
@@ -78,8 +80,8 @@ class K2EGAnomalySpoofer:
         else:
             i = 0
 
+        start_time = time.time_ns()
         while i < self.n_emits:
-            start_time = time.time_ns()
             # do some stuff
             pvs = {
                 k: v.emit_readings(
@@ -98,6 +100,7 @@ class K2EGAnomalySpoofer:
             emission.update(pvs)
             iteration += 1
             i += 1
+            start_time += int(1e9)
             yield emission
             time.sleep(self.emit_period)
 
@@ -164,7 +167,7 @@ if __name__ == "__main__":
         # logging configuration
         logging_kwargs = default_logging_kwargs = {
             "queue": queue_log,
-            "logger_name": None,    # do not log to file
+            "logger_name": "spoof_anom",    # do not log to file
             "log_level": 10,      # 10 is DEBUG
             "log_stdout": True,  # do not log to std out
         }
