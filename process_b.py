@@ -13,8 +13,7 @@ from process import CustomProcessObject
 from buffer import Buffer
 from anomaly_candidate import AnomalyCandidate, CandidateBucket, find_fast_index, find_most_anomalous_rf_station
 from beam_check_config import (SAMPLES_PER_SECOND, BUFFER_LENGTH, BPM_NAMES,
-                               RF_PV_NAMES, CANDIDATE_LOOKBACK_WINDOW_LENGTH,
-                               ANOMALY_CANDIDATE_WINDOW_SIZE)
+                               CANDIDATE_LOOKBACK_WINDOW_LENGTH, ANOMALY_CANDIDATE_WINDOW_SIZE)
 
 # we care about windows where beam-checks fail only if longer than this length
 TEMP_VIOLATION_LENGTH = SAMPLES_PER_SECOND * 90  # 90 seconds
@@ -100,7 +99,9 @@ class ProcessB(CustomProcessObject):
             self.candidate_bucket.put(candidate)
 
     def look_for_ready_candidates(self) -> None:
-        self.logger.debug("Checking for ready candidates...")
+        ss = f"Bucket has {len(self.candidate_bucket):d} candidates, "
+        ss += "checking for ready candidates..."
+        self.logger.debug(ss)
         acws = ANOMALY_CANDIDATE_WINDOW_SIZE
         # check for candidates ready for process C
         while self.candidate_bucket.oldest_candidate_slow_index <= self.buffer.index - acws:
@@ -120,11 +121,12 @@ class ProcessB(CustomProcessObject):
         self.logger.debug(f"Candidate: slow_index={candidate.slow_index}, score_start_index={score_start_index}")
 
         # find the most anomalous rf station
+        station_names = [n for n in self.pv_list if n.endswith('PHAS_FASTBR')]
         rf_phase_data = np.stack(
-            [self.buffer.get(pv, score_start_index, candidate.slow_index) for pv in RF_PV_NAMES], axis=1
-        )  # (CANDIDATE_WINDOW_SIZE, len(RF_PV_NAMES))
+            [self.buffer.get(pv, score_start_index, candidate.slow_index) for pv in station_names], axis=1
+        )  # (CANDIDATE_WINDOW_SIZE, len(station_names))
         most_anomalous_rf_pv_name, deviation_score, system_level_anom = find_most_anomalous_rf_station(
-            rf_phase_data
+            rf_phase_data, rf_pv_names=station_names
         )
         self.logger.debug(f"Most anomalous rf PV: {most_anomalous_rf_pv_name}, Score: {deviation_score:.2f}")
 
