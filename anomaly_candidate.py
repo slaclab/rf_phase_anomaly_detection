@@ -76,6 +76,11 @@ class AnomalyCandidate:
 
 
 class CandidateBucket(PriorityQueue):
+
+    def __len__(self):
+        # PriorityQueues just store a list in self.queue
+        return len(self.queue)
+
     @property
     def oldest_candidate_slow_index(self) -> int:
         if not self.empty():
@@ -96,6 +101,9 @@ class CandidateBucket(PriorityQueue):
         # put the candidates back on
         for candidate in candidates:
             self.put(candidate)
+
+
+
 
 
 def find_fast_index(bpm_score_20: np.ndarray) -> int:
