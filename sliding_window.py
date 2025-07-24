@@ -16,8 +16,9 @@ class SlidingWindowArray:
     """
 
     def __init__(self, buffer_len: int, dtype: np.dtype = np.float64, pv_name: str = "", logging_kwargs: Optional[dict] = default_logging_kwargs):
-        logging_kwargs["logger_name"] = "sliding_array"
-        self.logger = create_worker_logger(**logging_kwargs)
+        logging_kwargs["logger_name"] = f"sliding_window_array"
+        self.logger = create_worker_logger(**logging_kwargs, start_quietly=True)
+        self.logger.info(f"({pv_name}) Initializing sliding window")
 
         self.data = np.empty(buffer_len, dtype=dtype)
         self.buffer_len = buffer_len
@@ -31,8 +32,8 @@ class SlidingWindowArray:
         self.logger.debug(f"({self.pv_name}) Putting {n} new values into buffer")
 
         if n > self.buffer_len:
-            self.logger.error(f"{self.pv_name}) Too many values ({n}) for buffer size {self.buffer_len}")
-            raise ValueError(f"{self.pv_name}) too many values ({n}) for buffer size {self.buffer_len}")
+            self.logger.error(f"({self.pv_name}) Too many values ({n}) for buffer size {self.buffer_len}")
+            raise ValueError(f"({self.pv_name}) too many values ({n}) for buffer size {self.buffer_len}")
 
         if self.index + n <= self.buffer_len:
             # have enough room without shifting, just write to next open index (this only happens during initial buffer fill-up)
@@ -63,14 +64,14 @@ class SlidingWindowArray:
         e = self.index if end is None else end
 
         if s < 0 or e > self.index or s > e:
-            self.logger.error(f"{self.pv_name}) Invalid slice request: start={s}, end={e}, current index={self.index}")
+            self.logger.error(f"({self.pv_name}) Invalid slice request: start={s}, end={e}, current index={self.index}")
             raise IndexError(f"Invalid start/end indices: {s}, {e}")
 
         # self.logger.debug(f"Returning buffer slice from {s} to {e}")
         return self.data[s:e]
 
     def clear(self) -> None:
-        self.logger.info("{self.pv_name}) Clearing buffer")
+        self.logger.info(f"({self.pv_name}) Clearing buffer")
         self.data.fill(np.nan)
         self.index = 0
 

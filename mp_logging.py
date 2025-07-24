@@ -30,7 +30,7 @@ def run_logger_process(
     """
     # configure formatter
     t = datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S")
-    fmt_str = "%(asctime)s | %(name)-15s | %(levelname)-8s | %(message)s"
+    fmt_str = "%(asctime)s | %(name)-20s | %(levelname)-8s | %(message)s"
     dt_str = "%Y-%m-%dT%H:%M:%S"
     formatter = logging.Formatter(fmt=fmt_str, datefmt=dt_str)
 
@@ -71,6 +71,7 @@ def create_worker_logger(
     logger_name: Optional[str] = None,
     log_level: int = 0,
     log_stdout: bool = False,  # for conformity with run_logger_process
+    start_quietly: bool = False
 ) -> Optional[logging.Logger]:
     """same signature as run_logger_process"""
     name = logger_name if logger_name is not None else "worker"
@@ -84,5 +85,6 @@ def create_worker_logger(
     # log all messages, debug and up
     logger.setLevel(log_level)
     # report initial message
-    logger.debug(f'Child process named "{name}" starting with log level {log_level}.')
+    if not start_quietly:
+        logger.info(f'Child logger named "{name}" starting with log level {log_level}.')
     return logger
