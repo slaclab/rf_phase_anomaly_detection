@@ -7,6 +7,15 @@ from typing import Optional
 from inference.predict import Predict
 
 
+def convert_pv_name_to_table_name(name: str) -> str:
+    """
+    Converts name from something that looks like KLYS:LI20:61:PHAS_FASTBR to 
+    something that looks like klys_li20_61.  The former is used by K2EG and 
+    the latter is used by the NTTable for the GUI.
+    """
+    return '_'.join(name.split(':')[:-1]).lower()
+
+
 class ProcessC(CustomProcessObject):
     def __init__(
         self,
@@ -48,7 +57,7 @@ class ProcessC(CustomProcessObject):
                 #   "rf_pv_name": string,
                 # }
                 result = predictor.predict(
-                    {
+                    **{
                         "rf_input": r["rf_input"],
                         "bpm_input": r["bpm_input"],
                         "rf_pv_name": r["rf_pv_name"],
