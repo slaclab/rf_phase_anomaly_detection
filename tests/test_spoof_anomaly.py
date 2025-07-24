@@ -144,7 +144,6 @@ class K2EGAnomalyProcess(CustomProcessObject):
         iteration = snapshot["iteration"]
         if self.logger is not None:
             self.logger.debug(f"Snapshot {iteration:d} enqueued for {snapshot_name}")
-            print(f"Enqueued snapshot {iteration:d}")
             # self.logger.debug(snapshot)
         self.queue.put(snapshot)
 
@@ -167,15 +166,20 @@ if __name__ == "__main__":
         # logging configuration
         logging_kwargs = default_logging_kwargs = {
             "queue": queue_log,
-            "logger_name": "spoof_anom",    # do not log to file
+            "logger_name": None,    # do not log to file
             "log_level": 10,      # 10 is DEBUG
-            "log_stdout": True,  # do not log to std out
+            "log_stdout": False,  # do not log to std out
         }
 
         logger_process = Process(target=run_logger_process, kwargs=logging_kwargs)
         logger_process.start()
 
-        main_logger = logging_kwargs.copy()
+        main_logger = create_worker_logger(
+            queue=logging_kwargs["queue"],
+            logger_name="test_spoof_anomaly",
+            log_level=logging_kwargs["log_level"],
+            log_stdout=logging_kwargs["log_stdout"],
+        )
 
         k2eg_proc = K2EGAnomalyProcess(
             queue=queue_one,
@@ -195,7 +199,7 @@ if __name__ == "__main__":
         with ProcessManager(process_objects=process_objects) as pm:
             while pm.is_running:
                 time.sleep(1)
-                print('pm loop')
+                main_logger.debug("pm loop")
 
         queue_log.put(None)
         logger_process.join()
