@@ -16,22 +16,23 @@ class SlidingWindowArray:
     """
 
     def __init__(self, buffer_len: int, dtype: np.dtype = np.float64, pv_name: str = "", logging_kwargs: Optional[dict] = default_logging_kwargs):
-        logging_kwargs["logger_name"] = f"sliding_window_array_{pv_name}"
+        logging_kwargs["logger_name"] = "sliding_array"
         self.logger = create_worker_logger(**logging_kwargs)
 
         self.data = np.empty(buffer_len, dtype=dtype)
         self.buffer_len = buffer_len
+        self.pv_name = pv_name
         self.index = 0
 
         # self.logger.info(f"Initialized SlidingWindowArray for pv '{pv_name}' with size {buffer_len}, dtype {dtype}")
 
     def put(self, values: np.ndarray) -> None:
         n = len(values)
-        self.logger.debug(f"Putting {n} new values into buffer")
+        self.logger.debug(f"({self.pv_name}) Putting {n} new values into buffer")
 
         if n > self.buffer_len:
-            self.logger.error(f"Too many values ({n}) for buffer size {self.buffer_len}")
-            raise ValueError(f"too many values ({n}) for buffer size {self.buffer_len}")
+            self.logger.error(f"{self.pv_name}) Too many values ({n}) for buffer size {self.buffer_len}")
+            raise ValueError(f"{self.pv_name}) too many values ({n}) for buffer size {self.buffer_len}")
 
         if self.index + n <= self.buffer_len:
             # have enough room without shifting, just write to next open index (this only happens during initial buffer fill-up)
@@ -55,21 +56,21 @@ class SlidingWindowArray:
         - If start arg == -1 and end arg is None, returns the last value as a 1-elem array.
         """
         if start == -1 and end is None:
-            #self.logger.debug("Returning last value in buffer")
+            #self.logger.debug("{self.pv_name}) Returning last value in buffer")
             return self.data[self.index - 1 : self.index]
 
         s = 0 if start is None else start
         e = self.index if end is None else end
 
         if s < 0 or e > self.index or s > e:
-            self.logger.error(f"Invalid slice request: start={s}, end={e}, current index={self.index}")
+            self.logger.error(f"{self.pv_name}) Invalid slice request: start={s}, end={e}, current index={self.index}")
             raise IndexError(f"Invalid start/end indices: {s}, {e}")
 
         # self.logger.debug(f"Returning buffer slice from {s} to {e}")
         return self.data[s:e]
 
     def clear(self) -> None:
-        self.logger.info("Clearing buffer")
+        self.logger.info("{self.pv_name}) Clearing buffer")
         self.data.fill(np.nan)
         self.index = 0
 
