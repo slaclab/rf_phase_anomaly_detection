@@ -77,16 +77,24 @@ def create_worker_logger(
 ) -> Optional[logging.Logger]:
     """same signature as run_logger_process"""
     name = logger_name if logger_name is not None else "worker"
-    # create a logger
-    logger = logging.getLogger(name)
-
-    # if isinstance(queue, queues.Queue):  # returns False
-    if queue is not None:
-        # add a handler that uses the shared queue
-        logger.addHandler(QueueHandler(queue))
-    # log all messages, debug and up
-    logger.setLevel(log_level)
-    # report initial message
+    # do not allow repeated logging
+    if name not in logging.root.manager.loggerDict.keys():
+        # create the logger
+        logger = logging.getLogger(name)
+        # if isinstance(queue, queues.Queue):  # returns False
+        if queue is not None:
+            # add a handler that uses the shared queue
+            logger.addHandler(QueueHandler(queue))
+        # log all messages, debug and up
+        logger.setLevel(log_level)
+        start_message = f"Child logger named "{name}" starting with log level {log_level}."
+        start_warn = ""
+    else:
+        logger = logging.root.manager.loggerDict[name]
+        start_message = f"Logger named {name} already exists, reusing it"
+        start_warn = "If you are reusing a logger across processes, this might cause problems"
     if not start_quietly:
-        logger.info(f'Child logger named "{name}" starting with log level {log_level}.')
+        logger.info(start_message)
+        if start_warn:
+            logger.warn(start_warn)
     return logger
