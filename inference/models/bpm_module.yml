@@ -1,0 +1,65 @@
+model_class: TorchModule
+input_order: [BPMS:LTUH:250:X, BPMS:LTUH:450:X, BPMS:DMPH:502:Y, BPMS:DMPH:693:Y, BPMS:LTUH:250:TMIT, BPMS:LTUH:450:TMIT, BPMS:DMPH:502:TMIT, BPMS:DMPH:693:TMIT]
+output_order: [anom_score]
+model:
+  model_class: TorchModel
+  input_variables:
+    BPMS:LTUH:250:X:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [-100.0, 100.0]
+      value_range_tolerance: 1.0e-08
+    BPMS:LTUH:450:X:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [-100.0, 100.0]
+      value_range_tolerance: 1.0e-08
+    BPMS:DMPH:502:Y:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [-100.0, 100.0]
+      value_range_tolerance: 1.0e-08
+    BPMS:DMPH:693:Y:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [-100.0, 100.0]
+      value_range_tolerance: 1.0e-08
+    BPMS:LTUH:250:TMIT:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [0.0, 100000000000.0]
+      value_range_tolerance: 1.0e-08
+    BPMS:LTUH:450:TMIT:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [0.0, 100000000000.0]
+      value_range_tolerance: 1.0e-08
+    BPMS:DMPH:502:TMIT:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [0.0, 100000000000.0]
+      value_range_tolerance: 1.0e-08
+    BPMS:DMPH:693:TMIT:
+      variable_class: ScalarVariable
+      default_value: 0.0
+      is_constant: false
+      value_range: [0.0, 100000000000.0]
+      value_range_tolerance: 1.0e-08
+  output_variables:
+    anom_score: {variable_class: ScalarVariable, is_constant: false, value_range_tolerance: 1.0e-08}
+  input_validation_config: null
+  output_validation_config: null
+  model: bpm_module_model.pt
+  input_transformers: []
+  output_transformers: []
+  output_format: tensor
+  device: cpu
+  fixed_model: true
+  precision: double

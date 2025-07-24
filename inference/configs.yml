@@ -1,0 +1,27 @@
+network:
+- dropout: 0
+  init_filt: 1
+  init_neur: 39
+  kernel_size: 20
+  n_filt: 1
+  n_neur: 6
+  n_out: 1
+  padding: 0
+  stride: 5
+- dropout: 0
+  init_filt: 8
+  init_neur: 39
+  kernel_size: 20
+  n_filt: 1
+  n_neur: 6
+  n_out: 1
+  padding: 0
+  stride: 5
+predict:
+  device: null
+  exact: false
+  sigmoid: true
+  standardize: true
+  thres:
+  - 0.2759
+  - 0.4483
