@@ -158,7 +158,7 @@ class ProcessB(CustomProcessObject):
             self.logger.debug(f"Returning anomaly candidate dict for PV '{most_anomalous_rf_pv_name}'")
             return {
                 "anomaly_timestamp": fast_time,
-                "rf_input": rf_input,
+                "rf_input": rf_input.reshape(1, -1),
                 "bpm_input": np.vstack(bpm_input),
                 "rf_pv_name": most_anomalous_rf_pv_name,
                 "anomaly_score": deviation_score,
