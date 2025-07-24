@@ -6,19 +6,11 @@ from logging.handlers import QueueHandler
 from typing import Optional
 
 
-default_logging_kwargs = {
-    'queue': None,
-    'logger_name': None,
-    'log_level': logging.DEBUG,
-    'log_stdout': True
-}
+default_logging_kwargs = {"queue": None, "logger_name": None, "log_level": logging.DEBUG, "log_stdout": True}
 
 
 def run_logger_process(
-        queue: Optional[Queue] = None,
-        logger_name: Optional[str] = None,
-        log_level: int = 10,
-        log_stdout: bool = False
+    queue: Optional[Queue] = None, logger_name: Optional[str] = None, log_level: int = 10, log_stdout: bool = False
 ):
     """
     Log for multiprocessing where messages can get jumbled otherwise.
@@ -37,13 +29,13 @@ def run_logger_process(
         Whether (True) or not (False) to print logs to standard output.
     """
     # configure formatter
-    t = datetime.strftime(datetime.now(), '%Y%m%d_%H%M%S')
-    fmt_str = '%(asctime)s | %(name)-15s | %(levelname)-8s | %(message)s'
+    t = datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S")
+    fmt_str = "%(asctime)s | %(name)-20s | %(levelname)-8s | %(message)s"
     dt_str = "%Y-%m-%dT%H:%M:%S"
     formatter = logging.Formatter(fmt=fmt_str, datefmt=dt_str)
 
     # create a logger
-    name = logger_name if logger_name is not None else 'default'
+    name = logger_name if logger_name is not None else "default"
     logger = logging.getLogger(name)
     # log all messages at this level or above
     logger.setLevel(log_level)
@@ -69,19 +61,22 @@ def run_logger_process(
             message = queue.get()
             # check for shutdown
             if message is None:
+                logger.info("Logger queue received signal to terminate")
                 break
             # log the message
             logger.handle(message)
+    logger.info('Logger process terminated')
 
 
 def create_worker_logger(
-        queue: Optional[Queue] = None,
-        logger_name: Optional[str] = None,
-        log_level: int = 0,
-        log_stdout: bool = False  # for conformity with run_logger_process
+    queue: Optional[Queue] = None,
+    logger_name: Optional[str] = None,
+    log_level: int = 0,
+    log_stdout: bool = False,  # for conformity with run_logger_process
+    start_quietly: bool = False
 ) -> Optional[logging.Logger]:
     """same signature as run_logger_process"""
-    name = logger_name if logger_name is not None else 'worker'
+    name = logger_name if logger_name is not None else "worker"
     # create a logger
     logger = logging.getLogger(name)
 
@@ -92,5 +87,6 @@ def create_worker_logger(
     # log all messages, debug and up
     logger.setLevel(log_level)
     # report initial message
-    logger.debug(f'Child process named "{name}" starting with log level {log_level}.')
+    if not start_quietly:
+        logger.info(f'Child logger named "{name}" starting with log level {log_level}.')
     return logger
