@@ -83,7 +83,7 @@ if __name__ == "__main__":
             )
         elif args.spoof_k2eg_data_anomaly:
             k2eg_proc = K2EGSpoofAnomalyProcess(
-                queue=queue_one, n_emits=14, emit_anomaly_every_n_iterations=2, logging_kwargs=logging_kwargs.copy()
+                queue=queue_one, n_emits=14, emit_anomaly_every_n_iterations=6, logging_kwargs=logging_kwargs.copy()
             )
         else:
             k2eg_proc = K2EGProcess(
