@@ -5,6 +5,7 @@ from mp_logging import run_logger_process, create_worker_logger
 from process import ProcessManager
 from k2eg_process import K2EGProcess, read_pv_list_from_file
 from k2eg_spoof_process import K2EGSpoofProcess
+from k2eg_spoof_anomaly_process import K2EGSpoofAnomalyProcess
 from process_b import ProcessB
 from process_c import ProcessC
 import signal
@@ -27,6 +28,12 @@ if __name__ == "__main__":
         "--spoof_k2eg_data",
         action="store_true",
         help="Use spoofed k2eg data (random values) instead of real pv data.",
+    )
+    parser.add_argument(
+        "-skda",
+        "--spoof_k2eg_data_anomaly",
+        action="store_true",
+        help="Use spoofed k2eg data that always has anomalies, instead of real pv data.",
     )
     parser.add_argument(
         "-dfl",
@@ -73,6 +80,10 @@ if __name__ == "__main__":
         if args.spoof_k2eg_data:
             k2eg_proc = K2EGSpoofProcess(
                 queue=queue_one, pv_list=list_of_pvs, n_emits=400, emit_rate_hz=1, logging_kwargs=logging_kwargs.copy()
+            )
+        elif args.spoof_k2eg_data_anomaly:
+            k2eg_proc = K2EGSpoofAnomalyProcess(
+                queue=queue_one, n_emits=14, emit_anomaly_every_n_iterations=6, logging_kwargs=logging_kwargs.copy()
             )
         else:
             k2eg_proc = K2EGProcess(
