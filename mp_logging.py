@@ -87,11 +87,11 @@ def create_worker_logger(
             logger.addHandler(QueueHandler(queue))
         # log all messages, debug and up
         logger.setLevel(log_level)
-        start_message = f"Child logger named "{name}" starting with log level {log_level}."
+        start_message = f"Child logger named '{name}' starting with log level {log_level}."
         start_warn = ""
     else:
         logger = logging.root.manager.loggerDict[name]
-        start_message = f"Logger named {name} already exists, reusing it"
+        start_message = f"Logger named '{name}' already exists, reusing it"
         start_warn = "If you are reusing a logger across processes, this might cause problems"
     if not start_quietly:
         logger.info(start_message)
