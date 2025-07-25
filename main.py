@@ -21,7 +21,6 @@ if __name__ == "__main__":
     # SIGINT is ctrl+c
     signal.signal(signal.SIGINT, signal_handler)
 
-if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run with real or spoofed k2eg data.")
     parser.add_argument(
         "-skd",
@@ -43,7 +42,6 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    print(args)
 
     # Create an instance of the Manager
     with Manager() as manager:
@@ -72,6 +70,7 @@ if __name__ == "__main__":
             log_level=logging_kwargs["log_level"],
             log_stdout=logging_kwargs["log_stdout"],
         )
+        main_logger.info(args)
 
         # create classes to be turned into processes
         # it helps to put them in order
