@@ -1,12 +1,13 @@
 import time
 import pytest
 
-from mp_logging import default_logging_kwargs
+from mp_logging import create_worker_logger, default_logging_kwargs
 from k2eg_spoofer import PVSpoofer
 from process import CustomProcessObject
 from beam_check_config import EXP_TMIT_MIN
 
 from typing import Optional
+
 
 constant_readings_dict = {
     'BPMS:IN20:221:TMITCUHBR': 3 * EXP_TMIT_MIN,
@@ -100,7 +101,7 @@ class K2EGAnomalySpoofer:
             time.sleep(self.emit_period)
 
 
-class K2EGAnomalyProcess(CustomProcessObject):
+class K2EGSpoofAnomalyProcess(CustomProcessObject):
     def __init__(
             self,
             queue: "Manager.Queue",
@@ -113,7 +114,7 @@ class K2EGAnomalyProcess(CustomProcessObject):
         self.emit_anomaly_every_n_iterations = emit_anomaly_every_n_iterations
 
         self.logging_kwargs = logging_kwargs
-        self.logging_kwargs["logger_name"] = "K2EGAnomalyProcess"
+        self.logging_kwargs["logger_name"] = "K2EGSpoofAnomalyProcess"
         self.logger = None
 
         self.k2_handler = None
@@ -146,11 +147,10 @@ class K2EGAnomalyProcess(CustomProcessObject):
 if __name__ == "__main__":
     from multiprocessing import Manager, Process
 
-    from mp_logging import run_logger_process, create_worker_logger
+    from mp_logging import run_logger_process
     from process_b import ProcessB
     from process_c import ProcessC
     from process import ProcessManager
-    from k2eg_process import K2EGProcess, read_pv_list_from_file
 
     with Manager() as manager:
         # create queues for inter-process communication
@@ -176,7 +176,7 @@ if __name__ == "__main__":
             log_stdout=logging_kwargs["log_stdout"],
         )
 
-        k2eg_proc = K2EGAnomalyProcess(
+        k2eg_proc = K2EGSpoofAnomalyProcess(
             queue=queue_one,
             n_emits=14,
             emit_anomaly_every_n_iterations=6,

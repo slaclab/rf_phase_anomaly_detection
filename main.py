@@ -5,7 +5,7 @@ from mp_logging import run_logger_process, create_worker_logger
 from process import ProcessManager
 from k2eg_process import K2EGProcess, read_pv_list_from_file
 from k2eg_spoof_process import K2EGSpoofProcess
-from k2eg_spoof_anomaly_process import K2EGSpoofAnomalyProcess
+from k2eg_spoof_anomaly_process import K2EGSpoofAnomalyProcess, constant_readings_dict
 from process_b import ProcessB
 from process_c import ProcessC
 import signal
@@ -45,8 +45,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args)
 
-    list_of_pvs = read_pv_list_from_file("resources/pv_list.txt")
-
     # Create an instance of the Manager
     with Manager() as manager:
         # create queues for inter-process communication
@@ -78,6 +76,7 @@ if __name__ == "__main__":
         # create classes to be turned into processes
         # it helps to put them in order
         if args.spoof_k2eg_data:
+            list_of_pvs = read_pv_list_from_file("resources/pv_list.txt")
             k2eg_proc = K2EGSpoofProcess(
                 queue=queue_one, pv_list=list_of_pvs, n_emits=400, emit_rate_hz=1, logging_kwargs=logging_kwargs.copy()
             )
@@ -85,7 +84,9 @@ if __name__ == "__main__":
             k2eg_proc = K2EGSpoofAnomalyProcess(
                 queue=queue_one, n_emits=14, emit_anomaly_every_n_iterations=6, logging_kwargs=logging_kwargs.copy()
             )
+            list_of_pvs = list(constant_readings_dict.keys())
         else:
+            list_of_pvs = read_pv_list_from_file("resources/pv_list.txt")
             k2eg_proc = K2EGProcess(
                 queue=queue_one, pv_list=list_of_pvs, snapshot_period_ms=1000, logging_kwargs=logging_kwargs.copy()
             )
@@ -102,6 +103,7 @@ if __name__ == "__main__":
                 time.sleep(1)
                 main_logger.debug("pm loop")
 
+        queue_log.put(None)
         logger_process.join()  # wait for the logger to finish last
 
     print("Processes are done.")
