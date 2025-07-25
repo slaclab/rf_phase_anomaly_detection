@@ -13,7 +13,10 @@ def convert_pv_name_to_table_name(name: str) -> str:
     something that looks like klys_li20_61.  The former is used by K2EG and 
     the latter is used by the NTTable for the GUI.
     """
-    return '_'.join(name.split(':')[:-1]).lower()
+    if len(name.split(':')) == 4:
+        return '_'.join(name.split(':')[:-1]).lower()
+    else:
+        raise NotImplementedError(f"process_c expected a name that looks like KLYS:LI20:61:PHAS_FASTBR, but received {name} instead")
 
 
 class ProcessC(CustomProcessObject):
@@ -60,7 +63,7 @@ class ProcessC(CustomProcessObject):
                     **{
                         "rf_input": r["rf_input"],
                         "bpm_input": r["bpm_input"],
-                        "rf_pv_name": r["rf_pv_name"],
+                        "rf_pv_name": convert_pv_name_to_table_namer["rf_pv_name"]),
                         "anomaly_timestamp": r["anomaly_timestamp"],
                     }
                 )
