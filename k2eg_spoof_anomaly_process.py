@@ -114,7 +114,7 @@ class K2EGSpoofAnomalyProcess(CustomProcessObject):
         self.emit_anomaly_every_n_iterations = emit_anomaly_every_n_iterations
 
         self.logging_kwargs = logging_kwargs
-        self.logging_kwargs["logger_name"] = "K2EGSpoofAnomalyProcess"
+        self.logging_kwargs["logger_name"] = "K2EGSpoofAnomProcess"
         self.logger = None
 
         self.k2_handler = None

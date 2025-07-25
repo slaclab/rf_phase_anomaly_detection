@@ -57,7 +57,7 @@ class Buffer:
             Two integers.  The first is the number of indexes data might have
             been moved back.  The second is the length of the snapshot.
         """
-        self.logger.info("Buffer starting update...")
+        self.logger.debug("Buffer starting update...")
 
         snapshot_length = SAMPLES_PER_SECOND
         beam_check_data = {}
@@ -148,7 +148,7 @@ class Buffer:
 
         self.logger.debug(f"num snapshots processed {self.num_snapshots_processed}")
         self.num_snapshots_processed += 1
-        self.logger.info("Buffer done updating")
+        self.logger.debug("Buffer done updating")
         return (-snapshot_length if was_full_before_new_data else 0, snapshot_length)
 
     def find_candidates(self, look_back_this_far: int) -> list[AnomalyCandidate]:

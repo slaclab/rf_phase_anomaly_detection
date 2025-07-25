@@ -58,7 +58,7 @@ class DataCleaner:
         dict[str, np.ndarray]
             A dictionary mapping each PV to its cleaned array of values, and includes a shared "pv_timestamps_ns" array.
         """
-        self.logger.info("Starting to clean data...")
+        self.logger.debug("Starting to clean data...")
         self.logger.debug(f"Buckets array starting time: {bucket_arr_start_time}")
 
         result_map = {}
@@ -79,7 +79,7 @@ class DataCleaner:
             # self.logger.debug(f"Forward-filled PV '{pv}' resulting in {np.count_nonzero(~np.isnan(bucket_values))} NaN entries")
             result_map[pv] = bucket_values
 
-        self.logger.info("Done with cleaning data")
+        self.logger.debug("Done with cleaning data")
         return result_map
 
     def _generate_bucket_timestamps(self, start_ts: int, duration_ns: int) -> np.ndarray:

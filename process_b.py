@@ -1,5 +1,6 @@
 # standard library imports
 import time
+from datetime import datetime
 from multiprocessing import Manager
 from queue import Empty
 from typing import Optional, List
@@ -50,7 +51,7 @@ class ProcessB(CustomProcessObject):
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
 
-        self.logger.info(f"Starting ProcessB for {len(self.pv_list)} PVs")
+        self.logger.info(f"Starting process_b for {len(self.pv_list)} PVs")
         self.logger.debug("Beginning main data processing loop...")
 
         while True:
@@ -59,16 +60,15 @@ class ProcessB(CustomProcessObject):
             timer_start = time.perf_counter()
             try:
                 r = self.queue_one.get(timeout=0.05)  # wait 50ms
-                self.logger.debug("No new data in queue_one (timeout reached).")
             except Empty:
-                pass
+                self.logger.debug("No new data in queue_one (timeout reached).")
             else:
                 if r is None:  # enqueuing a None should stop this process immediately
                     self.logger.info("Received shutdown signal. Stopping process")
                     self.queue_two.put(None)
                     break
 
-                self.logger.info("Received new snapshot from queue_one")
+                self.logger.debug("Received new snapshot from queue_one")
                 # parse the k2eg snapshot and update buffer
                 index_change, length_of_update = self.buffer.update(r)
                 self.logger.debug(f"Buffer updated: index_change={index_change}, length_of_update={length_of_update}")
@@ -77,11 +77,11 @@ class ProcessB(CustomProcessObject):
                 self.look_for_ready_candidates()
 
             elapsed_ms = (time.perf_counter() - timer_start) * 1000
-            self.logger.debug(f"ProcessB loop iteration took {elapsed_ms:.2f} ms")
+            self.logger.debug(f"process_b loop iteration took {elapsed_ms:.2f} ms")
             if elapsed_ms > 1000:  # have to be <= 1 sec
-                self.logger.warning(f"ProcessB is slow! Iteration took {elapsed_ms:.2f} ms")
+                self.logger.warning(f"process_b is slow! Iteration took {elapsed_ms:.2f} ms")
 
-        self.logger.info("Shutting down ProcessB")
+        self.logger.info("Shutting down process_b")
 
         for handler in self.logger.handlers:
             handler.close()
@@ -113,7 +113,8 @@ class ProcessB(CustomProcessObject):
             if cand:  # dictionary is not empty
                 self.queue_two.put(cand)
                 fast_time = cand["anomaly_timestamp"]
-                self.logger.info(f"Anomaly detected. Timestamp: {fast_time}, PV: {cand['rf_pv_name']}, Score: {cand['anomaly_score']:.2f}")
+                ts = str(datetime.fromtimestamp(fast_time / 1e9))
+                self.logger.info(f"Anomaly detected at time: {ts}, PV: {cand['rf_pv_name']}, Score: {cand['anomaly_score']:.2f}")
 
     def process_candidate(self, candidate: AnomalyCandidate) -> dict:
         self.logger.debug("Starting to process candidate...")
