@@ -21,11 +21,11 @@ PVConfiguration = TypedDict(
 
 full_emit = {
     'value': 30.960044860839844,
-    'alarm': {'severity': 0, 'status': 0, 'message': ''},
+    #'alarm': {'severity': 0, 'status': 0, 'message': ''},
     'timeStamp': {'secondsPastEpoch': 1749656693, 'nanoseconds': 701017948, 'userTag': 0},
-    'display': {'limitLow': 0.0, 'limitHigh': 360.0, 'description': '', 'format': 'F9.3', 'units': 'deg'},
-    'control': {'limitLow': 0.0, 'limitHigh': 360.0, 'minStep': 0.0},
-    'valueAlarm': {'active': 0, 'lowAlarmLimit': 0.0, 'lowWarningLimit': 0.0, 'highWarningLimit': 0.0, 'highAlarmLimit': 0.0, 'lowAlarmSeverity': 0, 'lowWarningSeverity': 0, 'highWarningSeverity': 0, 'highAlarmSeverity': 0, 'hysteresis': 0}
+    #'display': {'limitLow': 0.0, 'limitHigh': 360.0, 'description': '', 'format': 'F9.3', 'units': 'deg'},
+    #'control': {'limitLow': 0.0, 'limitHigh': 360.0, 'minStep': 0.0},
+    #'valueAlarm': {'active': 0, 'lowAlarmLimit': 0.0, 'lowWarningLimit': 0.0, 'highWarningLimit': 0.0, 'highAlarmLimit': 0.0, 'lowAlarmSeverity': 0, 'lowWarningSeverity': 0, 'highWarningSeverity': 0, 'highAlarmSeverity': 0, 'hysteresis': 0}
 }
 
 

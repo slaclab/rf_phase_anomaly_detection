@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 import numpy as np
 import os
 
@@ -48,7 +48,7 @@ class Buffer:
 
         self.data_cleaner = DataCleaner(SAMPLES_PER_SECOND, logging_kwargs=logging_kwargs.copy())
 
-    def update(self, snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
+    def update(self, snapshot_new, snapshot) -> Tuple[int, int]:
         """
         Append the latest 120-sample PV snapshot into the buffer for each pv
 
@@ -64,6 +64,7 @@ class Buffer:
         # holds the data for integrity checks and cleaning.
         # (it holds the timestamps for each pv, whereas in self.data_map we store just one (bucketed) timestamp array for all PVs).
         data_map_with_per_pv_timestamps = {}
+
         for i, pv in enumerate(self.pv_list):
             entries = snapshot.get(pv, [])
 
@@ -85,6 +86,10 @@ class Buffer:
                 timestamps_ns[j] = int(seconds * 1e9 + nanos)
 
             data_map_with_per_pv_timestamps[pv] = (values, timestamps_ns)
+            
+            # print("!! timestamo: ", timestamps_ns)
+            # print("snapshot: ", snapshot_new[pv])
+            # exit(1)
 
             if pv in BEAM_CHECK_PVS:
                 beam_check_data[pv] = values
