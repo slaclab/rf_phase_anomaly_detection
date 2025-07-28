@@ -46,6 +46,17 @@ class Buffer:
         # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
         self.data_map["valid_windows"] = set()  # will hold tuples of (window_start_index, window_end_index)
 
+        # first we will put the values & timestamps into this intermediate buffer,
+        # so we can only process data-points within the current snapshot's time-bucket window
+        # and save other values (which are values we expected in a different snapshot) for processing during their correct time-window.
+        self.temp_storage_arrs = {
+            pv: (
+                # is buffer_len the correct size for these??
+                SlidingWindowArray(buffer_len, dtype=np.float64, pv_name=f"pv", logging_kwargs=logging_kwargs),
+                SlidingWindowArray(buffer_len, dtype=np.int64, pv_name=f"{pv}_ns_timestamps", logging_kwargs=logging_kwargs)
+            )
+            for pv in self.pv_list
+        }
         self.data_cleaner = DataCleaner(SAMPLES_PER_SECOND, logging_kwargs=logging_kwargs.copy())
 
     def update(self, snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
@@ -70,9 +81,6 @@ class Buffer:
             values = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
             timestamps_ns = np.empty(SAMPLES_PER_SECOND, dtype=int)
             for j, e in enumerate(entries):
-                # TODO: handle large snapshots correctly (currently doing hotfix)
-                if j >= 120:
-                    break
                 try: 
                     values[j] = e.get("value", np.nan)
                 except:
@@ -84,20 +92,46 @@ class Buffer:
                 nanos = ts.get("nanoseconds", 0)
                 timestamps_ns[j] = int(seconds * 1e9 + nanos)
 
-            data_map_with_per_pv_timestamps[pv] = (values, timestamps_ns)
-
-            if pv in BEAM_CHECK_PVS:
-                beam_check_data[pv] = values
+            temp_arr = self.temp_storage_arrs[pv]
+            temp_arr[0].put(values)
+            temp_arr[1].put(timestamps_ns)  
 
         if self.time_of_first_data == 0:
             self.time_of_first_data = min(
-                timestamps_ns.min() for _, timestamps_ns in data_map_with_per_pv_timestamps.values()
+                timestamps_ns.get().min() for _, timestamps_ns in self.temp_storage_arrs.values()
             )
             self.logger.debug(f"Set time_of_first_data = {self.time_of_first_data}")
 
         bucket_arr_start_time = self.time_of_first_data + (
             self.num_snapshots_processed * int(1e9)
         )  # int(1e9) is 1 second in nanoseconds
+        bucket_arr_end_time = bucket_arr_start_time + int(1e9)
+        
+        for i, pv in enumerate(self.pv_list):
+            # we want to only process values within current bucket window, so we can handle any
+            # data-points that belong in the next snapshot's buckets.
+
+            # lets do this simply (and probably not optimally) for now:
+            # just grab all data for pv -> select out data in time-window -> add it to data_map -> save outside time-window data back temp storage
+            temp_vals = self.temp_storage_arrs[pv][0].get()
+            temp_times = self.temp_storage_arrs[pv][1].get()
+            in_bucket = (temp_times >= bucket_arr_start_time) & (temp_times < bucket_arr_end_time) # bool arr
+
+            # bool indexing (selects the values were in_bucket is true)
+            filtered_values = temp_vals[in_bucket]
+            filtered_timestamps = temp_times[in_bucket]
+
+            data_map_with_per_pv_timestamps[pv] = (filtered_values, filtered_timestamps)
+
+            if pv in BEAM_CHECK_PVS:
+                beam_check_data[pv] = filtered_values
+
+            # re-put the unused values back (whcih should be values with a timestamp not in current snapshot's bucket timing-window)
+            out_bucket = ~in_bucket
+            self.temp_storage_arrs[pv][0].clear()
+            self.temp_storage_arrs[pv][1].clear()
+            self.temp_storage_arrs[pv][0].put(temp_vals[out_bucket])
+            self.temp_storage_arrs[pv][1].put(temp_times[out_bucket])
 
         # map of pv to last value from prev snapshot (or 0 if this is the first snapshot)
         # (used for potential forward-filling)

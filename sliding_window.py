@@ -71,9 +71,15 @@ class SlidingWindowArray:
         return self.data[s:e]
 
     def clear(self) -> None:
-        self.logger.info(f"({self.pv_name}) Clearing buffer")
-        self.data.fill(np.nan)
         self.index = 0
+        self.logger.debug(f"({self.pv_name}) Clearing buffer")
+        # np will error if we don't clear with matching type
+        if np.issubdtype(self.data.dtype, np.floating):
+            self.data.fill(np.nan)
+        elif np.issubdtype(self.data.dtype, np.bool_):
+            self.data.fill(False)
+        else:
+            self.data.fill(0)
 
     def is_full(self) -> bool:
         # self.logger.debug(f"Buffer is full")
