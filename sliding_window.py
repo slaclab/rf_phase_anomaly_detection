@@ -20,6 +20,7 @@ class SlidingWindowArray:
         self.logger = create_worker_logger(**logging_kwargs, start_quietly=True)
         self.logger.info(f"({pv_name}) Initializing sliding window")
 
+        self.dtype = dtype
         self.data = np.empty(buffer_len, dtype=dtype)
         self.buffer_len = buffer_len
         self.pv_name = pv_name
