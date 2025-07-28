@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 import numpy as np
 import os
 
@@ -48,7 +48,7 @@ class Buffer:
 
         self.data_cleaner = DataCleaner(SAMPLES_PER_SECOND, logging_kwargs=logging_kwargs.copy())
 
-    def update(self, snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
+    def update(self, snapshot_new: Dict[str, Tuple[np.ndarray, np.ndarray]], snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
         """
         Append the latest 120-sample PV snapshot into the buffer for each pv
 

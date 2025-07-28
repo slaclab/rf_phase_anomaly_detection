@@ -15,6 +15,7 @@ from buffer import Buffer
 from anomaly_candidate import AnomalyCandidate, CandidateBucket, find_fast_index, find_most_anomalous_rf_station
 from beam_check_config import (SAMPLES_PER_SECOND, BUFFER_LENGTH, BPM_NAMES,
                                CANDIDATE_LOOKBACK_WINDOW_LENGTH, ANOMALY_CANDIDATE_WINDOW_SIZE)
+from snapshot_fixer import SnapshotFixer
 
 # we care about windows where beam-checks fail only if longer than this length
 TEMP_VIOLATION_LENGTH = SAMPLES_PER_SECOND * 90  # 90 seconds
@@ -47,6 +48,8 @@ class ProcessB(CustomProcessObject):
         # holds anomaly candidates
         self.candidate_bucket = CandidateBucket()
 
+        self.fixer = SnapshotFixer(pv_list, int(1e9))
+
     def __call__(self) -> None:
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
@@ -59,18 +62,20 @@ class ProcessB(CustomProcessObject):
             # (data comes each second from process_a, so data will pile-up if our processing takes over 1 second)
             timer_start = time.perf_counter()
             try:
-                r = self.queue_one.get(timeout=0.05)  # wait 50ms
+                snapshot = self.queue_one.get(timeout=0.05)  # wait 50ms
             except Empty:
                 self.logger.debug("No new data in queue_one (timeout reached).")
             else:
-                if r is None:  # enqueuing a None should stop this process immediately
+                if snapshot is None:  # enqueuing a None should stop this process immediately
                     self.logger.info("Received shutdown signal. Stopping process")
                     self.queue_two.put(None)
                     break
-
                 self.logger.debug("Received new snapshot from queue_one")
+
+                fixed_snapshot = self.fixer.fix_snapshot(snapshot)
+                
                 # parse the k2eg snapshot and update buffer
-                index_change, length_of_update = self.buffer.update(r)
+                index_change, length_of_update = self.buffer.update(fixed_snapshot, snapshot)
                 self.logger.debug(f"Buffer updated: index_change={index_change}, length_of_update={length_of_update}")
                 self.look_for_new_candidates(index_change, length_of_update)
             finally:
