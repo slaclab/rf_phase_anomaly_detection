@@ -96,5 +96,5 @@ def create_worker_logger(
     if not start_quietly:
         logger.info(start_message)
         if start_warn:
-            logger.warn(start_warn)
+            logger.warning(start_warn)
     return logger

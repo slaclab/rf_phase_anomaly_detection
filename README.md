@@ -82,6 +82,14 @@ And log files will be written each run unless disabled with the cmdline flag:
 python main.py --disable_file_logging
 ```
 
+## Running the tests
+
+To run the tests, execute the following command from the root of the `rf_phase_anomaly_detection` git repo:
+```
+pytest -s .
+```
+
+
 ## Process B
 #### Part 1 - Beam Checks
 1. Is the beam rate 120 Hz? We require IOC∶BSY0∶MP01∶PCRATE == 8.
