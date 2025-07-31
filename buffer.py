@@ -9,6 +9,7 @@ from sliding_window import SlidingWindowArray
 from anomaly_candidate import AnomalyCandidate
 from mp_logging import create_worker_logger, default_logging_kwargs
 from data_cleaner import DataCleaner
+from beam_check_config import NUM_NANOSEC_IN_1_SEC
 
 
 class Buffer:
@@ -82,7 +83,7 @@ class Buffer:
                 ts = e.get("timeStamp", {})
                 seconds = ts.get("secondsPastEpoch", 0)
                 nanos = ts.get("nanoseconds", 0)
-                timestamps_ns[j] = int(seconds * 1e9 + nanos)
+                timestamps_ns[j] = int(seconds * NUM_NANOSEC_IN_1_SEC + nanos)
 
             data_map_with_per_pv_timestamps[pv] = (values, timestamps_ns)
 
@@ -96,8 +97,8 @@ class Buffer:
             self.logger.debug(f"Set time_of_first_data = {self.time_of_first_data}")
 
         bucket_arr_start_time = self.time_of_first_data + (
-            self.num_snapshots_processed * int(1e9)
-        )  # int(1e9) is 1 second in nanoseconds
+            self.num_snapshots_processed * NUM_NANOSEC_IN_1_SEC
+        )
 
         # map of pv to last value from prev snapshot (or 0 if this is the first snapshot)
         # (used for potential forward-filling)
