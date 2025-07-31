@@ -40,7 +40,6 @@ class SnapshotFixer:
 
         start_time = self.time_of_first_data + self.num_snapshots_processed * self.snapshot_period_ns
         end_time = start_time + self.snapshot_period_ns
-        self.num_snapshots_processed += 1
 
         fixed_snapshot: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
 
@@ -78,5 +77,6 @@ class SnapshotFixer:
         data_map_bucketed = self.data_cleaner.clean_data(
             fixed_snapshot, prev_snapshot_val_map, bucket_arr_start_time
         )
-
+        
+        self.num_snapshots_processed += 1
         return data_map_bucketed
