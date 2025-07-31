@@ -15,7 +15,7 @@ from buffer import Buffer
 from anomaly_candidate import AnomalyCandidate, CandidateBucket, find_fast_index, find_most_anomalous_rf_station
 from beam_check_config import (SAMPLES_PER_SECOND, BUFFER_LENGTH, BPM_NAMES,
                                CANDIDATE_LOOKBACK_WINDOW_LENGTH, ANOMALY_CANDIDATE_WINDOW_SIZE)
-from beam_check_config import NUM_NANOSEC_IN_1_SEC
+from beam_check_config import NANOSECS_IN_1_SEC
 
 # we care about windows where beam-checks fail only if longer than this length
 TEMP_VIOLATION_LENGTH = SAMPLES_PER_SECOND * 90  # 90 seconds
@@ -114,7 +114,7 @@ class ProcessB(CustomProcessObject):
             if cand:  # dictionary is not empty
                 self.queue_two.put(cand)
                 fast_time = cand["anomaly_timestamp"]
-                ts = str(datetime.fromtimestamp(fast_time / NUM_NANOSEC_IN_1_SEC))
+                ts = str(datetime.fromtimestamp(fast_time / NANOSECS_IN_1_SEC))
                 self.logger.info(f"Anomaly detected at time: {ts}, PV: {cand['rf_pv_name']}, Score: {cand['anomaly_score']:.2f}")
 
     def process_candidate(self, candidate: AnomalyCandidate) -> dict:

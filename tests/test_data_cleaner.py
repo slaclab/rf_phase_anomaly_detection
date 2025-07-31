@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from data_cleaner import DataCleaner
-from beam_check_config import SAMPLES_PER_SECOND, NUM_NANOSEC_IN_1_SEC
+from beam_check_config import SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ rng = np.random.default_rng(42)
 
 ## shared constants
 STARTING_TIMESTAMP = 1_000_000_000
-ONE_TIMESTEP = int(NUM_NANOSEC_IN_1_SEC / SAMPLES_PER_SECOND)
+ONE_TIMESTEP = int(NANOSECS_IN_1_SEC / SAMPLES_PER_SECOND)
 LAST_BUCKET_TIMESTAMP = STARTING_TIMESTAMP + (SAMPLES_PER_SECOND - 1) * ONE_TIMESTEP
 BUCKET_TIMESTAMP_ARRAY = np.linspace(STARTING_TIMESTAMP, LAST_BUCKET_TIMESTAMP, SAMPLES_PER_SECOND, dtype=int)
 

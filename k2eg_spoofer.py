@@ -5,7 +5,7 @@ from copy import deepcopy
 import numpy as np
 
 from k2eg_process import read_pv_list_from_file
-from beam_check_config import NUM_NANOSEC_IN_1_SEC
+from beam_check_config import NANOSECS_IN_1_SEC
 
 from typing import TypedDict, Optional
 
@@ -33,11 +33,11 @@ full_emit = {
 def spoof_reading(timestamp: float) -> dict:
     """ timestamp is nanoseconds since the epoch """
     reading = deepcopy(full_emit)
-    seconds = int(timestamp / NUM_NANOSEC_IN_1_SEC)
+    seconds = int(timestamp / NANOSECS_IN_1_SEC)
     reading['value'] = random.random()
     reading['timeStamp'] = {
         'secondsPastEpoch': seconds,
-        'nanoseconds': int(timestamp - NUM_NANOSEC_IN_1_SEC * seconds),
+        'nanoseconds': int(timestamp - NANOSECS_IN_1_SEC * seconds),
         'userTag': 0
     }
     return reading
@@ -46,11 +46,11 @@ def spoof_reading(timestamp: float) -> dict:
 def spoof_constant_reading(timestamp: float, value: float) -> dict:
     """ timestamp is nanoseconds since the epoch """
     reading = deepcopy(full_emit)
-    seconds = int(timestamp / NUM_NANOSEC_IN_1_SEC)
+    seconds = int(timestamp / NANOSECS_IN_1_SEC)
     reading['value'] = value
     reading['timeStamp'] = {
         'secondsPastEpoch': seconds,
-        'nanoseconds': int(timestamp - NUM_NANOSEC_IN_1_SEC * seconds),
+        'nanoseconds': int(timestamp - NANOSECS_IN_1_SEC * seconds),
         'userTag': 0
     }
     return reading
@@ -71,11 +71,11 @@ class PVSpoofer:
         """
         start_time and end_time are both nanoseconds since the epoch
         """
-        if end_time - self.last_emit_time_ns < self.emission_period * NUM_NANOSEC_IN_1_SEC:
+        if end_time - self.last_emit_time_ns < self.emission_period * NANOSECS_IN_1_SEC:
             return []
         else:  # emit at least once
             n_emit = max(
-                int(self.config['rate_hz'] * (end_time - start_time) / NUM_NANOSEC_IN_1_SEC),
+                int(self.config['rate_hz'] * (end_time - start_time) / NANOSECS_IN_1_SEC),
                 1
             )
 
@@ -121,7 +121,7 @@ class K2EGSpoofer:
             start_time = time.time_ns()
             # do some stuff
             pvs = {
-                k: v.emit_readings(start_time, start_time + self.emit_period * NUM_NANOSEC_IN_1_SEC)
+                k: v.emit_readings(start_time, start_time + self.emit_period * NANOSECS_IN_1_SEC)
                 for k, v in self.pv_spoofers.items()
             }
             emission = {
@@ -142,11 +142,11 @@ if __name__ == "__main__":
 
     pvspoofer = PVSpoofer(test_fast_pv)
     t_start = time.time_ns()
-    t_end = t_start + NUM_NANOSEC_IN_1_SEC
+    t_end = t_start + NANOSECS_IN_1_SEC
     emission = pvspoofer.emit_readings(t_start, t_end)
     emits = []
     for emit in emission:
-        t = emit['timeStamp']['secondsPastEpoch'] * NUM_NANOSEC_IN_1_SEC
+        t = emit['timeStamp']['secondsPastEpoch'] * NANOSECS_IN_1_SEC
         t_ns = emit['timeStamp']['nanoseconds']
         emits.append(t + t_ns)
 

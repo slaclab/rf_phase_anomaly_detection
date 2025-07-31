@@ -8,7 +8,7 @@ from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
 from anomaly_candidate import AnomalyCandidate
 from mp_logging import create_worker_logger, default_logging_kwargs
-from beam_check_config import NUM_NANOSEC_IN_1_SEC
+from beam_check_config import NANOSECS_IN_1_SEC
 from snapshot_fixer import SnapshotFixer
 
 
@@ -47,7 +47,7 @@ class Buffer:
         # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
         self.data_map["valid_windows"] = set()  # will hold tuples of (window_start_index, window_end_index)
 
-        self.fixer = SnapshotFixer(pv_list, NUM_NANOSEC_IN_1_SEC, logging_kwargs=logging_kwargs.copy())
+        self.fixer = SnapshotFixer(pv_list, NANOSECS_IN_1_SEC, logging_kwargs=logging_kwargs.copy())
 
     def update(self, snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
         """
@@ -59,8 +59,6 @@ class Buffer:
             been moved back.  The second is the length of the snapshot.
         """
         self.logger.debug("Buffer starting update...")
-        
-        beam_check_data = {}
 
         # map of pv to last value from prev snapshot (or 0 if this is the first snapshot)
         # (used for potential forward-filling)
@@ -73,10 +71,11 @@ class Buffer:
     
         fixed_and_bucketed_snapshot_data = self.fixer.fix_snapshot(snapshot, prev_snapshot_val_map)
 
+        beam_check_data = {}
         # is ok to do beamchecks on timestamp-bucketed data?
         for pv in BEAM_CHECK_PVS:
             beam_check_data[pv] = fixed_and_bucketed_snapshot_data[pv]
-    
+
         # now update our global map with bucket-data
         for pv, values in fixed_and_bucketed_snapshot_data.items():
             # self.logger.debug(f"Appending bucketed + cleaned data to data_map for PV: {pv}")

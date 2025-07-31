@@ -2,7 +2,7 @@ from typing import Optional, Tuple
 import numpy as np
 
 from mp_logging import create_worker_logger, default_logging_kwargs
-from beam_check_config import NUM_NANOSEC_IN_1_SEC
+from beam_check_config import NANOSECS_IN_1_SEC
 
 
 class DataCleaner:
@@ -65,7 +65,7 @@ class DataCleaner:
         result_map = {}
 
         # generate evenly spaced target timestamps to use as bucket centers
-        duration_ns = NUM_NANOSEC_IN_1_SEC
+        duration_ns = NANOSECS_IN_1_SEC
         bucket_timestamps = self._generate_bucket_timestamps(bucket_arr_start_time, duration_ns)
         result_map["pv_timestamps_ns"] = bucket_timestamps
         self.logger.debug(f"Generated {len(bucket_timestamps)} bucket timestamps")

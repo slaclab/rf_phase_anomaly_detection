@@ -5,7 +5,7 @@ from mp_logging import create_worker_logger, default_logging_kwargs
 from k2eg_spoofer import PVSpoofer
 from process import CustomProcessObject
 from beam_check_config import EXP_TMIT_MIN
-from beam_check_config import NUM_NANOSEC_IN_1_SEC
+from beam_check_config import NANOSECS_IN_1_SEC
 
 from typing import Optional
 
@@ -83,7 +83,7 @@ class K2EGAnomalySpoofer:
             pvs = {
                 k: v.emit_readings(
                     start_time,
-                    start_time + self.emit_period * NUM_NANOSEC_IN_1_SEC,
+                    start_time + self.emit_period * NANOSECS_IN_1_SEC,
                     constant_reading=constant_readings_dict[k]
                 )
                 for k, v in self.pv_spoofers.items()
@@ -97,7 +97,7 @@ class K2EGAnomalySpoofer:
             emission.update(pvs)
             iteration += 1
             i += 1
-            start_time += NUM_NANOSEC_IN_1_SEC
+            start_time += NANOSECS_IN_1_SEC
             yield emission
             time.sleep(self.emit_period)
 

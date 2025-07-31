@@ -1,6 +1,6 @@
 from data_cleaner import DataCleaner
 from utils import get_timestamp_ns, get_value
-from beam_check_config import SAMPLES_PER_SECOND, NUM_NANOSEC_IN_1_SEC
+from beam_check_config import SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC
 from mp_logging import default_logging_kwargs
 
 from collections import deque
@@ -71,7 +71,7 @@ class SnapshotFixer:
 
 
         bucket_arr_start_time = self.time_of_first_data + (
-            self.num_snapshots_processed * NUM_NANOSEC_IN_1_SEC
+            self.num_snapshots_processed * NANOSECS_IN_1_SEC
         )
 
         data_map_bucketed = self.data_cleaner.clean_data(
