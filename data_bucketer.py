@@ -5,7 +5,7 @@ from mp_logging import create_worker_logger, default_logging_kwargs
 from beam_check_config import NANOSECS_IN_1_SEC
 
 
-class DataCleaner:
+class DataBucketer:
     """
     Cleans and aligns per-PV timestamped data into fixed time buckets.
 
@@ -17,9 +17,9 @@ class DataCleaner:
 
     Usage
     -----
-    data_cleaner = DataCleaner(SAMPLES_PER_SECOND)
+    data_bucketer = DataBucketer(SAMPLES_PER_SECOND)
     ...
-    data_map_bucketed = data_cleaner.clean_data(data_map, prev_snapshot_map, start_time)
+    data_map_bucketed = data_bucketer.clean_data(data_map, prev_snapshot_map, start_time)
     """
 
     def __init__(self, samples_per_second: int, logging_kwargs: Optional[dict] = default_logging_kwargs):
@@ -29,14 +29,14 @@ class DataCleaner:
         samples_per_second : int
             The number of data samples expected per second.
         """
-        logging_kwargs["logger_name"] = "data_cleaner"
+        logging_kwargs["logger_name"] = "data_bucketer"
         self.logger = create_worker_logger(**logging_kwargs)
 
         self.samples_per_second = samples_per_second
 
-        self.logger.info(f"Initialized DataCleaner with samples_per_second={samples_per_second}")
+        self.logger.info(f"Initialized DataBucketer with samples_per_second={samples_per_second}")
 
-    def clean_data(
+    def bucket_and_forward_fill_data(
         self,
         data_map_with_per_pv_timestamps: dict[str, Tuple[np.ndarray, np.ndarray]],
         prev_snapshot_val_map: dict[str, np.float64],  # map of pv to last value in prev snapshot (for forward-filling)

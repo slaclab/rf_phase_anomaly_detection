@@ -1,4 +1,4 @@
-from data_cleaner import DataCleaner
+from data_bucketer import DataBucketer
 from utils import get_timestamp_ns, get_value
 from beam_check_config import SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC
 from mp_logging import default_logging_kwargs
@@ -19,11 +19,9 @@ class SnapshotFixer:
             pv: deque() for pv in self.pv_list
         }
 
-        self.data_cleaner = DataCleaner(SAMPLES_PER_SECOND, logging_kwargs=logging_kwargs.copy())
+        self.data_bucketer = DataBucketer(SAMPLES_PER_SECOND, logging_kwargs=logging_kwargs.copy())
 
-    def fix_snapshot(
-        self, raw_snapshot: Dict[str, List[dict]], prev_snapshot_val_map: dict[str, np.float64]
-    ) -> dict[str, np.ndarray]:
+    def fix_snapshot(self, raw_snapshot: Dict[str, List[dict]]) -> dict[str, Tuple[np.ndarray, np.ndarray]]:
         """
         Returns a dict mapping PV -> (values, timestamps_ns) that belong in the currently being processed snapshot window.
         Early entires (entries expectred in a later snapshot) get stored in `temp_storage` for later use.
@@ -68,15 +66,18 @@ class SnapshotFixer:
                 np.array(in_window_values, dtype=np.float64),
                 np.array(in_window_timestamps, dtype=np.int64),
             )
+        
+        return fixed_snapshot
 
+    def bucket_snapshot_data(self, fixed_snapshot: dict[str, Tuple[np.ndarray, np.ndarray]],
+        prev_snapshot_val_map: dict[str, np.float64]) -> dict[str, np.ndarray]:
 
         bucket_arr_start_time = self.time_of_first_data + (
             self.num_snapshots_processed * NANOSECS_IN_1_SEC
         )
-
-        data_map_bucketed = self.data_cleaner.clean_data(
+        data_map_bucketed = self.data_bucketer.bucket_and_forward_fill_data(
             fixed_snapshot, prev_snapshot_val_map, bucket_arr_start_time
         )
-        
+
         self.num_snapshots_processed += 1
         return data_map_bucketed

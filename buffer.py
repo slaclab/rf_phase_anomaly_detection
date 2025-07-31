@@ -69,7 +69,8 @@ class Buffer:
             else:
                 prev_snapshot_val_map[pv] = self.data_map[pv].get(-1)
     
-        fixed_and_bucketed_snapshot_data = self.fixer.fix_snapshot(snapshot, prev_snapshot_val_map)
+        fixed_snapshot_data = self.fixer.fix_snapshot(snapshot)
+        fixed_and_bucketed_snapshot_data = self.fixer.bucket_snapshot_data(fixed_snapshot_data, prev_snapshot_val_map)
 
         beam_check_data = {}
         # is ok to do beamchecks on timestamp-bucketed data?

@@ -54,7 +54,7 @@ if __name__ == "__main__":
         logging_kwargs = default_logging_kwargs = {
             "queue": queue_log,
             "logger_name": None,
-            "log_level": 10,  # 10 is DEBUG
+            "log_level": 20,  # 10 is DEBUG
             "log_stdout": True,
         }
         if args.disable_file_logging:
