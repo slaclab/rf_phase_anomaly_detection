@@ -15,7 +15,6 @@ from buffer import Buffer
 from anomaly_candidate import AnomalyCandidate, CandidateBucket, find_fast_index, find_most_anomalous_rf_station
 from beam_check_config import (SAMPLES_PER_SECOND, BUFFER_LENGTH, BPM_NAMES,
                                CANDIDATE_LOOKBACK_WINDOW_LENGTH, ANOMALY_CANDIDATE_WINDOW_SIZE)
-from snapshot_fixer import SnapshotFixer
 from beam_check_config import NUM_NANOSEC_IN_1_SEC
 
 # we care about windows where beam-checks fail only if longer than this length
@@ -49,8 +48,6 @@ class ProcessB(CustomProcessObject):
         # holds anomaly candidates
         self.candidate_bucket = CandidateBucket()
 
-        self.fixer = SnapshotFixer(pv_list, NUM_NANOSEC_IN_1_SEC)
-
     def __call__(self) -> None:
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
@@ -72,11 +69,9 @@ class ProcessB(CustomProcessObject):
                     self.queue_two.put(None)
                     break
                 self.logger.debug("Received new snapshot from queue_one")
-
-                fixed_snapshot = self.fixer.fix_snapshot(snapshot)
                 
                 # parse the k2eg snapshot and update buffer
-                index_change, length_of_update = self.buffer.update(fixed_snapshot, snapshot)
+                index_change, length_of_update = self.buffer.update(snapshot)
                 self.logger.debug(f"Buffer updated: index_change={index_change}, length_of_update={length_of_update}")
                 self.look_for_new_candidates(index_change, length_of_update)
             finally:

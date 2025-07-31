@@ -8,8 +8,8 @@ from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
 from anomaly_candidate import AnomalyCandidate
 from mp_logging import create_worker_logger, default_logging_kwargs
-from data_cleaner import DataCleaner
 from beam_check_config import NUM_NANOSEC_IN_1_SEC
+from snapshot_fixer import SnapshotFixer
 
 
 class Buffer:
@@ -47,9 +47,9 @@ class Buffer:
         # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
         self.data_map["valid_windows"] = set()  # will hold tuples of (window_start_index, window_end_index)
 
-        self.data_cleaner = DataCleaner(SAMPLES_PER_SECOND, logging_kwargs=logging_kwargs.copy())
+        self.fixer = SnapshotFixer(pv_list, NUM_NANOSEC_IN_1_SEC, logging_kwargs=logging_kwargs.copy())
 
-    def update(self, snapshot_new: Dict[str, Tuple[np.ndarray, np.ndarray]], snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
+    def update(self, snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
         """
         Append the latest 120-sample PV snapshot into the buffer for each pv
 
@@ -59,46 +59,8 @@ class Buffer:
             been moved back.  The second is the length of the snapshot.
         """
         self.logger.debug("Buffer starting update...")
-
-        snapshot_length = SAMPLES_PER_SECOND
+        
         beam_check_data = {}
-        # holds the data for integrity checks and cleaning.
-        # (it holds the timestamps for each pv, whereas in self.data_map we store just one (bucketed) timestamp array for all PVs).
-        data_map_with_per_pv_timestamps = {}
-        for i, pv in enumerate(self.pv_list):
-            entries = snapshot.get(pv, [])
-
-            values = np.empty(SAMPLES_PER_SECOND, dtype=np.float64)
-            timestamps_ns = np.empty(SAMPLES_PER_SECOND, dtype=int)
-            for j, e in enumerate(entries):
-                # TODO: handle large snapshots correctly (currently doing hotfix)
-                if j >= 120:
-                    break
-                try: 
-                    values[j] = e.get("value", np.nan)
-                except:
-                    if isinstance(e, dict):
-                        values[j] = e.get("index", np.nan)
-                # end of hotfix
-                ts = e.get("timeStamp", {})
-                seconds = ts.get("secondsPastEpoch", 0)
-                nanos = ts.get("nanoseconds", 0)
-                timestamps_ns[j] = int(seconds * NUM_NANOSEC_IN_1_SEC + nanos)
-
-            data_map_with_per_pv_timestamps[pv] = (values, timestamps_ns)
-
-            if pv in BEAM_CHECK_PVS:
-                beam_check_data[pv] = values
-
-        if self.time_of_first_data == 0:
-            self.time_of_first_data = min(
-                timestamps_ns.min() for _, timestamps_ns in data_map_with_per_pv_timestamps.values()
-            )
-            self.logger.debug(f"Set time_of_first_data = {self.time_of_first_data}")
-
-        bucket_arr_start_time = self.time_of_first_data + (
-            self.num_snapshots_processed * NUM_NANOSEC_IN_1_SEC
-        )
 
         # map of pv to last value from prev snapshot (or 0 if this is the first snapshot)
         # (used for potential forward-filling)
@@ -108,13 +70,15 @@ class Buffer:
                 prev_snapshot_val_map[pv] = 0.0
             else:
                 prev_snapshot_val_map[pv] = self.data_map[pv].get(-1)
+    
+        fixed_and_bucketed_snapshot_data = self.fixer.fix_snapshot(snapshot, prev_snapshot_val_map)
 
-        data_map_bucketed = self.data_cleaner.clean_data(
-            data_map_with_per_pv_timestamps, prev_snapshot_val_map, bucket_arr_start_time
-        )
-
+        # is ok to do beamchecks on timestamp-bucketed data?
+        for pv in BEAM_CHECK_PVS:
+            beam_check_data[pv] = fixed_and_bucketed_snapshot_data[pv]
+    
         # now update our global map with bucket-data
-        for pv, values in data_map_bucketed.items():
+        for pv, values in fixed_and_bucketed_snapshot_data.items():
             # self.logger.debug(f"Appending bucketed + cleaned data to data_map for PV: {pv}")
             self.data_map[pv].put(values)
 
@@ -126,6 +90,7 @@ class Buffer:
 
         was_full_before_new_data = self.data_map["bpm_score_20"].is_full()
 
+        snapshot_length = SAMPLES_PER_SECOND
         total_length = snapshot_length + MAD_LENGTH - 1
         if self.index > total_length:
             bpm_score_1 = compute_score_1(
@@ -149,6 +114,7 @@ class Buffer:
 
         self.logger.debug(f"num snapshots processed {self.num_snapshots_processed}")
         self.num_snapshots_processed += 1
+
         self.logger.debug("Buffer done updating")
         return (-snapshot_length if was_full_before_new_data else 0, snapshot_length)
 
