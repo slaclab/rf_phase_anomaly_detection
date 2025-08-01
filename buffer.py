@@ -8,8 +8,7 @@ from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
 from anomaly_candidate import AnomalyCandidate
 from mp_logging import create_worker_logger, default_logging_kwargs
-from beam_check_config import NANOSECS_IN_1_SEC
-from snapshot_fixer import SnapshotFixer
+from snapshot_fixer import SnapshotFixer, get_timestamp_ns
 
 
 class Buffer:
@@ -18,7 +17,7 @@ class Buffer:
     By default stores 5 mins (36000 values) of past data.
     """
 
-    def __init__(self, pv_list: list[str], buffer_len: int, logging_kwargs: Optional[dict] = default_logging_kwargs):
+    def __init__(self, pv_list: list[str], buffer_len: int, snapshot_length: int, snapshot_period_ns: int, logging_kwargs: Optional[dict] = default_logging_kwargs):
 
         logging_kwargs["logger_name"] = "buffer"
         self.logger = create_worker_logger(**logging_kwargs)
@@ -47,7 +46,10 @@ class Buffer:
         # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
         self.data_map["valid_windows"] = set()  # will hold tuples of (window_start_index, window_end_index)
 
-        self.fixer = SnapshotFixer(pv_list, NANOSECS_IN_1_SEC, logging_kwargs=logging_kwargs.copy())
+        self.snapshot_period_ns = snapshot_period_ns
+        self.snapshot_length = snapshot_length
+
+        self.fixer = SnapshotFixer(pv_list=pv_list, logging_kwargs=logging_kwargs.copy())
 
     def update(self, snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
         """
@@ -68,12 +70,27 @@ class Buffer:
                 prev_snapshot_val_map[pv] = 0.0
             else:
                 prev_snapshot_val_map[pv] = self.data_map[pv].get(-1)
-    
-        fixed_snapshot_data = self.fixer.fix_snapshot(snapshot)
-        fixed_and_bucketed_snapshot_data = self.fixer.bucket_snapshot_data(fixed_snapshot_data, prev_snapshot_val_map)
+
+        # get oldest time across all pv data-points
+        if self.time_of_first_data == 0:
+            min_ts = None
+            for pv in self.pv_list:
+                for e in snapshot.get(pv, []):
+                    ts = get_timestamp_ns(e)
+                    if min_ts is None or ts < min_ts:
+                        min_ts = ts
+            if min_ts is None:  # snapshot is empty (no data)
+                return (0,0)
+            else:
+                self.time_of_first_data = min_ts
+
+        start_time = self.time_of_first_data + self.num_snapshots_processed * self.snapshot_period_ns
+        end_time = start_time + self.snapshot_period_ns
+
+        fixed_snapshot_data = self.fixer.fix_snapshot(snapshot, start_time, end_time)
+        fixed_and_bucketed_snapshot_data = self.fixer.bucket_snapshot_data(fixed_snapshot_data, prev_snapshot_val_map, start_time, end_time)
 
         beam_check_data = {}
-        # is ok to do beamchecks on timestamp-bucketed data?
         for pv in BEAM_CHECK_PVS:
             beam_check_data[pv] = fixed_and_bucketed_snapshot_data[pv]
 
@@ -90,8 +107,7 @@ class Buffer:
 
         was_full_before_new_data = self.data_map["bpm_score_20"].is_full()
 
-        snapshot_length = SAMPLES_PER_SECOND
-        total_length = snapshot_length + MAD_LENGTH - 1
+        total_length = self.snapshot_length + MAD_LENGTH - 1
         if self.index > total_length:
             bpm_score_1 = compute_score_1(
                 {
@@ -105,18 +121,18 @@ class Buffer:
             bpm_score_20 = compute_score_20(bpm_score_1)
             self.logger.debug(f"Computed bpm_score_20")
 
-            self.data_map["bpm_score_1"].put(bpm_score_1[-snapshot_length:])
-            self.data_map["bpm_score_20"].put(bpm_score_20[-snapshot_length:])
+            self.data_map["bpm_score_1"].put(bpm_score_1[-self.snapshot_length:])
+            self.data_map["bpm_score_20"].put(bpm_score_20[-self.snapshot_length:])
         else: # append 0's to keep bpm_score arrays same length as pv arrays
-            self.data_map["bpm_score_1"].put(np.zeros(snapshot_length))
-            self.data_map["bpm_score_20"].put(np.zeros(snapshot_length))
+            self.data_map["bpm_score_1"].put(np.zeros(self.snapshot_length))
+            self.data_map["bpm_score_20"].put(np.zeros(self.snapshot_length))
             self.logger.debug("Not enough data yet for bpm score computation, adding zeros to bpm_score array")
 
         self.logger.debug(f"num snapshots processed {self.num_snapshots_processed}")
         self.num_snapshots_processed += 1
 
         self.logger.debug("Buffer done updating")
-        return (-snapshot_length if was_full_before_new_data else 0, snapshot_length)
+        return (-self.snapshot_length if was_full_before_new_data else 0, self.snapshot_length)
 
     def find_candidates(self, look_back_this_far: int) -> list[AnomalyCandidate]:
         candidates = []
@@ -124,7 +140,7 @@ class Buffer:
         end = self.index
 
         # avoid errors when trying to find candidates b4 bpm_score_20 can be calculated,
-        # as in: self.index < snapshot_length + MAD_LENGTH - 1
+        # as in: self.index < self.snapshot_length + MAD_LENGTH - 1
         # TODO: figure out if this is correct way to handle this
         if len(self.data_map["bpm_score_20"]) == 0:
             self.logger.debug("Skipping candidate search, bpm_score_20 array is empty")

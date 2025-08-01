@@ -13,9 +13,8 @@ from mp_logging import create_worker_logger, default_logging_kwargs
 from process import CustomProcessObject
 from buffer import Buffer
 from anomaly_candidate import AnomalyCandidate, CandidateBucket, find_fast_index, find_most_anomalous_rf_station
-from beam_check_config import (SAMPLES_PER_SECOND, BUFFER_LENGTH, BPM_NAMES,
+from beam_check_config import (SAMPLES_PER_SECOND, BUFFER_LENGTH, BPM_NAMES, NANOSECS_IN_1_SEC,
                                CANDIDATE_LOOKBACK_WINDOW_LENGTH, ANOMALY_CANDIDATE_WINDOW_SIZE)
-from beam_check_config import NANOSECS_IN_1_SEC
 
 # we care about windows where beam-checks fail only if longer than this length
 TEMP_VIOLATION_LENGTH = SAMPLES_PER_SECOND * 90  # 90 seconds
@@ -44,7 +43,8 @@ class ProcessB(CustomProcessObject):
         self.logger = None
 
         # holds up to 5 minutes of 120hz data (36000 points) per pv.
-        self.buffer = Buffer(self.pv_list, BUFFER_LENGTH, self.logging_kwargs.copy())  # 3600 = 120hz * 60sec * 5mins
+        self.buffer = Buffer(pv_list=self.pv_list, buffer_len=BUFFER_LENGTH, snapshot_length=SAMPLES_PER_SECOND, snapshot_period_ns=NANOSECS_IN_1_SEC,
+            logging_kwargs=self.logging_kwargs.copy())  # 3600 = 120hz * 60sec * 5mins
         # holds anomaly candidates
         self.candidate_bucket = CandidateBucket()
 
@@ -59,6 +59,7 @@ class ProcessB(CustomProcessObject):
             # need to be sure each iteration of this processing loop is <= 1 second
             # (data comes each second from process_a, so data will pile-up if our processing takes over 1 second)
             timer_start = time.perf_counter()
+            data_in_snapshot = True
             try:
                 snapshot = self.queue_one.get(timeout=0.05)  # wait 50ms
             except Empty:
@@ -69,13 +70,18 @@ class ProcessB(CustomProcessObject):
                     self.queue_two.put(None)
                     break
                 self.logger.debug("Received new snapshot from queue_one")
-                
+
                 # parse the k2eg snapshot and update buffer
                 index_change, length_of_update = self.buffer.update(snapshot)
-                self.logger.debug(f"Buffer updated: index_change={index_change}, length_of_update={length_of_update}")
-                self.look_for_new_candidates(index_change, length_of_update)
+                if index_change == 0 and length_of_update == 0:
+                    data_in_snapshot = False
+                    self.logger.warning(f"No data in this snapshot (skipping processing)")
+                else:
+                    self.logger.debug(f"Buffer updated: index_change={index_change}, length_of_update={length_of_update}")
+                    self.look_for_new_candidates(index_change, length_of_update)
             finally:
-                self.look_for_ready_candidates()
+                if data_in_snapshot:
+                    self.look_for_ready_candidates()
 
             elapsed_ms = (time.perf_counter() - timer_start) * 1000
             self.logger.debug(f"process_b loop iteration took {elapsed_ms:.2f} ms")

@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 from snapshot_fixer import SnapshotFixer
 from beam_check_config import NANOSECS_IN_1_SEC
-from utils import get_timestamp_ns
+from snapshot_fixer import get_timestamp_ns
 
 
 def test_fix_snapshot_basic():
@@ -11,7 +11,7 @@ def test_fix_snapshot_basic():
     """
 
     pv_list = ["pv1", "pv2"]
-    fixer = SnapshotFixer(pv_list, 100)
+    fixer = SnapshotFixer(pv_list)
 
     # simulate snapshot's pv-entry data
     def make_entry(ts_ns: int, value: float) -> dict:
@@ -37,7 +37,7 @@ def test_fix_snapshot_basic():
         ],
     }
 
-    fixed = fixer.fix_snapshot(raw_snapshot)
+    fixed = fixer.fix_snapshot(raw_snapshot, 0, 100)
 
     # only current-window data is returned from `fix_snapshot()`
     assert "pv1" in fixed
