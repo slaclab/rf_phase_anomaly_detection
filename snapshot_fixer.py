@@ -11,7 +11,7 @@ class SnapshotFixer:
     """
     This class handles issues with incoming snapshots, and then buckets the data and forward-fills any missing data-points.
 
-    Atm this class only handles a single snapshot-issue, which is when a snapshot contains > 120 data-points. This is when
+    Currently this class only handles a single snapshot-issue, which is when a snapshot contains > 120 data-points. This is when
     the snapshot contains data-points that should be in a following snapshot.
     (we can assume all data-points get eventually sent by k2eg, and no duplicate data-points are sent) 
     We handle this by saving any data-points outside of the current buckets time-range for later processing during their
@@ -37,6 +37,10 @@ class SnapshotFixer:
         """
         Returns a dict mapping PV -> (values, timestamps_ns) that belong in the currently being processed snapshot window.
         Early entires (entries expectred in a later snapshot) get stored in `temp_storage` for later use.
+
+        Args:
+            raw_snapshot: (Dict[str, List[dict]]): the snapshot as sent by k2eg, before any processing is applied.
+
         """
         if self.time_of_first_data == 0:
             min_ts = None
@@ -88,8 +92,8 @@ class SnapshotFixer:
 
         Args:
             fixed_snapshot (dict[str, Tuple[np.ndarray, np.ndarray]]): This hould be the output of `fix_snapshot()`,
-            a mapping of pv -> (values, timestamps) grabbed from a snapshot. (timestamps will fall into bucketing window because
-            of fixing applied by `fix_snapshot()`)
+                a mapping of pv -> (values, timestamps) grabbed from a snapshot. (timestamps will fall into bucketing window because
+                of fixing applied by `fix_snapshot()`)
     
             prev_snapshot_val_map (dict[str, np.float64]): Mapping of pv -> last value for pv in prev snapshot.
 
