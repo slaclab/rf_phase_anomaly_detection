@@ -7,7 +7,7 @@ from beam_check_config import NANOSECS_IN_1_SEC
 
 class DataBucketer:
     """
-    Cleans and aligns per-PV timestamped data into fixed time buckets.
+    Aligns per-PV timestamped data into fixed time buckets.
 
     This class can take a snapshot of PV data, where each PV might have irregular or missing timestamps,
     and convert it into an array of values aligned to evenly spaced 1/`samples_per_second` bucket intervals,
