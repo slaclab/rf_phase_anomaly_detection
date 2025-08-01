@@ -310,7 +310,8 @@ def standardize_tensor(x: torch.Tensor) -> torch.Tensor:
                 2.8120e08,
                 2.7878e08,
                 2.7979e08,
-            ]
+            ],
+            device=x.device
         ).unsqueeze(1)
         return (x - torch.median(x, dim=1, keepdim=True)[0]) / denom
 
