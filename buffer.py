@@ -25,7 +25,7 @@ class Buffer:
         self.pv_list = pv_list
 
         self.num_snapshots_processed = 0
-        self.time_of_first_data = 0
+        self.time_of_first_data = -1
 
         # max length of buffer
         self.buffer_len = buffer_len
@@ -72,7 +72,7 @@ class Buffer:
                 prev_snapshot_val_map[pv] = self.data_map[pv].get(-1)
 
         # get oldest time across all pv data-points
-        if self.time_of_first_data == 0:
+        if self.time_of_first_data == -1:
             min_ts = None
             for pv in self.pv_list:
                 for e in snapshot.get(pv, []):

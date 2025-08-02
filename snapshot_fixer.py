@@ -69,7 +69,7 @@ class SnapshotFixer:
 
                 if ts_ns < start_time:
                 # late data (data that belongs in previous snapshot) should not get sent, log a warning so we will know if it somehow happens
-                    self.logger.warning(f"Snapshot {self.num_snapshots_processed} had a late data-point!")
+                    self.logger.warning(f"Snapshot had a late data-point!")
                     self.temp_storage[pv].popleft()  # just throw this data-point away for now (handle later if recurring issue)
                 elif ts_ns < end_time:
                     self.temp_storage[pv].popleft()
