@@ -1,7 +1,7 @@
 from queue import PriorityQueue
 import numpy as np
 
-from beam_check_config import (ANOMALY_CANDIDATE_WINDOW_SIZE, FEEDBACK_STATIONS, CANDIDATE_PHASE_THRESHOLD)
+from beam_check_config import ANOMALY_CANDIDATE_WINDOW_SIZE, FEEDBACK_STATIONS, CANDIDATE_PHASE_THRESHOLD
 
 
 class AnomalyCandidate:
@@ -76,7 +76,6 @@ class AnomalyCandidate:
 
 
 class CandidateBucket(PriorityQueue):
-
     def __len__(self):
         # PriorityQueues just store a list in self.queue
         return len(self.queue)
@@ -105,21 +104,21 @@ class CandidateBucket(PriorityQueue):
 
 def find_fast_index(bpm_score_20: np.ndarray) -> int:
     """
-        Implements the  fast trigger from Section IV A of
-        https://arxiv.org/abs/2505.16052
+    Implements the  fast trigger from Section IV A of
+    https://arxiv.org/abs/2505.16052
 
-        Computes a simple heuristic to determine the earliest time point within the sequence where the anomaly occurs)
-        https://github.com/SLAC-ML/CoincAD/blob/phase/core/h5_dataloader_bpm_trigger_2024_TriggerMulti_8ch_centerPhasTrigger_asym_cleanup_final.ipynb
-        Function - get_fast_trigger_idx
+    Computes a simple heuristic to determine the earliest time point within the sequence where the anomaly occurs)
+    https://github.com/SLAC-ML/CoincAD/blob/phase/core/h5_dataloader_bpm_trigger_2024_TriggerMulti_8ch_centerPhasTrigger_asym_cleanup_final.ipynb
+    Function - get_fast_trigger_idx
 
-        Parameters
-        ----------
-        bpm_score_20: np.ndarray
-            bpm-score values for the lookback window
+    Parameters
+    ----------
+    bpm_score_20: np.ndarray
+        bpm-score values for the lookback window
 
-        Returns
-        -------
-            Index in bpm_score_20 where fast trigger is detected
+    Returns
+    -------
+        Index in bpm_score_20 where fast trigger is detected
     """
     if len(bpm_score_20) < 10:  # fallback if data is too small
         return len(bpm_score_20)
@@ -142,9 +141,7 @@ def find_fast_index(bpm_score_20: np.ndarray) -> int:
     if len(indexes_above_thresh) > 0:  # Found anomaly; get first one
         rel_fast_idx = baseline_end + indexes_above_thresh[0]
     else:
-        rel_fast_idx = (
-            baseline_end + len(trigger_window) // 2
-        )  # No clear anomaly; default to center of trigger_window
+        rel_fast_idx = baseline_end + len(trigger_window) // 2  # No clear anomaly; default to center of trigger_window
 
     # Return fast trigger index in absolute buffer coordinates
     return rel_fast_idx
@@ -197,14 +194,13 @@ def find_most_anomalous_rf_station(
         if pv not in FEEDBACK_STATIONS:
             return pv, max_per_rf[i], system_level_anomaly
 
-    return '', 0., system_level_anomaly
+    return "", 0.0, system_level_anomaly
 
 
 if __name__ == "__main__":
     from k2eg_process import read_pv_list_from_file
 
-    rf_pv_names = [n for n in read_pv_list_from_file('resources/pv_list.txt')
-                   if n.endswith('PHAS_FASTBR')]
+    rf_pv_names = [n for n in read_pv_list_from_file("resources/pv_list.txt") if n.endswith("PHAS_FASTBR")]
 
     bucket = CandidateBucket()
 
@@ -229,14 +225,11 @@ if __name__ == "__main__":
     window_size = 20
     window = np.stack([np.random.randn(window_size) for _ in rf_pv_names], axis=1)  # (window_size, num_rf_pvs)
     most_anomalous_rf_pv_name, deviation_score, system_level_flag = find_most_anomalous_rf_station(
-        window,
-        rf_pv_names=rf_pv_names
+        window, rf_pv_names=rf_pv_names
     )
     print(most_anomalous_rf_pv_name, deviation_score, system_level_flag)
 
     bpm_score_20 = np.random.rand(120)
     start = 0
-    fast_index = find_fast_index(
-        bpm_score_20=bpm_score_20
-    )
+    fast_index = find_fast_index(bpm_score_20=bpm_score_20)
     print(fast_index)

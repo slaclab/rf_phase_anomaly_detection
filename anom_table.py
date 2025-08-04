@@ -50,9 +50,7 @@ class TimedBoolDict:
         Returns a copy of the current state of the dictionary.
     """
 
-    def __init__(
-        self, keys: List[str], write_to_pv: bool = True, logger: logging.Logger = logger
-    ):
+    def __init__(self, keys: List[str], write_to_pv: bool = True, logger: logging.Logger = logger):
         """
         Initializes the TimedBoolDict with the given keys, whether to write to K2EG, and the reset time.
 
@@ -99,9 +97,7 @@ class TimedBoolDict:
         None
         """
         with self.lock:
-            self.logger.debug(
-                f"Setting {key} to 1... Current state dict: \n{dict(self.get_dict())}"
-            )
+            self.logger.debug(f"Setting {key} to 1... Current state dict: \n{dict(self.get_dict())}")
             self.data[key] = value
             if value:
                 # Cancel existing timer if present
@@ -119,9 +115,7 @@ class TimedBoolDict:
             if self.write_to_pv:
                 anomaly_table = create_anomaly_table(self.data)
                 write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
-            self.logger.debug(
-                f"Set {key} to 1. Current state dict: \n{dict(self.get_dict())}"
-            )
+            self.logger.debug(f"Set {key} to 1. Current state dict: \n{dict(self.get_dict())}")
 
     def _reset_key(self, key: str):
         """
@@ -138,18 +132,14 @@ class TimedBoolDict:
         None
         """
         with self.lock:
-            self.logger.debug(
-                f"Resetting key {key} to 0... Current state dict: \n{dict(self.get_dict())}"
-            )
+            self.logger.debug(f"Resetting key {key} to 0... Current state dict: \n{dict(self.get_dict())}")
             self.data[key] = False
             if key in self.timers:
                 del self.timers[key]
             if self.write_to_pv:
                 anomaly_table = create_anomaly_table(self.data)
                 write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
-            self.logger.debug(
-                f"Reset key {key} to 0. Current state dict: \n{dict(self.get_dict())}"
-            )
+            self.logger.debug(f"Reset key {key} to 0. Current state dict: \n{dict(self.get_dict())}")
 
     def get_dict(self):
         """

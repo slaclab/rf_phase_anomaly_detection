@@ -1,15 +1,10 @@
 from typing import Dict, Any, Tuple, List
-from unittest import mock
-import traceback
-import os
 
 import numpy.typing as npt
 from numpy import number
 from numpy import zeros
 import pytest
 
-import k2eg
-from k2eg.dml import OperationTimeout
 from inference.predict import Predict
 
 
