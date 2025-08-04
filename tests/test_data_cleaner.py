@@ -1,19 +1,19 @@
 import numpy as np
 import pytest
-from data_cleaner import DataCleaner
-from beam_check_config import SAMPLES_PER_SECOND
+from data_bucketer import DataBucketer
+from beam_check_config import SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC
 
 
 @pytest.fixture
-def data_cleaner():
-    return DataCleaner(SAMPLES_PER_SECOND)
+def data_bucketer():
+    return DataBucketer(SAMPLES_PER_SECOND)
 
 
 rng = np.random.default_rng(42)
 
 ## shared constants
 STARTING_TIMESTAMP = 1_000_000_000
-ONE_TIMESTEP = int(1e9 / SAMPLES_PER_SECOND)
+ONE_TIMESTEP = int(NANOSECS_IN_1_SEC / SAMPLES_PER_SECOND)
 LAST_BUCKET_TIMESTAMP = STARTING_TIMESTAMP + (SAMPLES_PER_SECOND - 1) * ONE_TIMESTEP
 BUCKET_TIMESTAMP_ARRAY = np.linspace(STARTING_TIMESTAMP, LAST_BUCKET_TIMESTAMP, SAMPLES_PER_SECOND, dtype=int)
 
@@ -110,14 +110,14 @@ def generate_test_case_forward_fill_empty_pv_from_prev_snapshot():
         generate_test_case_forward_fill_empty_pv_from_prev_snapshot(),
     ],
 )
-def test_clean_data_multiple_pvs(data_cleaner, data_map_with_per_pv_timestamps, expected_values):
+def test_clean_data_multiple_pvs(data_bucketer, data_map_with_per_pv_timestamps, expected_values):
     # represents the last values from the prev snapshot (to test forward-filling from prev snapshot)
     last_vals_prev_snapshot = {
         "PV1": 1.0,
         "PV2": 42.0,  # arbitrarily chosen
     }
 
-    cleaned = data_cleaner.clean_data(data_map_with_per_pv_timestamps, last_vals_prev_snapshot, STARTING_TIMESTAMP)
+    cleaned = data_bucketer.clean_data(data_map_with_per_pv_timestamps, last_vals_prev_snapshot, STARTING_TIMESTAMP)
 
     for pv, expected in expected_values.items():
         assert pv in cleaned, f"Missing pv in cleaned data: {pv}"
