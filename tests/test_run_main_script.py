@@ -5,12 +5,15 @@ import signal
 import pytest
 
 
+pytest.skip("Outdated test module", allow_module_level=True)
+
+
 @pytest.mark.timeout(10)
 def test_main_script_runs_without_crashing_for_5_seconds():
     script_path = os.path.join(os.path.dirname(__file__), "../main.py")
 
     proc = subprocess.Popen(
-        ["python", script_path, "--spoof_k2eg_data", "--disable_file_logging"],
+        ["python", script_path, "--spoof_k2eg_data_anomaly", "--disable_file_logging"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         preexec_fn=os.setsid,

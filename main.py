@@ -17,32 +17,7 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
-if __name__ == "__main__":
-    # SIGINT is ctrl+c
-    signal.signal(signal.SIGINT, signal_handler)
-
-    parser = argparse.ArgumentParser(description="Run with real or spoofed k2eg data.")
-    parser.add_argument(
-        "-skd",
-        "--spoof_k2eg_data",
-        action="store_true",
-        help="Use spoofed k2eg data (random values) instead of real pv data.",
-    )
-    parser.add_argument(
-        "-skda",
-        "--spoof_k2eg_data_anomaly",
-        action="store_true",
-        help="Use spoofed k2eg data that always has anomalies, instead of real pv data.",
-    )
-    parser.add_argument(
-        "-dfl",
-        "--disable_file_logging",
-        action="store_true",
-        help="Disable writing of log output to file, logging output will still be outputted to terminal.",
-    )
-
-    args = parser.parse_args()
-
+def main(args: argparse.Namespace):
     # Create an instance of the Manager
     with Manager() as manager:
         # create queues for inter-process communication
@@ -105,4 +80,31 @@ if __name__ == "__main__":
         queue_log.put(None)
         logger_process.join()  # wait for the logger to finish last
 
-    print("Processes are done.")
+
+if __name__ == "__main__":
+    # SIGINT is ctrl+c
+    #signal.signal(signal.SIGINT, signal_handler)
+
+    parser = argparse.ArgumentParser(description="Run with real or spoofed k2eg data.")
+    parser.add_argument(
+        "-skd",
+        "--spoof_k2eg_data",
+        action="store_true",
+        help="Use spoofed k2eg data (random values) instead of real pv data.",
+    )
+    parser.add_argument(
+        "-skda",
+        "--spoof_k2eg_data_anomaly",
+        action="store_true",
+        help="Use spoofed k2eg data that always has anomalies, instead of real pv data.",
+    )
+    parser.add_argument(
+        "-dfl",
+        "--disable_file_logging",
+        action="store_true",
+        help="Disable writing of log output to file, logging output will still be outputted to terminal.",
+    )
+
+    args = parser.parse_args()
+
+    main(args)
