@@ -65,7 +65,7 @@ def run_logger_process(
                 break
             # log the message
             logger.handle(message)
-    logger.info('Logger process terminated')
+    logger.info("Logger process terminated")
 
 
 def create_worker_logger(
@@ -73,7 +73,7 @@ def create_worker_logger(
     logger_name: Optional[str] = None,
     log_level: int = 0,
     log_stdout: bool = False,  # for conformity with run_logger_process
-    start_quietly: bool = False
+    start_quietly: bool = False,
 ) -> Optional[logging.Logger]:
     """same signature as run_logger_process"""
     name = logger_name if logger_name is not None else "worker"

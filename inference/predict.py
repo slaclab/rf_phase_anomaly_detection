@@ -82,9 +82,7 @@ class Predict:
         self.write_to_pv = write_to_pv
         self.klystrons_list = load_klystron_configs()
         self.logger = logger
-        self.anom_state_dict = TimedBoolDict(
-            self.klystrons_list, self.write_to_pv, self.logger
-        )
+        self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.logger)
 
     def predict(
         self,
@@ -119,15 +117,11 @@ class Predict:
 
         anomalous = predict_label(self.configs, self.networks, (rf_input, bpm_input))
         if not anomalous:
-            self.logger.debug(
-                f"No anomaly detected for {rf_pv_name} at timestamp {anomaly_timestamp}."
-            )
+            self.logger.debug(f"No anomaly detected for {rf_pv_name} at timestamp {anomaly_timestamp}.")
         if anomalous:
             # Update anomaly state in the timed dict
             # if write to PV is enabled, it will also write to K2EG
-            self.logger.info(
-                f"Anomaly detected for {rf_pv_name} at timestamp {anomaly_timestamp}."
-            )
+            self.logger.info(f"Anomaly detected for {rf_pv_name} at timestamp {anomaly_timestamp}.")
             set_anomaly_state(self.anom_state_dict, rf_pv_name, anomalous)
         return anomalous
 
@@ -196,9 +190,7 @@ def load_configs() -> Dict[str, Any]:
         If the configuration file 'configs.yml' is not found in the expected directory.
     """
     if not os.path.exists(ROOTDIR + "/configs.yml"):
-        raise FileNotFoundError(
-            "Configuration file 'configs.yml' not found in the root directory."
-        )
+        raise FileNotFoundError("Configuration file 'configs.yml' not found in the root directory.")
     with open(ROOTDIR + "/configs.yml", "r") as file:
         return yaml.safe_load(file)
 
@@ -247,9 +239,9 @@ def predict_label(
     _validate_input(configs, networks, batch)
 
     # Setup configs
-    thres, exact, standardize, sigm, device = itemgetter(
-        "thres", "exact", "standardize", "sigmoid", "device"
-    )(configs["predict"])
+    thres, exact, standardize, sigm, device = itemgetter("thres", "exact", "standardize", "sigmoid", "device")(
+        configs["predict"]
+    )
 
     # Choose device
     if device is None:
@@ -311,7 +303,7 @@ def standardize_tensor(x: torch.Tensor) -> torch.Tensor:
                 2.7878e08,
                 2.7979e08,
             ],
-            device=x.device
+            device=x.device,
         ).unsqueeze(1)
         return (x - torch.median(x, dim=1, keepdim=True)[0]) / denom
 
@@ -348,9 +340,7 @@ def _validate_input(
         raise ValueError(
             f"Networks must contain exactly two TorchModule instances: one for RF and one for BPM. A length of {len(networks)} was provided."
         )
-    if not isinstance(networks[0], TorchModule) or not isinstance(
-        networks[1], TorchModule
-    ):
+    if not isinstance(networks[0], TorchModule) or not isinstance(networks[1], TorchModule):
         raise TypeError(
             f"Networks must be instances of TorchModule. Types provided: {type(networks[0])}, {type(networks[1])}."
         )
@@ -371,21 +361,12 @@ def _validate_input(
             f"RF data and BPM data must have the same number of samples (N). N provided: {batch[0].shape[1]}, {batch[1].shape[1]}."
         )
     if not isinstance(configs, dict):
-        raise TypeError(
-            f"Configs must be a dictionary. Type provided: {type(configs)}."
-        )
+        raise TypeError(f"Configs must be a dictionary. Type provided: {type(configs)}.")
     if "predict" not in configs or not isinstance(configs["predict"], dict):
-        raise ValueError(
-            "Configs must contain a 'predict' key with a dictionary value."
-        )
+        raise ValueError("Configs must contain a 'predict' key with a dictionary value.")
     if "network" in configs and not isinstance(configs["network"], list):
-        raise ValueError(
-            "If 'network' key is present in configs, it must be a list of two dictionaries."
-        )
-    if not all(
-        key in configs["predict"]
-        for key in ["thres", "exact", "standardize", "sigmoid", "device"]
-    ):
+        raise ValueError("If 'network' key is present in configs, it must be a list of two dictionaries.")
+    if not all(key in configs["predict"] for key in ["thres", "exact", "standardize", "sigmoid", "device"]):
         raise ValueError(
             "Configs['predict'] must contain 'thres', 'exact', 'standardize', 'sigmoid', and 'device' keys."
         )

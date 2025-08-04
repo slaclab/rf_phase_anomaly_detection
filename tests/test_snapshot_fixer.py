@@ -1,4 +1,3 @@
-import pytest
 import numpy as np
 from snapshot_fixer import SnapshotFixer
 from beam_check_config import NANOSECS_IN_1_SEC
@@ -15,14 +14,14 @@ def test_fix_snapshot_basic():
 
     # simulate snapshot's pv-entry data
     def make_entry(ts_ns: int, value: float) -> dict:
-        seconds = ts_ns // NANOSECS_IN_1_SEC # // is int division
+        seconds = ts_ns // NANOSECS_IN_1_SEC  # // is int division
         nanoseconds = ts_ns % NANOSECS_IN_1_SEC
         return {
             "timeStamp": {
                 "secondsPastEpoch": seconds,
                 "nanoseconds": nanoseconds,
             },
-            "value": value
+            "value": value,
         }
 
     saved_for_later_val = 2.0
@@ -33,7 +32,7 @@ def test_fix_snapshot_basic():
             make_entry(saved_for_later_ts, saved_for_later_val),  # should be saved for future snapshot
         ],
         "pv2": [
-            make_entry(20, 3.0),  # should be in curr snapshot 
+            make_entry(20, 3.0),  # should be in curr snapshot
         ],
     }
 

@@ -15,8 +15,14 @@ class SlidingWindowArray:
         index (int): current write position or length of valid data.
     """
 
-    def __init__(self, buffer_len: int, dtype: np.dtype = np.float64, pv_name: str = "", logging_kwargs: Optional[dict] = default_logging_kwargs):
-        logging_kwargs["logger_name"] = f"sliding_window_array"
+    def __init__(
+        self,
+        buffer_len: int,
+        dtype: np.dtype = np.float64,
+        pv_name: str = "",
+        logging_kwargs: Optional[dict] = default_logging_kwargs,
+    ):
+        logging_kwargs["logger_name"] = "sliding_window_array"
         self.logger = create_worker_logger(**logging_kwargs, start_quietly=True)
         self.logger.info(f"({pv_name}) Initializing sliding window")
 
@@ -58,7 +64,7 @@ class SlidingWindowArray:
         - If start arg == -1 and end arg is None, returns the last value as a 1-elem array.
         """
         if start == -1 and end is None:
-            #self.logger.debug("{self.pv_name}) Returning last value in buffer")
+            # self.logger.debug("{self.pv_name}) Returning last value in buffer")
             return self.data[self.index - 1 : self.index]
 
         s = 0 if start is None else start

@@ -14,7 +14,7 @@ def test_initial_state(buffer):
     assert buffer.buffer_len == 5
     assert buffer.pv_name == "test_pv"
     assert isinstance(buffer.data, np.ndarray)
-    assert buffer.data.shape == (5,) # np shapes are tuples, (5,) is a tupe, (5) is not and fails this comparison
+    assert buffer.data.shape == (5,)  # np shapes are tuples, (5,) is a tuple, (5) is not and fails this comparison
     assert buffer.data.dtype == np.float64
     assert len(buffer.data) == 5
 

@@ -4,6 +4,7 @@ import os
 import signal
 import pytest
 
+
 @pytest.mark.timeout(10)
 def test_main_script_runs_without_crashing_for_5_seconds():
     script_path = os.path.join(os.path.dirname(__file__), "../main.py")
@@ -12,7 +13,7 @@ def test_main_script_runs_without_crashing_for_5_seconds():
         ["python", script_path, "--spoof_k2eg_data", "--disable_file_logging"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        preexec_fn=os.setsid
+        preexec_fn=os.setsid,
     )
 
     try:
