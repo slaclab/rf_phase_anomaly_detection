@@ -9,6 +9,8 @@ k2eg_process - handles k2eg snapshots
 process_b - does data cleaning and accelerator health inspection; generates anomaly candidates
 process_c - runs CoAD to confirm candidates
 
+Please see the [docs](docs/index.md) for more detail.
+
 ## Installation instructions on S3DF
 
 This package requires k2eg to function on S3DF.
@@ -88,21 +90,6 @@ To run the tests, execute the following command from the root of the `rf_phase_a
 ```
 pytest -s .
 ```
-
-
-## Process B
-#### Part 1 - Beam Checks
-1. Is the beam rate 120 Hz? We require IOC∶BSY0∶MP01∶PCRATE == 8.
-2. Is the entire beam being delivered to the hard x-ray line? We require IOC∶IN20∶EV01∶RG02ACTRATE == 10.
-3. Is the beam stopper being used? We require STPR∶BSYH∶2∶STD2INA == 0, indicating the beam stopper is out.
-4. Does the beam have a standard charge at the injector? We require BPMS∶IN20∶221∶TMITCUH >
-0.5 × 10**9. A lower charge or the charge not being logged can indicate the beam is not being operated in a standard operational mode.
-
-In the future, we do allow temporary (<90 s) violations of these conditions to not disallow short periods of “nonstandard” beam operation caused by automatic feedback or protection-based control mechanisms.
-
-### Part 2 - Candidate Generation
-[TODO]
-
 
 ## Docker image deployment on Kubernetes (S3DF)
 For more detailed instructions, refer to this [documentation](https://github.com/slaclab/lcls_cu_injector_ml_model?tab=readme-ov-file#containerization-steps).
