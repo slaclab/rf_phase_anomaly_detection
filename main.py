@@ -25,20 +25,19 @@ def main(args: argparse.Namespace):
         queue_two = manager.Queue()
         queue_log = manager.Queue()  # for logging only
 
+        main_logger_name = None if args.disable_file_logging else "main"
+
         # logging configuration
         logging_kwargs = default_logging_kwargs = {
             "queue": queue_log,
-            "logger_name": None,
-            "log_level": 20,  # 10 is DEBUG
+            "logger_name": main_logger_name,
+            "log_level": args.log_level,  # 10 is DEBUG
             "log_stdout": True,
         }
-        if args.disable_file_logging:
-            logging_kwargs["logger_name"] = None
 
         logger_process = Process(target=run_logger_process, kwargs=logging_kwargs)
         logger_process.start()
 
-        main_logger_name = None if args.disable_file_logging else "main"
         main_logger = create_worker_logger(
             queue=logging_kwargs["queue"],
             logger_name=main_logger_name,
@@ -103,6 +102,13 @@ if __name__ == "__main__":
         "--disable_file_logging",
         action="store_true",
         help="Disable writing of log output to file, logging output will still be outputted to terminal.",
+    )
+    parser.add_argument(
+        "-ll",
+        "--log_level",
+        type=int,
+        default=20,
+        help="Level to perform logging at"
     )
 
     args = parser.parse_args()
