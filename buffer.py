@@ -11,6 +11,22 @@ from mp_logging import create_worker_logger, default_logging_kwargs
 from snapshot_fixer import SnapshotFixer, get_timestamp_ns
 
 
+def get_first_time_point(snapshot: dict[str, list[dict]], pv_name_list: list[str]) -> float:
+    """
+    Finds the earliest time point in the snapshot.
+    """
+    reference_ts = snapshot["timestamp"] / 1e3  # measured in ms
+    min_ts = None
+    for pv in pv_name_list:
+        sn = snapshot.get(pv, [])
+        if len(sn) > 0:
+            ts = get_timestamp_ns(sn[0])
+            diff_ts = ts / 1e9 - reference_ts  # should be -1 at most
+            if (min_ts is None) or ((ts < min_ts) and (diff_ts >= -1)):
+                min_ts = ts
+    return min_ts
+
+
 class Buffer:
     """
     Fixed-length buffer for storing a sliding window of 120hz float data per pv.
@@ -82,10 +98,16 @@ class Buffer:
         # map of pv to last value from prev snapshot (or 0 if this is the first snapshot)
         # (used for potential forward-filling)
         prev_snapshot_val_map = {}
-        for pv in self.pv_list:
-            if self.num_snapshots_processed == 0:
-                prev_snapshot_val_map[pv] = 0.0
-            else:
+        if self.num_snapshots_processed == 0:
+            # import json
+            # with open('first_snapshot.json', 'w') as jf:
+            #     json.dump(snapshot, jf)
+            prev_snapshot_val = get_first_time_point(snapshot, self.pv_list)
+            self.logger.info(f"start time for all data is {prev_snapshot_val:d} ns")
+            for pv in self.pv_list:
+                prev_snapshot_val_map[pv] = prev_snapshot_val
+        else:
+            for pv in self.pv_list:
                 prev_snapshot_val_map[pv] = self.data_map[pv].get(-1)
 
         # get oldest time across all pv data-points

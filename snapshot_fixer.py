@@ -3,8 +3,24 @@ from beam_check_config import SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC
 from mp_logging import create_worker_logger, default_logging_kwargs
 
 from collections import deque
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, Optional, List, Tuple, Any
 import numpy as np
+
+
+def handle_entry(entry: Any) -> float:
+    """
+    Checks the entries returned by k2eg and modifies their types to be floats.
+    As of August 29, 2025 there are two known types from k2eg:
+    floats (and ints) and dictionaries that look like
+    {'index': 8, 'choices': ['Invalid', '0 Hz', 'DEPRECATED', 'DEPRECATED', '1 Hz', '10 Hz', '30 Hz', '60 Hz`', '120 Hz', 'Unknown']}
+    """
+    if isinstance(entry, float):
+        return entry
+    elif isinstance(entry, dict):
+        return entry['index']
+    else:
+        ss = f"handle_entry does not know type {str(type(entry))}"
+        raise NotImplementedError(ss)
 
 
 class SnapshotFixer:
@@ -53,6 +69,11 @@ class SnapshotFixer:
         """
 
         fixed_snapshot: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
+        
+        snapshot_iteration: int = raw_snapshot['iteration']
+        ss = f"Fixing snapshot iteration {snapshot_iteration:d} "
+        ss += f"with start_time {start_time:d} and end_time {end_time:d}"
+        self.logger.debug(ss)
 
         for pv in self.pv_list:
             # we can assume snapshot data is time ordered,
@@ -70,14 +91,16 @@ class SnapshotFixer:
 
                 if ts_ns < start_time:
                     # late data (data that belongs in previous snapshot) should not get sent, log a warning so we will know if it somehow happens
-                    self.logger.warning("Snapshot had a late data-point!")
+                    ss = f"Snapshot {snapshot_iteration:d} has late data-point for {pv:s}: "
+                    ss += f"{ts_ns:f} comes before {start_time:f}, len(temp_storage)={len(self.temp_storage[pv]):d}"
+                    self.logger.warning(ss)
                     self.temp_storage[
                         pv
                     ].popleft()  # just throw this data-point away for now (handle later if recurring issue)
                 elif ts_ns < end_time:
                     self.temp_storage[pv].popleft()
                     in_window_timestamps.append(ts_ns)
-                    in_window_values.append(get_value(entry))
+                    in_window_values.append(handle_entry(get_value(entry)))
                 else:
                     break  # data expected in future snapshot, leave in queue for later processing
 

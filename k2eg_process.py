@@ -64,7 +64,7 @@ class K2EGHandler:
             pv_uri_list=convert_pvs_to_uris(self.pv_list),
             triggered=False,  # emit without a trigger
             type=SnapshotType.TIMED_BUFFERED,
-            pv_field_filter_list=["value"],  # emit just the PV values
+            pv_field_filter_list=["value", "timeStamp"],
         )
         self.dml = k2eg.dml("lcls-ext", APP_NAME)
         self.dml.snapshot_stop(self.snapshot_properties.snapshot_name)
