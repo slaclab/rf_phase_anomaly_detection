@@ -31,9 +31,9 @@ def test_buffer_update_basic(pv_list):
     timestamps_1 = [i * ts_offset for i in range(SAMPLES_PER_SECOND)]
     timestamps_2 = [(i * ts_offset) + NANOSECS_IN_1_SEC for i in range(SAMPLES_PER_SECOND)]
 
-    snapshot_1 = {pv: [make_entry(ts, float(i)) for i, ts in enumerate(timestamps_1)] for pv in pv_list}
+    snapshot_1 = {pv: [make_entry(ts, float(i)) for i, ts in enumerate(timestamps_1)] for pv in pv_list} | {'iteration': 0, 'timestamp': 0}
 
-    snapshot_2 = {pv: [make_entry(ts, float(i + 1000)) for i, ts in enumerate(timestamps_2)] for pv in pv_list}
+    snapshot_2 = {pv: [make_entry(ts, float(i + 1000)) for i, ts in enumerate(timestamps_2)] for pv in pv_list} | {'iteration': 1000, 'timestamp': 1000}
 
     # first update
     index_change, length_of_update = buffer.update(snapshot_1)

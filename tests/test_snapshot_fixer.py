@@ -27,6 +27,8 @@ def test_fix_snapshot_basic():
     saved_for_later_val = 2.0
     saved_for_later_ts = 110
     raw_snapshot = {
+        "iteration": 22,
+        "timestamp": 5000,
         "pv1": [
             make_entry(10, 1.0),  # should be in curr snapshot
             make_entry(saved_for_later_ts, saved_for_later_val),  # should be saved for future snapshot
