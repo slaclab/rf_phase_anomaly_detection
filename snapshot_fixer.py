@@ -14,7 +14,7 @@ def handle_entry(entry: Any) -> float:
     floats (and ints) and dictionaries that look like
     {'index': 8, 'choices': ['Invalid', '0 Hz', 'DEPRECATED', 'DEPRECATED', '1 Hz', '10 Hz', '30 Hz', '60 Hz`', '120 Hz', 'Unknown']}
     """
-    if isinstance(entry, float):
+    if isinstance(entry, float) or isinstance(entry, int):
         return entry
     elif isinstance(entry, dict):
         return entry['index']
