@@ -1,4 +1,5 @@
 import time
+import json
 from multiprocessing import Manager
 import k2eg
 from k2eg.broker import SnapshotProperties, SnapshotType
@@ -61,12 +62,14 @@ class K2EGHandler:
             snapshot_name=SNAPSHOT_NAME,
             time_window=snapshot_period_ms,  # time window of emits
             repeat_delay=0,  # no delay between emits
+            sub_push_delay_msec=50,  # have k2eg send data every 100 msec
             pv_uri_list=convert_pvs_to_uris(self.pv_list),
             triggered=False,  # emit without a trigger
             type=SnapshotType.TIMED_BUFFERED,
-            pv_field_filter_list=["value", "timeStamp"],
+            pv_field_filter_list=["value", "timeStamp", "alarm"],
         )
-        self.dml = k2eg.dml("lcls-ext", APP_NAME)
+        # self.dml = k2eg.dml("lcls-ext", APP_NAME)  # uses k2eg VM server
+        self.dml = k2eg.dml("lcls", APP_NAME)  # uses k2eg k8s server
         self.dml.snapshot_stop(self.snapshot_properties.snapshot_name)
         self.snapshot_is_running = False
 
@@ -74,13 +77,18 @@ class K2EGHandler:
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
         self.logger.info("Spinning up buffered snapshots")
-        _ = self.dml.snapshot_recurring(
-            self.snapshot_properties,
-            handler=self.snapshot_handler,
-            timeout=10,
-        )
-        self.snapshot_is_running = True
-        return self
+        try:
+            _ = self.dml.snapshot_recurring(
+                self.snapshot_properties,
+                handler=self.snapshot_handler,
+                timeout=10,
+            )
+        except k2eg.dml.OperationTimeout:
+            self.logger.exception("Failed to start k2eg dml instance")
+            raise
+        else:
+            self.snapshot_is_running = True
+            return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.dml.snapshot_stop(SNAPSHOT_NAME)
@@ -158,10 +166,17 @@ class K2EGProcess(CustomProcessObject):
 
     def snapshot_handler(self, snapshot_name: str, snapshot: dict):
         iteration = snapshot["iteration"]
-        if self.logger is not None:
-            self.logger.debug(f"Snapshot {iteration:d} enqueued for {snapshot_name}")
-            # self.logger.debug(snapshot)
-        self.queue.put(snapshot)
+
+        # claudio wants us to wait for ~10 snapshots for k2eg to warm up
+        n_skip = 10
+        if iteration < n_skip:
+            ss = f"Skipping iteration {iteration}/{n_skip} to give k2eg time to warm up"
+            self.logger.info(ss)
+        else:
+            if self.logger is not None:
+                self.logger.debug(f"Snapshot {iteration:d} enqueued for {snapshot_name}")
+                # self.logger.debug(snapshot)
+            self.queue.put(snapshot)
 
 
 if __name__ == "__main__":
