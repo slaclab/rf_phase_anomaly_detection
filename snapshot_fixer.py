@@ -1,3 +1,4 @@
+import logging
 from data_bucketer import DataBucketer
 from beam_check_config import SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC
 from mp_logging import create_worker_logger, default_logging_kwargs
@@ -5,22 +6,6 @@ from mp_logging import create_worker_logger, default_logging_kwargs
 from collections import deque
 from typing import Dict, Optional, List, Tuple, Any
 import numpy as np
-
-
-def handle_entry(entry: Any) -> float:
-    """
-    Checks the entries returned by k2eg and modifies their types to be floats.
-    As of August 29, 2025 there are two known types from k2eg:
-    floats (and ints) and dictionaries that look like
-    {'index': 8, 'choices': ['Invalid', '0 Hz', 'DEPRECATED', 'DEPRECATED', '1 Hz', '10 Hz', '30 Hz', '60 Hz`', '120 Hz', 'Unknown']}
-    """
-    if isinstance(entry, float) or isinstance(entry, int):
-        return entry
-    elif isinstance(entry, dict):
-        return entry['index']
-    else:
-        ss = f"handle_entry does not know type {str(type(entry))}"
-        raise NotImplementedError(ss)
 
 
 class SnapshotFixer:
@@ -54,8 +39,8 @@ class SnapshotFixer:
         self.data_bucketer = DataBucketer(SAMPLES_PER_SECOND, logging_kwargs=logging_kwargs.copy())
 
     def fix_snapshot(
-        self, raw_snapshot: Dict[str, List[dict]], start_time: int, end_time: int
-    ) -> dict[str, Tuple[np.ndarray, np.ndarray]]:
+        self, raw_snapshot: Dict[str, Any], start_time: int, end_time: int
+    ) -> (dict[str, Tuple[np.ndarray, np.ndarray]], dict[str, float]):
         """
         Returns a dict mapping PV -> (values, timestamps_ns) that belong in the currently being processed snapshot window.
         Early entries (entries expectred in a later snapshot) get stored in `temp_storage` for later use.
@@ -69,6 +54,7 @@ class SnapshotFixer:
         """
 
         fixed_snapshot: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
+        latest_values: Dict[str, float] = {}
         
         snapshot_iteration: int = raw_snapshot['iteration']
         ss = f"Fixing snapshot iteration {snapshot_iteration:d} "
@@ -76,40 +62,19 @@ class SnapshotFixer:
         self.logger.debug(ss)
 
         for pv in self.pv_list:
-            # we can assume snapshot data is time ordered,
-            # so popleft gets us oldest stored data.
-            for entry in raw_snapshot.get(pv, []):
-                self.temp_storage[pv].append(entry)
-
-            in_window_values = []
-            in_window_timestamps = []
-
-            # pop entries in current timestamp-window
-            while self.temp_storage[pv]:
-                entry = self.temp_storage[pv][0]  # peek
-                ts_ns = get_timestamp_ns(entry)
-
-                if ts_ns < start_time:
-                    # late data (data that belongs in previous snapshot) should not get sent, log a warning so we will know if it somehow happens
-                    ss = f"Snapshot {snapshot_iteration:d} has late data-point for {pv:s}: "
-                    ss += f"{ts_ns:f} comes before {start_time:f}, len(temp_storage)={len(self.temp_storage[pv]):d}"
-                    self.logger.warning(ss)
-                    self.temp_storage[
-                        pv
-                    ].popleft()  # just throw this data-point away for now (handle later if recurring issue)
-                elif ts_ns < end_time:
-                    self.temp_storage[pv].popleft()
-                    in_window_timestamps.append(ts_ns)
-                    in_window_values.append(handle_entry(get_value(entry)))
-                else:
-                    break  # data expected in future snapshot, leave in queue for later processing
-
-            fixed_snapshot[pv] = (
-                np.array(in_window_values, dtype=np.float64),
-                np.array(in_window_timestamps, dtype=np.int64),
+            fixed_snapshot[pv], new_latest_value = process_pv_from_snapshot(
+                pv_name=pv,
+                snapshot_of_pv=raw_snapshot.get(pv, []),
+                temp_storage=self.temp_storage[pv],
+                start_time=start_time,
+                end_time=end_time,
+                logger=self.logger,
+                snapshot_iteration=snapshot_iteration
             )
+            if new_latest_value is not None:
+                latest_values[pv] = new_latest_value
 
-        return fixed_snapshot
+        return fixed_snapshot, latest_values
 
     def bucket_snapshot_data(
         self,
@@ -162,20 +127,90 @@ def get_timestamp_ns(entry: dict) -> int:
     return int(seconds * NANOSECS_IN_1_SEC + nanos)
 
 
-def get_value(entry: dict) -> float:
+def get_value(entry: dict, logger: Optional[logging.Logger] = None) -> float:
     """
-    Extract the value of a single PV data-point from a snapshot entry.
-
-    Parameters:
-        entry (dict): A dictionary for a given PV in a snapshot.
-        (can get this by doing: `snapshot.get(pv, [])`)
-
-    Returns:
-        float: The PV data-point, or NaN if not valid in the snapshot entry.
+    Checks the entries returned by k2eg and modifies their types to be floats.
+    As of August 29, 2025 there are two known types from k2eg:
+    floats (and ints) and dictionaries that look like
+    {'index': 8, 'choices': ['Invalid', '0 Hz', 'DEPRECATED', 'DEPRECATED', '1 Hz', '10 Hz', '30 Hz', '60 Hz`', '120 Hz', 'Unknown']}
     """
-    if "value" in entry:
-        return entry["value"]
-    elif "index" in entry:
-        return entry["index"]
-    else:
-        return float("nan")
+    value = entry["value"]
+    try:
+        if isinstance(value, float) or isinstance(value, int):
+            return value
+        elif isinstance(value, dict):
+            return value["index"]
+        else:
+            ss = f"handle_entry does not know type {str(type(entry))}"
+            raise NotImplementedError(ss)
+    except:  # k2eg is still changing, broad exception here on purpose
+        if logger is not None:
+            logger.exception(f"entry of unknown type: {entry}")
+        raise
+
+
+def process_pv_from_snapshot(
+        pv_name: str,
+        snapshot_of_pv: list[dict],
+        temp_storage: deque,
+        start_time: int,
+        end_time: int,
+        logger: logging.Logger,
+        snapshot_iteration: int = 0
+) -> ((np.ndarray, np.ndarray), float):
+    """
+    Processes the part of a snapshot associated with a given PV.  The goal of this function is to
+    put timely values into an array for pushing onto a buffer (from buffer.py) and hold on to values
+    that have arrived earlier than expected.
+
+    Parameters
+    ----------
+    pv_name : str
+        Name of the PV being processed.
+    snapshot_of_pv : list[dict]
+        Part of the snapshot associated with this PV.
+    temp_storage : deque
+        A deque to store all new values on.
+    start_time : int
+        Start time, in nanoseconds, for data that will be added to the buffer.
+    end_time : int
+        End time, in nanoseconds, for data that will be added to the buffer.
+    logger : logging.Logger
+        Where to send messages.
+    snapshot_iteration : int
+        Count of the snapshot being processed.
+
+    Returns
+    -------
+    (np.ndarray, np.ndarray) Arrays of the values and times (in nanoseconds), respectively, of the values
+    that will be added to the buffer, and the latest value of any late-coming data.
+    """
+    # we can assume snapshot data is time ordered,
+    # so popleft gets us oldest stored data.
+    for entry in snapshot_of_pv:
+        temp_storage.append(entry)
+
+    in_window_values = []
+    in_window_timestamps = []
+
+    latest_value = None
+
+    # pop entries in current timestamp-window
+    while temp_storage:
+        entry = temp_storage[0]  # peek
+        ts_ns = get_timestamp_ns(entry)
+
+        if ts_ns < start_time:
+            temp_storage.popleft()
+            latest_value = get_value(entry, logger)
+        elif ts_ns <= end_time:
+            temp_storage.popleft()
+            in_window_timestamps.append(ts_ns)
+            in_window_values.append(get_value(entry, logger))
+        else:
+            break  # data expected in future snapshot, leave in queue for later processing
+
+    return ((
+        np.array(in_window_values, dtype=np.float64),
+        np.array(in_window_timestamps, dtype=np.int64),
+    ), latest_value)

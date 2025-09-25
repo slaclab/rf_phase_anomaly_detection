@@ -3,28 +3,43 @@ import numpy as np
 import os
 
 from beam_check import do_beam_checks, BEAM_CHECK_PVS
-from beam_check_config import MAD_LENGTH, BPM_NAMES, BPM_THRESHOLD
+from beam_check_config import MAD_LENGTH, BPM_NAMES, BPM_THRESHOLD, SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC
 from scoring import compute_score_1, compute_score_20
 from sliding_window import SlidingWindowArray
 from anomaly_candidate import AnomalyCandidate
 from mp_logging import create_worker_logger, default_logging_kwargs
-from snapshot_fixer import SnapshotFixer, get_timestamp_ns
+from snapshot_fixer import SnapshotFixer, get_timestamp_ns, get_value
 
 
-def get_first_time_point(snapshot: dict[str, list[dict]], pv_name_list: list[str]) -> float:
+def get_first_time_point(snapshot: dict[str, list[dict]], pv_name_list: list[str]) -> int:
     """
     Finds the earliest time point in the snapshot.
     """
-    reference_ts = snapshot["timestamp"] / 1e3  # measured in ms
+    # reference_ts = snapshot["timestamp"] / 1e3  # measured in ms
     min_ts = None
     for pv in pv_name_list:
         sn = snapshot.get(pv, [])
         if len(sn) > 0:
             ts = get_timestamp_ns(sn[0])
-            diff_ts = ts / 1e9 - reference_ts  # should be -1 at most
-            if (min_ts is None) or ((ts < min_ts) and (diff_ts >= -1)):
-                min_ts = ts
+            # diff_ts = ts / 1e9 - reference_ts  # should be -1 at most
+            # if (min_ts is None) or ((ts < min_ts) and (diff_ts >= -1)):
+            if min_ts is None or ts < min_ts:
+                min_ts = int(ts)
     return min_ts
+
+
+def get_latest_time_point(snapshot: dict[str, list[dict]], pv_name_list: list[str]) -> int:
+    """
+    Finds the latest time point in the snapshot.
+    """
+    max_ts = None
+    for pv in pv_name_list:
+        sn = snapshot.get(pv, [])
+        if len(sn) > 0:
+            ts = get_timestamp_ns(sn[-1])
+            if max_ts is None or ts > max_ts:
+                max_ts = int(ts)
+    return max_ts
 
 
 class Buffer:
@@ -77,16 +92,20 @@ class Buffer:
             buffer_len, dtype=np.float64, pv_name="bpm_score_20", logging_kwargs=logging_kwargs.copy()
         )
         # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
-        self.data_map["valid_windows"] = set()  # will hold tuples of (window_start_index, window_end_index)
+        # self.data_map["valid_windows"] = set()  # will hold tuples of (window_start_index, window_end_index)
 
         self.snapshot_period_ns = snapshot_period_ns
         self.snapshot_length = snapshot_length
+
+        self.prev_snapshot_val_map = {}  # store the latest value for each PV for potential forward-filling
 
         self.fixer = SnapshotFixer(pv_list=pv_list, logging_kwargs=logging_kwargs.copy())
 
     def update(self, snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
         """
         Append the latest 120-sample PV snapshot into the buffer for each pv
+
+        The snapshots are assumed to return a value for each PV, even if that value is very old.
 
         Return
         ------
@@ -95,80 +114,76 @@ class Buffer:
         """
         self.logger.debug("Buffer starting update...")
 
-        # map of pv to last value from prev snapshot (or 0 if this is the first snapshot)
-        # (used for potential forward-filling)
-        prev_snapshot_val_map = {}
-        if self.num_snapshots_processed == 0:
-            # import json
-            # with open('first_snapshot.json', 'w') as jf:
-            #     json.dump(snapshot, jf)
-            prev_snapshot_val = get_first_time_point(snapshot, self.pv_list)
-            self.logger.info(f"start time for all data is {prev_snapshot_val:d} ns")
-            for pv in self.pv_list:
-                prev_snapshot_val_map[pv] = prev_snapshot_val
-        else:
-            for pv in self.pv_list:
-                prev_snapshot_val_map[pv] = self.data_map[pv].get(-1)
-
-        # get oldest time across all pv data-points
+        # if this is the first snapshot seen, get the oldest time across all pv data-points
         if self.time_of_first_data == -1:
-            min_ts = None
-            for pv in self.pv_list:
-                for e in snapshot.get(pv, []):
-                    ts = get_timestamp_ns(e)
-                    if min_ts is None or ts < min_ts:
-                        min_ts = ts
-            if min_ts is None:  # snapshot is empty (no data)
-                return (0, 0)
-            else:
-                self.time_of_first_data = min_ts
+            min_ts = get_latest_time_point(snapshot, self.pv_list)
+            # the first data is expected to show up one bucket after the last sample found:
+            self.time_of_first_data = min_ts + NANOSECS_IN_1_SEC // SAMPLES_PER_SECOND
+            ss = f"Snapshot {snapshot['iteration']}, start time for all data is {self.time_of_first_data:d} ns"
+            self.logger.info(ss)
+            was_full_before_new_data = False
+            snapshot_length = 0
+        else:  # otherwise, process the data
+            # get the expected time window (start and end) for this snapshot
+            start_time = self.time_of_first_data + self.num_snapshots_processed * self.snapshot_period_ns
+            end_time = start_time + self.snapshot_period_ns
 
-        start_time = self.time_of_first_data + self.num_snapshots_processed * self.snapshot_period_ns
-        end_time = start_time + self.snapshot_period_ns
-
-        fixed_snapshot_data = self.fixer.fix_snapshot(snapshot, start_time, end_time)
-        fixed_and_bucketed_snapshot_data = self.fixer.bucket_snapshot_data(
-            fixed_snapshot_data, prev_snapshot_val_map, start_time, end_time
-        )
-
-        beam_check_data = {}
-        for pv in BEAM_CHECK_PVS:
-            beam_check_data[pv] = fixed_and_bucketed_snapshot_data[pv]
-
-        # now update our global map with bucket-data
-        for pv, values in fixed_and_bucketed_snapshot_data.items():
-            # self.logger.debug(f"Appending bucketed + cleaned data to data_map for PV: {pv}")
-            self.data_map[pv].put(values)
-
-        # do the beam checks and put the data on beam_check buffer
-        beam_checks_result = do_beam_checks(beam_check_data)
-        self.data_map["beam_checks"].put(beam_checks_result)
-
-        self.index = self.data_map[self.pv_list[0]].index  # use first pv as index reference
-
-        was_full_before_new_data = self.data_map["bpm_score_20"].is_full()
-
-        total_length = self.snapshot_length + MAD_LENGTH - 1
-        if self.index > total_length:
-            bpm_score_1 = compute_score_1(
-                {name: self.data_map[name].get(self.index - total_length, self.index) for name in BPM_NAMES}
+            # makes sure that all new data is within the above time window, also gets the latest datapoint
+            # that should have already been sent, if any
+            fixed_snapshot_data, new_latest_values = self.fixer.fix_snapshot(snapshot, start_time, end_time)
+            # copy any new latest values into memory
+            for key, value in new_latest_values.items():
+                self.prev_snapshot_val_map[key] = value
+            # bucket the data into 120 Hz buckets
+            fixed_and_bucketed_snapshot_data = self.fixer.bucket_snapshot_data(
+                fixed_snapshot_data, self.prev_snapshot_val_map, start_time, end_time
             )
 
-            bpm_score_20 = compute_score_20(bpm_score_1)
-            self.logger.debug("Computed bpm_score_20")
+            beam_check_data = {}
+            for pv in BEAM_CHECK_PVS:
+                beam_check_data[pv] = fixed_and_bucketed_snapshot_data[pv]
 
-            self.data_map["bpm_score_1"].put(bpm_score_1[-self.snapshot_length :])
-            self.data_map["bpm_score_20"].put(bpm_score_20[-self.snapshot_length :])
-        else:  # append 0's to keep bpm_score arrays same length as pv arrays
-            self.data_map["bpm_score_1"].put(np.zeros(self.snapshot_length))
-            self.data_map["bpm_score_20"].put(np.zeros(self.snapshot_length))
-            self.logger.debug("Not enough data yet for bpm score computation, adding zeros to bpm_score array")
+            # now update our global map with bucket-data
+            for pv, values in fixed_and_bucketed_snapshot_data.items():
+                # self.logger.debug(f"Appending bucketed + cleaned data to data_map for PV: {pv}")
+                self.data_map[pv].put(values)
 
-        self.logger.debug(f"num snapshots processed {self.num_snapshots_processed}")
-        self.num_snapshots_processed += 1
+            # do the beam checks and put the data on beam_check buffer
+            beam_checks_result = do_beam_checks(beam_check_data)
+            self.data_map["beam_checks"].put(beam_checks_result)
 
-        self.logger.debug("Buffer done updating")
-        return (-self.snapshot_length if was_full_before_new_data else 0, self.snapshot_length)
+            self.index = self.data_map[self.pv_list[0]].index  # use first pv as index reference
+
+            was_full_before_new_data = self.data_map["bpm_score_20"].is_full()
+
+            total_length = self.snapshot_length + MAD_LENGTH - 1
+            if self.index > total_length:
+                bpm_score_1 = compute_score_1(
+                    {name: self.data_map[name].get(self.index - total_length, self.index) for name in BPM_NAMES}
+                )
+
+                bpm_score_20 = compute_score_20(bpm_score_1)
+                self.logger.debug("Computed bpm_score_20")
+
+                self.data_map["bpm_score_1"].put(bpm_score_1[-self.snapshot_length:])
+                self.data_map["bpm_score_20"].put(bpm_score_20[-self.snapshot_length:])
+            else:  # append 0's to keep bpm_score arrays same length as pv arrays
+                self.data_map["bpm_score_1"].put(np.zeros(self.snapshot_length))
+                self.data_map["bpm_score_20"].put(np.zeros(self.snapshot_length))
+                self.logger.debug("Not enough data yet for bpm score computation, adding zeros to bpm_score array")
+
+            self.logger.debug(f"num snapshots processed {self.num_snapshots_processed}")
+            self.num_snapshots_processed += 1
+
+            self.logger.debug("Buffer done updating")
+            snapshot_length = self.snapshot_length
+
+        # update the latest PV value map with the last value from each pv
+        for pv in self.pv_list:
+            prev_snapshot_val = get_value(snapshot[pv][-1], self.logger)
+            self.prev_snapshot_val_map[pv] = prev_snapshot_val
+
+        return -self.snapshot_length if was_full_before_new_data else 0, snapshot_length
 
     def find_candidates(self, look_back_this_far: int) -> list[AnomalyCandidate]:
         candidates = []
