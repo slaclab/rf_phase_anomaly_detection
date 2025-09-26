@@ -86,7 +86,7 @@ class ProcessB(CustomProcessObject):
                 index_change, length_of_update = self.buffer.update(snapshot)
                 if index_change == 0 and length_of_update == 0:
                     data_in_snapshot = False
-                    self.logger.warning("No data in this snapshot (skipping processing)")
+                    self.logger.warning(f"No data in snapshot {snapshot['iteration']:d} (skipping processing)")
                 else:
                     self.logger.debug(
                         f"Buffer updated: index_change={index_change}, length_of_update={length_of_update}"
