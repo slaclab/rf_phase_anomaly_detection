@@ -132,9 +132,9 @@ class ProcessB(CustomProcessObject):
                 self.queue_two.put(cand)
                 fast_time = cand["anomaly_timestamp"]
                 ts = str(datetime.fromtimestamp(fast_time / NANOSECS_IN_1_SEC))
-                self.logger.info(
-                    f"Anomaly detected at time: {ts}, PV: {cand['rf_pv_name']}, Score: {cand['anomaly_score']:.2f}"
-                )
+                ss = (f"Anomaly candidate detected at time: {ts}, PV: {cand['rf_pv_name']},"
+                      f" Score: {cand['anomaly_score']:.2f}")
+                self.logger.info(ss)
 
     def process_candidate(self, candidate: AnomalyCandidate) -> dict:
         self.logger.debug("Starting to process candidate...")
