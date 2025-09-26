@@ -117,10 +117,14 @@ class Buffer:
         # if this is the first snapshot seen, get the oldest time across all pv data-points
         if self.time_of_first_data == -1:
             min_ts = get_latest_time_point(snapshot, self.pv_list)
-            # the first data is expected to show up one bucket after the last sample found:
-            self.time_of_first_data = min_ts + NANOSECS_IN_1_SEC // SAMPLES_PER_SECOND
-            ss = f"Snapshot {snapshot['iteration']}, start time for all data is {self.time_of_first_data:d} ns"
-            self.logger.info(ss)
+            if min_ts is not None:
+                # the first data is expected to show up one bucket after the last sample found:
+                self.time_of_first_data = min_ts + NANOSECS_IN_1_SEC // SAMPLES_PER_SECOND
+                ss = f"Snapshot {snapshot['iteration']}, start time for all data is {self.time_of_first_data:d} ns"
+                self.logger.info(ss)
+            else:
+                ss = f"Buffer failed to find a starting time for data collection in snapshot {snapshot['iteration']}"
+                self.logger.warning(ss)
             was_full_before_new_data = False
             snapshot_length = 0
         else:  # otherwise, process the data
