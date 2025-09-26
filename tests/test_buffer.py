@@ -3,7 +3,7 @@ import logging
 import numpy as np
 from collections import deque
 
-from buffer import Buffer
+from buffer import Buffer, get_latest_time_point, get_value
 from snapshot_fixer import SnapshotFixer, process_pv_from_snapshot
 from beam_check_config import SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC
 from k2eg_process import read_pv_list_from_file
@@ -101,15 +101,6 @@ def test_buffer_update_basic(pv_list):
             np.arange(2000, 2000 + SAMPLES_PER_SECOND, dtype=np.float64),
         ]
     )
-    # expected = np.concatenate(
-    #     [
-    #         np.array([119]),
-    #         np.arange(1000, 1118, dtype=np.float64),
-    #         np.array([1119, 1119]),
-    #         np.arange(2000, 2118, dtype=np.float64),
-    #         np.array([2119]),
-    #     ]
-    # )
 
     for pv in pv_list:
         data = buffer.data_map[pv].get()[:buffer.index]
@@ -130,3 +121,92 @@ def test_buffer_update_basic(pv_list):
     assert len(buffer.data_map["beam_checks"]) == 2 * SAMPLES_PER_SECOND
     assert len(buffer.data_map["bpm_score_1"]) == 2 * SAMPLES_PER_SECOND
     assert len(buffer.data_map["bpm_score_20"]) == 2 * SAMPLES_PER_SECOND
+
+
+def test_buffer_update_slow_data(pv_list):
+    """Tests a buffer that receives data at 5 Hz and arbitrarily"""
+    pv_list = ['a', 'b']
+
+    values_a = np.arange(0, 5, dtype=np.float64)
+    timestamps_a = 1e9 * values_a / 5
+    timestamps_b = [int(0.45e9)]
+    values_b = [10]
+    snapshot_1 = {
+                     'a': [make_entry(x, float(y)) for x, y in zip(timestamps_a, values_a)],
+                     'b': [make_entry(x, y) for x, y in zip(timestamps_b, values_b)],
+                 } | {'iteration': 0, 'timestamp': 0}
+
+    values_a = np.arange(6, 10, dtype=np.float64)
+    timestamps_a = 1e9 * values_a / 5 + 0.2
+    timestamps_b = [int(1.65e9), int(2.10e9)]
+    values_b = [11, 12]
+    snapshot_2 = {
+                     'a': [make_entry(x, float(y)) for x, y in zip(timestamps_a, values_a)],
+                     'b': [make_entry(x, float(y)) for x, y in zip(timestamps_b, values_b)],
+                 } | {'iteration': 0, 'timestamp': 0}
+
+    expected_buffer_a = np.array([
+        4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4.,
+        4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4.,
+        4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 4., 6., 6., 6., 6.,
+        6., 6., 6., 6., 6., 6., 6., 6., 6., 6., 6., 6., 6., 6., 6., 6., 6.,
+        6., 6., 6., 7., 7., 7., 7., 7., 7., 7., 7., 7., 7., 7., 7., 7., 7.,
+        7., 7., 7., 7., 7., 7., 7., 7., 7., 7., 8., 8., 8., 8., 8., 8., 8.,
+        8., 8., 8., 8., 8., 8., 8., 8., 8., 8., 8., 8., 8., 8., 8., 8., 8.,
+        9.
+    ])
+    expected_buffer_b = np.array([
+        10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10.,
+        10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10.,
+        10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10.,
+        10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10.,
+        10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10.,
+        10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10.,
+        10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10.,
+        10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 11., 11., 11.,
+        11., 11., 11., 11., 11., 11., 11., 11., 11., 11., 11., 11., 11.,
+        11., 11., 11.
+    ])
+
+    buffer = Buffer(
+        pv_list=pv_list,
+        buffer_len=36000,
+        snapshot_length=120,
+        snapshot_period_ns=int(1e9),
+    )
+
+    self = buffer
+    for snapshot in [snapshot_1, snapshot_2]:
+        # if this is the first snapshot seen, get the oldest time across all pv data-points
+        if self.time_of_first_data == -1:
+            min_ts = get_latest_time_point(snapshot, self.pv_list)
+            # the first data is expected to show up one bucket after the last sample found:
+            self.time_of_first_data = min_ts + NANOSECS_IN_1_SEC // SAMPLES_PER_SECOND
+        else:  # otherwise, process the data
+            # get the expected time window (start and end) for this snapshot
+            start_time = self.time_of_first_data + self.num_snapshots_processed * self.snapshot_period_ns
+            end_time = start_time + self.snapshot_period_ns
+
+            # makes sure that all new data is within the above time window, also gets the latest datapoint
+            # that should have already been sent, if any
+            fixed_snapshot_data, new_latest_values = self.fixer.fix_snapshot(snapshot, start_time, end_time)
+            # copy any new latest values into memory
+            for key, value in new_latest_values.items():
+                self.prev_snapshot_val_map[key] = value
+            # bucket the data into 120 Hz buckets
+            fixed_and_bucketed_snapshot_data = self.fixer.bucket_snapshot_data(
+                fixed_snapshot_data, self.prev_snapshot_val_map, start_time, end_time
+            )
+
+            for pv, values in fixed_and_bucketed_snapshot_data.items():
+                self.data_map[pv].put(values)
+            buffer.index += 120
+
+        for pv in self.pv_list:
+            prev_snapshot_val = get_value(snapshot[pv][-1], self.logger)
+            self.prev_snapshot_val_map[pv] = prev_snapshot_val
+
+    assert all(buffer.get('a') == expected_buffer_a)
+    assert all(buffer.get('b') == expected_buffer_b)
+    assert len(buffer.fixer.temp_storage['a']) == 0
+    assert len(buffer.fixer.temp_storage['b']) == 1
