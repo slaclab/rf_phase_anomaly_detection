@@ -1,11 +1,13 @@
 import logging
+import math
+from collections import deque
+import numpy as np
+
 from data_bucketer import DataBucketer
 from beam_check_config import SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC
 from mp_logging import create_worker_logger, default_logging_kwargs
 
-from collections import deque
 from typing import Dict, Optional, List, Tuple, Any
-import numpy as np
 
 
 class SnapshotFixer:
@@ -137,7 +139,10 @@ def get_value(entry: dict, logger: Optional[logging.Logger] = None) -> float:
     value = entry["value"]
     try:
         if isinstance(value, float) or isinstance(value, int):
-            return value
+            if math.isnan(value):
+                return 0.  # return zero for nans
+            else:
+                return value
         elif isinstance(value, dict):
             return value["index"]
         else:
