@@ -183,9 +183,35 @@ class Buffer:
             snapshot_length = self.snapshot_length
 
         # update the latest PV value map with the last value from each pv
+        failed_updates = []
+        # self.num_snapshots_processed was increased by 1 a few lines above
+        # so this is the start of the next snapshot window
+        next_start_time = (self.time_of_first_data +
+                           self.num_snapshots_processed * self.snapshot_period_ns)
         for pv in self.pv_list:
-            prev_snapshot_val = get_value(snapshot[pv][-1], self.logger)
-            self.prev_snapshot_val_map[pv] = prev_snapshot_val
+            try:
+                # # this can pull from the future, but it is quick
+                # prev_snapshot_val = get_value(snapshot[pv][-1], self.logger)
+                # respects time of arrival, but does more work
+                for entry in snapshot[pv]:
+                    if get_timestamp_ns(entry) <= next_start_time:
+                        prev_snapshot_val = get_value(entry, self.logger)
+                    else:  # entries are in time order, break when you are into the future
+                        break
+            except IndexError:
+                failed_updates.append((pv, 'empty'))
+            except KeyError:
+                failed_updates.append((pv, 'dne'))
+            else:
+                self.prev_snapshot_val_map[pv] = prev_snapshot_val
+                
+        if len(failed_updates) > 0:
+            ss = f"There were some issues updating Buffer.prev_snapshot_val_map "
+            ss += f"for snapshot {snapshot['iteration']:d}: "
+            for name in ['empty', 'dne']:
+                c = sum([1 for x in failed_updates if x[-1] == name])
+                ss += f"{c:d} were {name} | "
+            self.logger.warning(ss[:-3])
 
         return -self.snapshot_length if was_full_before_new_data else 0, snapshot_length
 
