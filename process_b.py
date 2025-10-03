@@ -13,6 +13,7 @@ from mp_logging import create_worker_logger, default_logging_kwargs
 from process import CustomProcessObject
 from buffer import Buffer
 from anomaly_candidate import AnomalyCandidate, CandidateBucket, find_fast_index, find_most_anomalous_rf_station
+from candidate_saver import CandidateSaver
 from beam_check_config import (
     SAMPLES_PER_SECOND,
     BUFFER_LENGTH,
@@ -58,6 +59,7 @@ class ProcessB(CustomProcessObject):
         )  # 3600 = 120hz * 60sec * 5mins
         # holds anomaly candidates
         self.candidate_bucket = CandidateBucket()
+        self.candidate_saver = CandidateSaver('saved_candidates')
 
     def __call__(self) -> None:
         if self.logger is None:
@@ -129,6 +131,7 @@ class ProcessB(CustomProcessObject):
             cand = self.process_candidate(candidate=candidate)
 
             if cand:  # dictionary is not empty
+                # self.candidate_saver.save_anomaly_candidate(cand)
                 self.queue_two.put(cand)
                 fast_time = cand["anomaly_timestamp"]
                 ts = str(datetime.fromtimestamp(fast_time / NANOSECS_IN_1_SEC))
