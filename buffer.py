@@ -204,7 +204,7 @@ class Buffer:
                 failed_updates.append((pv, 'dne'))
             else:
                 self.prev_snapshot_val_map[pv] = prev_snapshot_val
-                
+
         if len(failed_updates) > 0:
             ss = f"There were some issues updating Buffer.prev_snapshot_val_map "
             ss += f"for snapshot {snapshot['iteration']:d}: "
