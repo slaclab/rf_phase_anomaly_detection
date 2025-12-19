@@ -1,6 +1,8 @@
 import os
 import numpy as np
+from datetime import datetime
 
+from beam_check_config import NANOSECS_IN_1_SEC
 from mp_logging import create_worker_logger, default_logging_kwargs
 
 from typing import Optional
@@ -52,9 +54,12 @@ class CandidateSaver:
             self.logger.debug(
                 f"Saving anomaly candidate number {self.file_counter:d}"
             )
+            u = datetime.fromtimestamp(anomaly["anomaly_timestamp"] / NANOSECS_IN_1_SEC)  # time in Pacific time
+            date = str(u.date()).replace("-", "")
+            time = str(u.time()).split('.')[0].replace(":", "")
             fn = os.path.join(
                 self.directory,
-                f"{self.filename_prefix:s}_{self.file_counter:06d}{self.filename_suffix:s}"
+                f"{self.filename_prefix:s}_{date:s}_{time:s}_{self.file_counter:06d}{self.filename_suffix:s}"
             )
             np.savez(fn, **anomaly)
             self.file_counter += 1
