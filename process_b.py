@@ -143,7 +143,7 @@ class ProcessB(CustomProcessObject):
                     log_verb = "detected"
                     log_method = self.logger.info
                 else:  # reject the candidate
-                    self.candidate_saver.save_anomaly_candidate(eval_cand, reject=True)
+                    # self.candidate_saver.save_anomaly_candidate(eval_cand, reject=True)
                     log_verb = "rejected"
                     log_method = self.logger.debug
                 fast_time = cand["candidate_timestamp"]
