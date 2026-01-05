@@ -66,7 +66,7 @@ class ProcessC(CustomProcessObject):
                         "rf_input": r["rf_input"],
                         "bpm_input": r["bpm_input"],
                         "rf_pv_name": convert_pv_name_to_table_name(r["rf_pv_name"]),
-                        "anomaly_timestamp": r["anomaly_timestamp"],
+                        "anomaly_timestamp": r["candidate_timestamp"],
                     }
                 )
                 self.logger.debug(f"ProcessC result: {result}")
