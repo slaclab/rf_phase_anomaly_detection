@@ -56,10 +56,11 @@ class ProcessB(CustomProcessObject):
             snapshot_length=SAMPLES_PER_SECOND,
             snapshot_period_ns=NANOSECS_IN_1_SEC,
             logging_kwargs=self.logging_kwargs.copy(),
-        )  # 3600 = 120hz * 60sec * 5mins
+        )  # 36000 = 120hz * 60sec/min * 5mins
         # holds anomaly candidates
         self.candidate_bucket = CandidateBucket()
-        self.candidate_saver = CandidateSaver('saved_candidates')
+        self.candidate_saver = CandidateSaver('saved_candidates', self.logging_kwargs.copy())
+        self.last_anomaly_timestamps = {k: -1 for k in self.pv_list if k.endswith("PHAS_FASTBR")}
 
     def __call__(self) -> None:
         if self.logger is None:
@@ -119,6 +120,9 @@ class ProcessB(CustomProcessObject):
             self.candidate_bucket.put(candidate)
 
     def look_for_ready_candidates(self) -> None:
+        # right now buffer.find_candidates checks every time point in the window and converts them all into candidates
+        # Jason's analysis applies two filters: (1) filters on 'beam health' and (2) silences candidates for a little
+        # while after a candidate is produced.  Implement (1) and (2) here
         ss = f"Bucket has {len(self.candidate_bucket):d} candidates, "
         ss += "checking for ready candidates..."
         self.logger.debug(ss)
@@ -130,14 +134,23 @@ class ProcessB(CustomProcessObject):
 
             cand = self.process_candidate(candidate=candidate)
 
-            if cand:  # dictionary is not empty
-                # self.candidate_saver.save_anomaly_candidate(cand)
-                self.queue_two.put(cand)
-                fast_time = cand["anomaly_timestamp"]
+            if cand:  # dictionary is not empty for some reason
+                evaluation = self.evaluate_candidate(cand)
+                eval_cand = cand | {"reject_reason": evaluation}
+                if evaluation.lower() == 'none':
+                    self.candidate_saver.save_anomaly_candidate(eval_cand)
+                    self.queue_two.put(cand)
+                    log_verb = "detected"
+                    log_method = self.logger.info
+                else:  # reject the candidate
+                    # self.candidate_saver.save_anomaly_candidate(eval_cand, reject=True)
+                    log_verb = "rejected"
+                    log_method = self.logger.debug
+                fast_time = cand["candidate_timestamp"]
                 ts = str(datetime.fromtimestamp(fast_time / NANOSECS_IN_1_SEC))
-                ss = (f"Anomaly candidate detected at time: {ts}, PV: {cand['rf_pv_name']},"
+                ss = (f"Anomaly candidate {log_verb:s} at time: {ts}, PV: {cand['rf_pv_name']},"
                       f" Score: {cand['anomaly_score']:.2f}")
-                self.logger.info(ss)
+                log_method(ss)
 
     def process_candidate(self, candidate: AnomalyCandidate) -> dict:
         self.logger.debug("Starting to process candidate...")
@@ -177,14 +190,44 @@ class ProcessB(CustomProcessObject):
         if most_anomalous_rf_pv_name:  # non-empty rf_pv_name
             self.logger.debug(f"Returning anomaly candidate dict for PV '{most_anomalous_rf_pv_name}'")
             return {
-                "anomaly_timestamp": fast_time,
+                "candidate_timestamp": fast_time,
                 "rf_input": rf_input.reshape(1, -1),
                 "bpm_input": np.vstack(bpm_input),
                 "rf_pv_name": most_anomalous_rf_pv_name,
                 "anomaly_score": deviation_score,
                 "system_level_anomaly": system_level_anom,
                 "number_of_bad_datapoints": sum(data_quality_array),
+                "data_quality_array": data_quality_array,
             }
         else:
             self.logger.debug("No valid RF PV name found, returning empty candidate")
             return {}
+
+    def evaluate_candidate(self, candidate: dict) -> str:
+        """
+        Returns a string describing why the candidate should be rejected.  None means keep the candidate.
+
+        Parameters
+        ----------
+        candidate : dict
+            A dictionary from self.process_candidate.
+
+        Returns
+        -------
+        A string describing why the candidate should be rejected.
+        """
+        if not candidate:  # if the candidate is empty
+            return "no rf station found responsible"
+        if not np.all(candidate["data_quality_array"]):
+            return "not all candidate data is healthy"
+        
+        last_anomaly_timestamp = self.last_anomaly_timestamps[candidate["rf_pv_name"]]
+        current_candidate_timestamp = candidate["candidate_timestamp"].item()
+        wait_time_sec = 1
+        if current_candidate_timestamp - last_anomaly_timestamp < wait_time_sec * NANOSECS_IN_1_SEC:
+            return "too soon since last candidate"
+
+        # if there is no reason to reject the candidate, keep it and update last_anomaly_timestamp
+        self.last_anomaly_timestamps[candidate["rf_pv_name"]] = current_candidate_timestamp
+        return "none"
+

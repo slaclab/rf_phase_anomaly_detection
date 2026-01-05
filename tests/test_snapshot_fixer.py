@@ -39,6 +39,8 @@ def test_fix_snapshot_basic():
     }
 
     fixed = fixer.fix_snapshot(raw_snapshot, 0, 100)
+    assert fixed[1] == {}
+    fixed = fixed[0]
 
     # only current-window data is returned from `fix_snapshot()`
     assert "pv1" in fixed
