@@ -56,10 +56,10 @@ class ProcessB(CustomProcessObject):
             snapshot_length=SAMPLES_PER_SECOND,
             snapshot_period_ns=NANOSECS_IN_1_SEC,
             logging_kwargs=self.logging_kwargs.copy(),
-        )  # 3600 = 120hz * 60sec * 5mins
+        )  # 36000 = 120hz * 60sec/min * 5mins
         # holds anomaly candidates
         self.candidate_bucket = CandidateBucket()
-        self.candidate_saver = CandidateSaver('saved_candidates')
+        self.candidate_saver = CandidateSaver('saved_candidates', self.logging_kwargs.copy())
         self.last_anomaly_timestamps = {k: -1 for k in self.pv_list if k.endswith("PHAS_FASTBR")}
 
     def __call__(self) -> None:
