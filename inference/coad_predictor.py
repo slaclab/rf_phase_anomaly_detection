@@ -85,7 +85,7 @@ class COADPredictor(BasePredictor):
             self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.logger)
         except TimeoutError:
             self.write_to_pv = False
-            self.logger.warning(f"{str(self)} k2eg gateway could not be contacted, setting write_to_pv to False")
+            self.logger.warning(f"({str(self)}) k2eg gateway could not be contacted, setting write_to_pv to False")
             self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.logger)
 
         # # TEMPORARY: Silence lume-model out of range warnings
