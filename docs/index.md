@@ -47,9 +47,9 @@ This diagram describes in more detail the steps taken in Process B.
 ![Detailed Diagram](./imgs/detailed_process_b_visual.png)  
 (credit: https://github.com/bhardwaj-gopika)
 
-First, this process takes the snapshot data it receives and applies fixes for some known data-integrity issues, and then buckets the data based on expected time-stamp (see [snapshot_fixer.py](../snapshot_fixer.py)).
+First, this process takes the snapshot data it receives and applies fixes for some known data-integrity issues, and then buckets the data based on expected time-stamp (see [buffer/snapshot_fixer.py](../buffer/snapshot_fixer.py)).
 
-Then we put the data into our buffer object. For this process, we created a custom buffer object (see [buffer.py](../buffer.py)) containing our SlidingWindowArray (see [sliding_window.py](../sliding_window.py)) objects for each PV. The buffer and custom array objects allow for storing a rolling 5 mins of snapshot data in an efficent way. The data in the buffer is what then gets used for the beam checks and determining candidates.
+Then we put the data into our buffer object. For this process, we created a custom buffer object (see [buffer/buffer.py](../buffer/buffer.py)) containing our SlidingWindowArray (see [buffer/sliding_window.py](../buffer/sliding_window.py)) objects for each PV. The buffer and custom array objects allow for storing a rolling 5 mins of snapshot data in an efficent way. The data in the buffer is what then gets used for the beam checks and determining candidates.
 
 
 After data is processed and put into the buffer, Process B also implements the beam and BSA quality checks from **Appendix C (page 11)** of: <https://journals.aps.org/prab/pdf/10.1103/PhysRevAccelBeams.25.122804>.

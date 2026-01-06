@@ -3,7 +3,7 @@ import math
 from collections import deque
 import numpy as np
 
-from data_bucketer import DataBucketer
+from buffer.data_bucketer import DataBucketer
 from run_config import SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC
 from mp_logging import create_worker_logger, default_logging_kwargs
 

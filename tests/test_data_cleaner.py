@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from data_bucketer import DataBucketer
+from buffer.data_bucketer import DataBucketer
 from run_config import SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC
 
 

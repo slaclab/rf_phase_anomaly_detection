@@ -2,13 +2,13 @@ from typing import Optional, Tuple
 import numpy as np
 import os
 
-from beam_check import do_beam_checks, BEAM_CHECK_PVS
+from buffer.beam_check import do_beam_checks, BEAM_CHECK_PVS
 from run_config import MAD_LENGTH, BPM_NAMES, BPM_THRESHOLD, SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC
-from scoring import compute_score_1, compute_score_20
-from sliding_window import SlidingWindowArray
+from buffer.scoring import compute_score_1, compute_score_20
+from buffer.sliding_window import SlidingWindowArray
 from anomaly_candidate import AnomalyCandidate
 from mp_logging import create_worker_logger, default_logging_kwargs
-from snapshot_fixer import SnapshotFixer, get_timestamp_ns, get_value
+from buffer.snapshot_fixer import SnapshotFixer, get_timestamp_ns, get_value
 
 
 def get_first_time_point(snapshot: dict[str, list[dict]], pv_name_list: list[str]) -> int:
@@ -291,7 +291,7 @@ if __name__ == "__main__":
     from k2eg_interface.k2eg_spoofer import K2EGSpoofer  # adjust import as needed
     from utilities import read_pv_list_from_file
 
-    list_of_pvs = read_pv_list_from_file("resources/pv_list.txt")
+    list_of_pvs = read_pv_list_from_file("../resources/pv_list.txt")
     BUFFER_LENGTH = 36000
 
     spoofer = K2EGSpoofer(
