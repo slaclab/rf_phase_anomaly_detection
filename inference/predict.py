@@ -84,45 +84,56 @@ class Predict:
         self.logger = logger
         self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.logger)
 
+    def __str__(self) -> str:
+        return "CoAD Predictor"
+
     def predict(
         self,
-        rf_input: npt.NDArray[number],
-        bpm_input: npt.NDArray[number],
-        rf_pv_name: str,
-        anomaly_timestamp: float,  # in nanoseconds since epoch
+        candidate: dict[str, Any]
     ) -> bool:
         """
         Make predictions using the loaded models and provided a single batch of data.
 
         Parameters
         ----------
-        rf_input : npt.NDArray[number]
-            Numpy array of input data for the first model, with a shape of (D, N), where D is the
-            number of RF stations (1) and N is the number of samples (1066).
-        bpm_input : npt.NDArray[number]
-            Numpy array of input data for the second model, with a shape of (D, N), where D (1066) is
-            the number of BPMs (8) and N is the number of samples (1066).
-        rf_pv_name : str
-            The PV name of the RF station to write the prediction result to K2EG.
-        anomalytimestamp: float
-            Timestamp of the prediction.
+        candidate : dict[str, Any]
+            Dictionary of values created by process_candidate in process_b.  At
+            minimum, it must have the following entries:
+            rf_input : npt.NDArray[number]
+                Numpy array of input data for the first model, with a shape of (D, N),
+                where D is the number of RF stations (1) and N is the number of samples
+                (1066).
+            bpm_input : npt.NDArray[number]
+                Numpy array of input data for the second model, with a shape of (D, N),
+                where D (1066) is the number of BPMs (8) and N is the number of samples
+                (1066).
+            rf_pv_name : str
+                The PV name of the RF station to write the prediction result to K2EG.
+            candidate_timestamp: float
+                Timestamp of the prediction.
 
         Returns
         -------
         bool
             Prediction result, True if an anomaly is detected, False otherwise.
         """
-        rf_input = torch.tensor(rf_input, dtype=torch.float64)
-        bpm_input = torch.tensor(bpm_input, dtype=torch.float64)
+        rf_input = torch.tensor(candidate["rf_input"], dtype=torch.float64)
+        bpm_input = torch.tensor(candidate["bpm_input"], dtype=torch.float64)
+        rf_pv_name = candidate["rf_pv_name"]
+        candidate_timestamp = candidate["candidate_timestamp"]
 
         anomalous = predict_label(self.configs, self.networks, (rf_input, bpm_input))
-        if not anomalous:
-            self.logger.debug(f"No anomaly detected for {rf_pv_name} at timestamp {anomaly_timestamp}.")
+        self_name = str(self)
         if anomalous:
             # Update anomaly state in the timed dict
             # if write to PV is enabled, it will also write to K2EG
-            self.logger.info(f"Anomaly detected for {rf_pv_name} at timestamp {anomaly_timestamp}.")
+            self.logger.info(f"Anomaly detected by {self_name} for {rf_pv_name} at timestamp {candidate_timestamp}.")
             set_anomaly_state(self.anom_state_dict, rf_pv_name, anomalous)
+        else:
+            self.logger.debug(
+                f"No anomaly detected by {self_name} for {rf_pv_name} at timestamp {candidate_timestamp}."
+            )
+
         return anomalous
 
     def shut_down(self) -> None:
