@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from process_a import read_pv_list_from_file
+from utilities import read_pv_list_from_file
 from run_config import CANDIDATE_LOOKBACK_WINDOW_LENGTH, FEEDBACK_STATIONS
 from anomaly_candidate import find_most_anomalous_rf_station
 

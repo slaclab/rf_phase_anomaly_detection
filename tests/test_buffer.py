@@ -6,7 +6,7 @@ from collections import deque
 from buffer import Buffer, get_latest_time_point, get_value
 from snapshot_fixer import SnapshotFixer, process_pv_from_snapshot
 from run_config import SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC
-from process_a import read_pv_list_from_file
+from utilities import read_pv_list_from_file
 
 
 @pytest.fixture

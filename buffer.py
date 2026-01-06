@@ -289,7 +289,7 @@ class Buffer:
 
 if __name__ == "__main__":
     from k2eg_interface.k2eg_spoofer import K2EGSpoofer  # adjust import as needed
-    from process_a import read_pv_list_from_file
+    from utilities import read_pv_list_from_file
 
     list_of_pvs = read_pv_list_from_file("resources/pv_list.txt")
     BUFFER_LENGTH = 36000
