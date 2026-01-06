@@ -5,7 +5,7 @@ from numpy import number
 from numpy import zeros
 import pytest
 
-from inference.predict import Predict
+from inference.coad_predictor import COADPredictor
 
 
 class TestPredict:
@@ -43,12 +43,18 @@ class TestPredict:
         configs : dict
             Configuration dictionary for the predictor.
         """
-        predictor = Predict(write_to_pv=False)
+        predictor = COADPredictor(write_to_pv=False)
 
         # Get data that should return a prediction of True
         rf_data, bpm_data, pv_name = test_data_set[0]
+        test_candidate = {
+            "rf_input": rf_data,
+            "bpm_input": bpm_data,
+            "rf_pv_name": pv_name,
+            "candidate_timestamp": self.timestamp
+        }
         # Run prediction
-        predictions = predictor.predict(rf_data, bpm_data, pv_name, self.timestamp)
+        predictions = predictor.predict(test_candidate)
         # Check configs loaded correctly
         assert predictor.configs == configs
         # Check if predictions are of the expected shape
@@ -58,8 +64,14 @@ class TestPredict:
 
         # Get data that should return a prediction of False
         rf_data, bpm_data, pv_name = test_data_set[1]
+        test_candidate = {
+            "rf_input": rf_data,
+            "bpm_input": bpm_data,
+            "rf_pv_name": pv_name,
+            "candidate_timestamp": self.timestamp
+        }
         # Run prediction
-        predictions = predictor.predict(rf_data, bpm_data, pv_name, self.timestamp)
+        predictions = predictor.predict(test_candidate)
         # Check configs loaded correctly
         assert predictor.configs == configs
         # Check if predictions are of the expected shape
@@ -78,9 +90,15 @@ class TestPredict:
         ValueError
             If input types are the correct shapes.
         """
-        predictor = Predict(write_to_pv=False)
+        predictor = COADPredictor(write_to_pv=False)
+        test_candidate = {
+            "rf_input": [1],
+            "bpm_input": [2],
+            "rf_pv_name": [3],
+            "candidate_timestamp": self.timestamp
+        }
         with pytest.raises(ValueError):
-            predictor.predict([1], [2], [3], self.timestamp)
+            predictor.predict(test_candidate)
         predictor.shut_down()
 
     def test_predict_with_empty_input(self) -> None:
@@ -92,14 +110,20 @@ class TestPredict:
         ValueError
             If input tensors are empty or contain NaN values.
         """
-        predictor = Predict(write_to_pv=False)
+        predictor = COADPredictor(write_to_pv=False)
         with pytest.raises(ValueError):
             # add nans to the input tensors
             in1 = zeros((1, 1066))
             in2 = zeros((8, 1066))
             in1[0, 0] = float("nan")
             in2[0, 0] = float("nan")
-            predictor.predict(in1, in2, "pv", self.timestamp)
+            test_candidate = {
+                "rf_input": in1,
+                "bpm_input": in2,
+                "rf_pv_name": "pv",
+                "candidate_timestamp": self.timestamp
+            }
+            predictor.predict(test_candidate)
         predictor.shut_down()
 
     # def test_predict_write_table_to_k2eg(

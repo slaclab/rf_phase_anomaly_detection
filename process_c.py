@@ -1,10 +1,12 @@
+from copy import deepcopy
 from multiprocessing import Manager
 from process import CustomProcessObject
 from mp_logging import default_logging_kwargs, create_worker_logger
 
 from typing import Optional
 
-from inference.predict import Predict
+from inference.coad_predictor import COADPredictor
+from inference.rules_based_predictor import RulesBasedPredictor
 
 
 def convert_pv_name_to_table_name(name: str) -> str:
@@ -36,16 +38,13 @@ class ProcessC(CustomProcessObject):
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
 
-        # Initialize predictor (loads models and configs)
-        predictor = Predict(write_to_pv=True, logger=self.logger)
+        # Initialize predictors (loads models and configs, if any)
+        predictors = [
+            COADPredictor(write_to_pv=True, logger=self.logger),
+            RulesBasedPredictor(logger=self.logger)
+        ]
 
-        # TEMPORARY: Silence lume-model out of range warnings
-        predictor.networks[0].model.input_validation_config = {
-            n: "none" for n in predictor.networks[0].model.input_names
-        }
-        predictor.networks[1].model.input_validation_config = {
-            n: "none" for n in predictor.networks[1].model.input_names
-        }
+        self.logger.info(f"Predictors loaded: {[str(p) for p in predictors]}")
 
         while True:
             if not self.queue.empty():
@@ -53,6 +52,8 @@ class ProcessC(CustomProcessObject):
                 # self.logger.debug(f"ProcessC sees {r}")
                 if r is None:  # enqueue a None to stop this process
                     break
+                candidate = deepcopy(r)
+                candidate["rf_pv_name"] = convert_pv_name_to_table_name(r["rf_pv_name"])
 
                 # Run inference on the received data
                 # r is a dict of the form (not showing all keys):
@@ -61,17 +62,13 @@ class ProcessC(CustomProcessObject):
                 #   "bpm_input": np.array of size (8, 1066),
                 #   "rf_pv_name": string,
                 # }
-                result = predictor.predict(
-                    **{
-                        "rf_input": r["rf_input"],
-                        "bpm_input": r["bpm_input"],
-                        "rf_pv_name": convert_pv_name_to_table_name(r["rf_pv_name"]),
-                        "anomaly_timestamp": r["candidate_timestamp"],
-                    }
-                )
+                result = [
+                    (str(pred), pred.predict(candidate=candidate))
+                    for pred in predictors
+                ]
                 self.logger.debug(f"ProcessC result: {result}")
 
         # Shut down the predictor/timed dict and close the logger
-        predictor.shut_down()
+        [p.shut_down() for p in predictors]
         for handler in self.logger.handlers:
             handler.close()

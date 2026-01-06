@@ -16,7 +16,7 @@ import logging
 import time
 import torch
 
-from inference.predict import Predict
+from inference.coad_predictor import COADPredictor
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -41,7 +41,7 @@ def main():
     This function simulates setting and resetting anomaly states for multiple stations
     over a period of time, checking the expected behavior of the anomaly state dictionary.
     """
-    pred = Predict(write_to_pv=False)
+    pred = COADPredictor(write_to_pv=False)
     # Silence lume-model out of range warnings
     pred.networks[0].model.input_validation_config = {n: "none" for n in pred.networks[0].model.input_names}
     pred.networks[1].model.input_validation_config = {n: "none" for n in pred.networks[1].model.input_names}

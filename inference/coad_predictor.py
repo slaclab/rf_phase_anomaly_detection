@@ -6,14 +6,13 @@ import os
 from operator import itemgetter
 from typing import Any, Tuple, Dict, List, Optional
 import logging
-import numpy.typing as npt
-from numpy import number
 
 import torch
 import yaml
 
 from lume_model.models.torch_module import TorchModule
 from anom_table import set_anomaly_state, TimedBoolDict
+from inference.base_predictor import BasePredictor
 
 ROOTDIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -25,7 +24,7 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
-class Predict:
+class COADPredictor(BasePredictor):
     """
     Predict class for making anomaly predictions using LUME-models.
 
@@ -77,51 +76,62 @@ class Predict:
         logger : logging.Logger, optional
             Logger instance for logging debug and info messages. Defaults to the module's logger.
         """
+        super().__init__(logger=logger)
         self.configs = configs if configs else load_configs()
         self.networks = networks if networks else load_models()
         self.write_to_pv = write_to_pv
         self.klystrons_list = load_klystron_configs()
-        self.logger = logger
-        self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.logger)
+        try:
+            self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.logger)
+        except TimeoutError:
+            self.write_to_pv = False
+            self.logger.warning(f"{str(self)} k2eg gateway could not be contacted, setting write_to_pv to False")
+            self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.logger)
 
-    def predict(
+        # # TEMPORARY: Silence lume-model out of range warnings
+        # self.networks[0].model.input_validation_config = {
+        #     n: "none" for n in self.networks[0].model.input_names
+        # }
+        # self.networks[1].model.input_validation_config = {
+        #     n: "none" for n in self.networks[1].model.input_names
+        # }
+
+    def _predict(
         self,
-        rf_input: npt.NDArray[number],
-        bpm_input: npt.NDArray[number],
-        rf_pv_name: str,
-        anomaly_timestamp: float,  # in nanoseconds since epoch
+        candidate: dict[str, Any]
     ) -> bool:
         """
         Make predictions using the loaded models and provided a single batch of data.
 
         Parameters
         ----------
-        rf_input : npt.NDArray[number]
-            Numpy array of input data for the first model, with a shape of (D, N), where D is the
-            number of RF stations (1) and N is the number of samples (1066).
-        bpm_input : npt.NDArray[number]
-            Numpy array of input data for the second model, with a shape of (D, N), where D (1066) is
-            the number of BPMs (8) and N is the number of samples (1066).
-        rf_pv_name : str
-            The PV name of the RF station to write the prediction result to K2EG.
-        anomalytimestamp: float
-            Timestamp of the prediction.
+        candidate : dict[str, Any]
+            Dictionary of values created by process_candidate in process_b.  At
+            minimum, it must have the following entries:
+            rf_input : npt.NDArray[number]
+                Numpy array of input data for the first model, with a shape of (D, N),
+                where D is the number of RF stations (1) and N is the number of samples
+                (1066).
+            bpm_input : npt.NDArray[number]
+                Numpy array of input data for the second model, with a shape of (D, N),
+                where D (1066) is the number of BPMs (8) and N is the number of samples
+                (1066).
+            rf_pv_name : str
+                The PV name of the RF station to write the prediction result to K2EG.
+            candidate_timestamp: float
+                Timestamp of the prediction.
 
         Returns
         -------
         bool
             Prediction result, True if an anomaly is detected, False otherwise.
         """
-        rf_input = torch.tensor(rf_input, dtype=torch.float64)
-        bpm_input = torch.tensor(bpm_input, dtype=torch.float64)
+        rf_input = torch.tensor(candidate["rf_input"], dtype=torch.float64)
+        bpm_input = torch.tensor(candidate["bpm_input"], dtype=torch.float64)
+        rf_pv_name = candidate["rf_pv_name"]
 
         anomalous = predict_label(self.configs, self.networks, (rf_input, bpm_input))
-        if not anomalous:
-            self.logger.debug(f"No anomaly detected for {rf_pv_name} at timestamp {anomaly_timestamp}.")
         if anomalous:
-            # Update anomaly state in the timed dict
-            # if write to PV is enabled, it will also write to K2EG
-            self.logger.info(f"Anomaly detected for {rf_pv_name} at timestamp {anomaly_timestamp}.")
             set_anomaly_state(self.anom_state_dict, rf_pv_name, anomalous)
         return anomalous
 
@@ -133,7 +143,7 @@ class Predict:
         it is no longer needed or before the program exits.
         """
         self.anom_state_dict.shut_down()
-        self.logger.info("Shut down Predict class and closing K2EG client.")
+        self.logger.info(f"({str(self)}) Shutting down predictor and closing K2EG client.")
 
 
 def load_models() -> List[TorchModule]:
