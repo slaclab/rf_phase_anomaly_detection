@@ -4,7 +4,7 @@ from copy import deepcopy
 
 import numpy as np
 
-from beam_check_config import NANOSECS_IN_1_SEC
+from run_config import NANOSECS_IN_1_SEC
 
 from typing import TypedDict, Optional
 

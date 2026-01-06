@@ -1,6 +1,6 @@
 import numpy as np
 
-from beam_check_config import BEAM_RATE_PV, BEAM_SPLIT_PV, STOPPER_PV, IN_TMIT_PV, EXP_TMIT_MIN
+from run_config import BEAM_RATE_PV, BEAM_SPLIT_PV, STOPPER_PV, IN_TMIT_PV, EXP_TMIT_MIN
 
 
 BEAM_CHECK_PVS = [BEAM_RATE_PV, BEAM_SPLIT_PV, STOPPER_PV, IN_TMIT_PV]

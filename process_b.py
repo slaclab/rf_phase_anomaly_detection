@@ -14,7 +14,7 @@ from process import CustomProcessObject
 from buffer import Buffer
 from anomaly_candidate import AnomalyCandidate, CandidateBucket, find_fast_index, find_most_anomalous_rf_station
 from candidate_saver import CandidateSaver
-from beam_check_config import (
+from run_config import (
     SAMPLES_PER_SECOND,
     BUFFER_LENGTH,
     BPM_NAMES,

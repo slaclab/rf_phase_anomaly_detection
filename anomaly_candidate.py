@@ -1,7 +1,7 @@
 from queue import PriorityQueue
 import numpy as np
 
-from beam_check_config import ANOMALY_CANDIDATE_WINDOW_SIZE, FEEDBACK_STATIONS, CANDIDATE_PHASE_THRESHOLD
+from run_config import ANOMALY_CANDIDATE_WINDOW_SIZE, FEEDBACK_STATIONS, CANDIDATE_PHASE_THRESHOLD
 
 
 class AnomalyCandidate:

@@ -1,6 +1,6 @@
 import numpy as np
 from snapshot_fixer import SnapshotFixer
-from beam_check_config import NANOSECS_IN_1_SEC
+from run_config import NANOSECS_IN_1_SEC
 from snapshot_fixer import get_timestamp_ns
 
 

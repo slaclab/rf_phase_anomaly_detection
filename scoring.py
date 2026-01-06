@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
-from beam_check_config import MAD_LENGTH, CONSECUTIVE_LENGTH, DISPERSIVE_BPMS
+from run_config import MAD_LENGTH, CONSECUTIVE_LENGTH, DISPERSIVE_BPMS
 
 
 def compute_score_1(bpm_signals: dict[str, np.ndarray]) -> np.ndarray:
