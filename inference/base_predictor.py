@@ -1,7 +1,5 @@
 import logging
-import numpy as np
-
-from inference.base_predictor import BasePredictor
+from abc import ABC, abstractmethod
 
 from typing import Any, Optional
 
@@ -14,21 +12,19 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
-class RulesBasedPredictor(BasePredictor):
+class BasePredictor(ABC):
     def __init__(self,
                  logger: Optional[logging.Logger] = logger,
                  ):
-        super().__init__(logger=logger)
+        self.logger = logger
+        self.logger.info(f"({str(self)}) Starting predictor")
 
-        self.bpm_threshold = 10.
+    def __str__(self) -> str:
+        return self.__class__.__name__
 
-        self.phase_threshold = 0.999
-        self.c = 533
-        self.n = 20
-
-    def _predict(self, candidate: dict[str, Any]) -> bool:
+    def predict(self, candidate: dict[str, Any]) -> bool:
         """
-        Make predictions using rules developed by Finn on the 2024 data.
+        Make predictions using the loaded models and provided a single batch of data.
 
         Parameters
         ----------
@@ -53,18 +49,26 @@ class RulesBasedPredictor(BasePredictor):
         bool
             Prediction result, True if an anomaly is detected, False otherwise.
         """
-        rf_input = candidate["rf_input"].flatten()  # shape is (1066,)
-        bpm_input = candidate["bpm_input"]          # shape is (8, 1066)
+        anomalous = self._predict(candidate=candidate)
+        rf_pv_name = candidate["rf_pv_name"]
+        candidate_timestamp = candidate["candidate_timestamp"]
+        if anomalous:
+            log_method = self.logger.info
+            log_start = "Anomaly"
 
-        # compute the phase (rf) signal quantities
-        mask = np.zeros_like(rf_input, dtype=bool)
-        mask[self.c - self.n:self.c + self.n] = True
-        u = max(abs(rf_input[mask]))
-        v = abs(rf_input[~mask])
-        phase_signal = sum(u > v) / sum(~mask)  # float between 0 and 1
+        else:
+            log_method = self.logger.debug
+            log_start = "No anomaly"
+        log_method(f"({str(self)}) {log_start} detected for {rf_pv_name} at timestamp {candidate_timestamp}.")
 
-        # compute the bpm signal quantities
-        bpm_signal = float(np.abs(bpm_input).mean(axis=0).max())
-
-        anomalous = phase_signal > self.phase_threshold and bpm_signal > self.bpm_threshold
         return anomalous
+
+    @abstractmethod
+    def _predict(self, candidate: dict[str, Any]) -> bool:
+        pass
+
+    def shut_down(self):
+        """
+        Clean up any configuration used by the predictor.
+        """
+        self.logger.info(f"({str(self)}) Shutting down predictor")

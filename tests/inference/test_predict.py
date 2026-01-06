@@ -5,7 +5,7 @@ from numpy import number
 from numpy import zeros
 import pytest
 
-from inference.predict import Predict
+from inference.coad_predictor import COADPredictor
 
 
 class TestPredict:
@@ -43,7 +43,7 @@ class TestPredict:
         configs : dict
             Configuration dictionary for the predictor.
         """
-        predictor = Predict(write_to_pv=False)
+        predictor = COADPredictor(write_to_pv=False)
 
         # Get data that should return a prediction of True
         rf_data, bpm_data, pv_name = test_data_set[0]
@@ -90,7 +90,7 @@ class TestPredict:
         ValueError
             If input types are the correct shapes.
         """
-        predictor = Predict(write_to_pv=False)
+        predictor = COADPredictor(write_to_pv=False)
         test_candidate = {
             "rf_input": [1],
             "bpm_input": [2],
@@ -110,7 +110,7 @@ class TestPredict:
         ValueError
             If input tensors are empty or contain NaN values.
         """
-        predictor = Predict(write_to_pv=False)
+        predictor = COADPredictor(write_to_pv=False)
         with pytest.raises(ValueError):
             # add nans to the input tensors
             in1 = zeros((1, 1066))

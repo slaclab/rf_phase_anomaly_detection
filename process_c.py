@@ -5,7 +5,7 @@ from mp_logging import default_logging_kwargs, create_worker_logger
 
 from typing import Optional
 
-from inference.predict import Predict
+from inference.coad_predictor import COADPredictor
 from inference.rules_based_predictor import RulesBasedPredictor
 
 
@@ -38,21 +38,11 @@ class ProcessC(CustomProcessObject):
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
 
-        try:
-            # Initialize predictor (loads models and configs)
-            coad_predictor = Predict(write_to_pv=True, logger=self.logger)
-
-            # TEMPORARY: Silence lume-model out of range warnings
-            coad_predictor.networks[0].model.input_validation_config = {
-                n: "none" for n in coad_predictor.networks[0].model.input_names
-            }
-            coad_predictor.networks[1].model.input_validation_config = {
-                n: "none" for n in coad_predictor.networks[1].model.input_names
-            }
-        except TimeoutError:
-            predictors = [RulesBasedPredictor()]
-        else:
-            predictors = [coad_predictor, RulesBasedPredictor()]
+        # Initialize predictors (loads models and configs, if any)
+        predictors = [
+            COADPredictor(write_to_pv=True, logger=self.logger),
+            RulesBasedPredictor(logger=self.logger)
+        ]
 
         self.logger.info(f"Predictors loaded: {[str(p) for p in predictors]}")
 
@@ -79,9 +69,6 @@ class ProcessC(CustomProcessObject):
                 self.logger.debug(f"ProcessC result: {result}")
 
         # Shut down the predictor/timed dict and close the logger
-        try:
-            coad_predictor.shut_down()
-        except UnboundLocalError:
-            pass
+        [p.shut_down() for p in predictors]
         for handler in self.logger.handlers:
             handler.close()
