@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 
 from anomaly_candidate import find_fast_index
-from beam_check_config import CANDIDATE_LOOKBACK_WINDOW_LENGTH
+from run_config import CANDIDATE_LOOKBACK_WINDOW_LENGTH
 
 
 @pytest.fixture

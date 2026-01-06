@@ -1,9 +1,9 @@
 import time
 
-from mp_logging import create_worker_logger, default_logging_kwargs
-from k2eg_spoofer import PVSpoofer
+from mp_logging import default_logging_kwargs
+from k2eg_interface.k2eg_spoofer import PVSpoofer
 from process import CustomProcessObject
-from beam_check_config import SAMPLES_PER_SECOND, EXP_TMIT_MIN, NANOSECS_IN_1_SEC
+from run_config import SAMPLES_PER_SECOND, EXP_TMIT_MIN, NANOSECS_IN_1_SEC
 
 from typing import Optional
 

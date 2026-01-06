@@ -2,7 +2,7 @@ import os
 import numpy as np
 from datetime import datetime
 
-from beam_check_config import NANOSECS_IN_1_SEC
+from run_config import NANOSECS_IN_1_SEC
 from mp_logging import create_worker_logger, default_logging_kwargs
 
 from typing import Optional

@@ -1,7 +1,7 @@
 import numpy as np
-from snapshot_fixer import SnapshotFixer
-from beam_check_config import NANOSECS_IN_1_SEC
-from snapshot_fixer import get_timestamp_ns
+from buffer.snapshot_fixer import SnapshotFixer
+from run_config import NANOSECS_IN_1_SEC
+from buffer.snapshot_fixer import get_timestamp_ns
 
 
 def test_fix_snapshot_basic():

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from sliding_window import SlidingWindowArray
+from buffer.sliding_window import SlidingWindowArray
 
 
 @pytest.fixture

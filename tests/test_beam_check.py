@@ -1,8 +1,8 @@
 import pytest
 import numpy as np
 
-from beam_check_config import BEAM_RATE_PV
-from beam_check import BEAM_CHECK_PVS, do_beam_checks
+from run_config import BEAM_RATE_PV
+from buffer.beam_check import BEAM_CHECK_PVS, do_beam_checks
 
 
 @pytest.fixture
