@@ -196,7 +196,7 @@ class ProcessB(CustomProcessObject):
                 "rf_pv_name": most_anomalous_rf_pv_name,
                 "anomaly_score": deviation_score,
                 "system_level_anomaly": system_level_anom,
-                "number_of_bad_datapoints": sum(data_quality_array),
+                "number_of_bad_datapoints": sum(~data_quality_array),
                 "data_quality_array": data_quality_array,
             }
         else:
