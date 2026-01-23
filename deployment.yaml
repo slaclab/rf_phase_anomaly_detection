@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: rf-phase-anomaly-detection
-        image: ghcr.io/slaclab/rf-phase-anomaly-detection:dev
+        image: ghcr.io/slaclab/rf-phase-anomaly-detection:latest
         imagePullPolicy: Always
         restartPolicy: Always
         resources:
