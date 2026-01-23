@@ -7,6 +7,10 @@ on:
         description: 'Docker image tag to deploy'
         required: false
         default: ''
+  push:
+    branches:
+      - 'pre_release_v0.0'
+
 #  push:
 #    branches:
 #      - main
