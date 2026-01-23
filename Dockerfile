@@ -19,3 +19,5 @@ RUN pip install --no-cache-dir -r requirements.txt && \
     rm -rf /root/.cache
 
 COPY . .
+
+CMD ["python", "-m", "main", "-ll", "20"]
