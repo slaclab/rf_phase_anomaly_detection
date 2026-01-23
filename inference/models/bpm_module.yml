@@ -32,25 +32,25 @@ model:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
-      value_range: [-0.0001, 100000000000.0]
+      value_range: [-10.0, 100000000000.0]
       value_range_tolerance: 1.0e-08
     BPMS:LTUH:450:TMIT:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
-      value_range: [-0.0001, 100000000000.0]
+      value_range: [-10.0, 100000000000.0]
       value_range_tolerance: 1.0e-08
     BPMS:DMPH:502:TMIT:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
-      value_range: [-0.0001, 100000000000.0]
+      value_range: [-10.0, 100000000000.0]
       value_range_tolerance: 1.0e-08
     BPMS:DMPH:693:TMIT:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
-      value_range: [-0.0001, 100000000000.0]
+      value_range: [-10.0, 100000000000.0]
       value_range_tolerance: 1.0e-08
   output_variables:
     anom_score: {variable_class: ScalarVariable, is_constant: false, value_range_tolerance: 1.0e-08}
