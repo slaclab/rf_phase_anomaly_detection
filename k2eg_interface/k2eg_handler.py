@@ -61,7 +61,7 @@ class K2EGHandler:
             pv_field_filter_list=["value", "timeStamp", "alarm"],
         )
         # self.dml = k2eg.dml("lcls-ext", APP_NAME)  # uses k2eg VM server
-        self.dml = k2eg.dml("lcls", APP_NAME)  # uses k2eg k8s server
+        self.dml = k2eg.dml("k2eg", APP_NAME)  # uses k2eg k8s server
         self.dml.snapshot_stop(self.snapshot_properties.snapshot_name)
         self.snapshot_is_running = False
 

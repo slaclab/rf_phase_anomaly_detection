@@ -70,7 +70,7 @@ class TimedBoolDict:
         self.lock = threading.RLock()
         self.logger = logger
         if self.write_to_pv:
-            self.k2eg_client = k2eg.dml("lcls-ext", "app-phase-anomaly-detection-put")
+            self.k2eg_client = k2eg.dml("k2eg", "app-phase-anomaly-detection-put")
             # Always reset the anomaly state to False at initialization
             anomaly_table = create_anomaly_table(self.data)
             write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
