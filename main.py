@@ -3,12 +3,12 @@ import argparse
 from multiprocessing import Manager, Process
 from mp_logging import run_logger_process, create_worker_logger
 from process import ProcessManager
-from k2eg_process import K2EGProcess, read_pv_list_from_file
-from k2eg_spoof_process import K2EGSpoofProcess
-from k2eg_spoof_anomaly_process import K2EGSpoofAnomalyProcess, constant_readings_dict
+from process_a import K2EGProcess
+from utilities import read_pv_list_from_file
+from k2eg_interface.k2eg_spoof_process import K2EGSpoofProcess
+from k2eg_interface.k2eg_spoof_anomaly_process import K2EGSpoofAnomalyProcess, constant_readings_dict
 from process_b import ProcessB
 from process_c import ProcessC
-import signal
 import sys
 
 
@@ -55,7 +55,7 @@ def main(args: argparse.Namespace):
             )
         elif args.spoof_k2eg_data_anomaly:
             k2eg_proc = K2EGSpoofAnomalyProcess(
-                queue=queue_one, n_emits=14, emit_anomaly_every_n_iterations=6, logging_kwargs=logging_kwargs.copy()
+                queue=queue_one, n_emits=17, emit_anomaly_every_n_iterations=6, logging_kwargs=logging_kwargs.copy()
             )
             list_of_pvs = list(constant_readings_dict.keys())
         else:
