@@ -20,4 +20,5 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 
 COPY . .
 
-CMD ["python", "-m", "main", "-ll", "20"]
+#CMD ["python", "-m", "main", "-ll", "20"]
+CMD ["sleep", "infinity"]

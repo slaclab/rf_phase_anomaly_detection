@@ -31,7 +31,19 @@ spec:
           - name: s3cmd-config-volume
             mountPath: /app/config/k2eg.ini
             subPath: k2eg.ini
+          - name: saved-candidate-location
+            mountPath: /app/saved_candidates
+          - name: log-location
+            mountPath: /app/logs
       volumes:
         - name: s3cmd-config-volume
           configMap:
             name: k2eg-config-map
+        - name: saved-candidate-location
+          hostPath:
+            path: /sdf/data/ad/store/bsas/nc_CoAD/saved_candidates
+            type: DirectoryOrCreate
+        - name: log-location
+          hostPath:
+            path: /sdf/data/ad/store/bsas/nc_CoAD/server_logs
+            type: DirectoryOrCreate
