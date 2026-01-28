@@ -9,6 +9,7 @@ from k2eg_interface.k2eg_spoof_process import K2EGSpoofProcess
 from k2eg_interface.k2eg_spoof_anomaly_process import K2EGSpoofAnomalyProcess, constant_readings_dict
 from process_b import ProcessB
 from process_c import ProcessC
+from process_i import ProcessI
 import sys
 
 
@@ -24,6 +25,7 @@ def main(args: argparse.Namespace):
         queue_one = manager.Queue()
         queue_two = manager.Queue()
         queue_log = manager.Queue()  # for logging only
+        queue_ins = manager.Queue()  # for communicating with GUI
 
         main_logger_name = None if args.disable_file_logging else "main"
 
@@ -51,11 +53,13 @@ def main(args: argparse.Namespace):
         if args.spoof_k2eg_data:
             list_of_pvs = read_pv_list_from_file("resources/pv_list.txt")
             k2eg_proc = K2EGSpoofProcess(
-                queue=queue_one, pv_list=list_of_pvs, n_emits=400, emit_rate_hz=1, logging_kwargs=logging_kwargs.copy()
+                queue=queue_one, pv_list=list_of_pvs, n_emits=400,
+                emit_rate_hz=1, queue_inst=queue_ins, logging_kwargs=logging_kwargs.copy()
             )
         elif args.spoof_k2eg_data_anomaly:
             k2eg_proc = K2EGSpoofAnomalyProcess(
-                queue=queue_one, n_emits=17, emit_anomaly_every_n_iterations=6, logging_kwargs=logging_kwargs.copy()
+                queue=queue_one, n_emits=17, emit_anomaly_every_n_iterations=6,
+                queue_inst=queue_ins, logging_kwargs=logging_kwargs.copy()
             )
             list_of_pvs = list(constant_readings_dict.keys())
         else:
@@ -66,8 +70,10 @@ def main(args: argparse.Namespace):
 
         process_objects = [
             k2eg_proc,
-            ProcessB(queue_one, queue_two, pv_list=list_of_pvs, logging_kwargs=logging_kwargs.copy()),
-            ProcessC(queue_two, logging_kwargs=logging_kwargs.copy()),
+            ProcessB(queue_one, queue_two,
+                     pv_list=list_of_pvs, queue_inst=queue_ins, logging_kwargs=logging_kwargs.copy()),
+            ProcessC(queue_two, queue_inst=queue_ins, logging_kwargs=logging_kwargs.copy()),
+            ProcessI(queue_ins, logging_kwargs=logging_kwargs.copy()),
         ]
 
         # use ProcessManager to handle start and join of processes

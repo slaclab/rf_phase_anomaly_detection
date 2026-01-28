@@ -38,10 +38,12 @@ class ProcessB(CustomProcessObject):
         queue_one: "Manager.Queue",
         queue_two: "Manager.Queue",
         pv_list: list[str],
+        queue_inst: Optional["Manager.Queue"] = None,  # instrumentation queue
         logging_kwargs: Optional[dict] = default_logging_kwargs,
     ) -> None:
         self.queue_one = queue_one
         self.queue_two = queue_two
+        self.queue_inst = queue_inst
 
         self.pv_list = pv_list
 
@@ -82,6 +84,7 @@ class ProcessB(CustomProcessObject):
                 if snapshot is None:  # enqueuing a None should stop this process immediately
                     self.logger.info("Received shutdown signal. Stopping process")
                     self.queue_two.put(None)
+                    self.queue_inst.put(None)  # end the instrumentation process, as well
                     break
                 self.logger.debug("Received new snapshot from queue_one")
 

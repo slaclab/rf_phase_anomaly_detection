@@ -1,11 +1,10 @@
-from typing import List, Dict
 import threading
 import logging
+from multiprocessing import Manager
 
-import k2eg
-from k2eg.dml import OperationTimeout
-from k2eg.dml import dml as k2eg_dml
 from k2eg.serialization import NTTable
+
+from typing import List, Dict, Optional
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -50,7 +49,12 @@ class TimedBoolDict:
         Returns a copy of the current state of the dictionary.
     """
 
-    def __init__(self, keys: List[str], write_to_pv: bool = True, logger: logging.Logger = logger):
+    def __init__(
+            self,
+            keys: List[str],
+            write_to_pv: bool = True,
+            queue_inst: Optional["Manager.Queue"] = None,  # instrumentation queue
+            logger: logging.Logger = logger):
         """
         Initializes the TimedBoolDict with the given keys, whether to write to K2EG, and the reset time.
 
@@ -65,15 +69,15 @@ class TimedBoolDict:
         """
         self.data: Dict[str, bool] = {k: False for k in keys}
         self.write_to_pv: bool = write_to_pv
+        self.queue_inst = queue_inst
         self.reset_time: int = 300  # Reset time in seconds (5 minutes is default)
         self.timers: Dict[str, threading.Timer] = {}
         self.lock = threading.RLock()
         self.logger = logger
         if self.write_to_pv:
-            self.k2eg_client = k2eg.dml("k2eg", "app-phase-anomaly-detection-put")
             # Always reset the anomaly state to False at initialization
             anomaly_table = create_anomaly_table(self.data)
-            write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
+            write_prediction_to_k2eg(anomaly_table, self.queue_inst)
             self.logger.debug("Reset anomaly state PV to all False at initialization.")
         else:
             self.k2eg_client = None
@@ -114,7 +118,7 @@ class TimedBoolDict:
                     del self.timers[key]
             if self.write_to_pv:
                 anomaly_table = create_anomaly_table(self.data)
-                write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
+                write_prediction_to_k2eg(anomaly_table, self.queue_inst)
             self.logger.debug(f"Set {key} to 1. Current state dict: \n{dict(self.get_dict())}")
 
     def _reset_key(self, key: str):
@@ -138,7 +142,7 @@ class TimedBoolDict:
                 del self.timers[key]
             if self.write_to_pv:
                 anomaly_table = create_anomaly_table(self.data)
-                write_prediction_to_k2eg(anomaly_table, self.k2eg_client)
+                write_prediction_to_k2eg(anomaly_table, self.queue_inst)
             self.logger.debug(f"Reset key {key} to 0. Current state dict: \n{dict(self.get_dict())}")
 
     def get_dict(self):
@@ -169,8 +173,7 @@ class TimedBoolDict:
                 timer.cancel()
             self.timers.clear()
             if self.write_to_pv:
-                self.k2eg_client.close()
-
+                self.queue_inst.put(None)
 
 def create_anomaly_table(anom_dict: Dict[str, bool]) -> NTTable:
     """
@@ -193,7 +196,7 @@ def create_anomaly_table(anom_dict: Dict[str, bool]) -> NTTable:
     return table
 
 
-def write_prediction_to_k2eg(anomaly_table: NTTable, k2eg_client: k2eg_dml) -> None:
+def write_prediction_to_k2eg(anomaly_table: NTTable, inst_queue: "Manager.Queue") -> None:
     """
     Write the anomaly table to K2EG.
 
@@ -201,18 +204,14 @@ def write_prediction_to_k2eg(anomaly_table: NTTable, k2eg_client: k2eg_dml) -> N
     ----------
     anomaly_table : NTTable
         The anomaly table to write to K2EG.
-    k2eg_client : k2eg_dml
-        The K2EG client to use for writing the anomaly table.
-    """
-    anomaly_pv = "KLYS:SYS0:1:ANOM_STATES"
-
-    try:
-        k2eg_client.put(f"pva://{anomaly_pv}", anomaly_table, 10.0)
-    except Exception as e:
-        if isinstance(e, OperationTimeout):
-            print(f"Operation timed out while writing to {anomaly_pv}.")
-        else:
-            raise e
+    inst_queue : "Manager.Queue
+        Instrumentation Queue for communicating with K2EG to set EPICS PVs.
+    # """
+    inst_queue.put({
+        'method': 'update_anomaly_state',
+        'data': anomaly_table,
+        'serialization': 'NTTable'
+    })
 
 
 def set_anomaly_state(anomaly_state: TimedBoolDict, klys: str, state: bool) -> None:

@@ -87,12 +87,14 @@ class K2EGProcess(CustomProcessObject):
         self,
         queue: "Manager.Queue",
         pv_list: list[str],
-        snapshot_period_ms: int = 1000,
+        snapshot_period_ms: Optional[int] = 1000,
+        queue_inst: Optional["Manager.Queue"] = None,  # instrumentation queue
         logging_kwargs: Optional[dict] = default_logging_kwargs,
     ):
         self.queue = queue
         self.pv_list = pv_list
         self.snapshot_period_ms = snapshot_period_ms
+        self.queue_inst = queue_inst
 
         self.logging_kwargs = logging_kwargs
         self.logging_kwargs["logger_name"] = "K2EGProcess"
@@ -127,6 +129,7 @@ class K2EGProcess(CustomProcessObject):
                 time.sleep(0.2)
         self.logger.debug("Finished")
         self.queue.put(None)  # end the downstream processes
+        self.queue_inst.put(None)  # end the instrumentation process
 
         for handler in self.logger.handlers:
             handler.close()

@@ -53,7 +53,11 @@ def force_anomaly(constant_data: dict) -> dict:
 
 
 class K2EGAnomalySpoofer:
-    def __init__(self, n_emits: Optional[int] = 0, emit_anomaly_every_n_iterations: Optional[int] = 6) -> None:
+    def __init__(
+            self,
+            n_emits: Optional[int] = 0,
+            emit_anomaly_every_n_iterations: Optional[int] = 6
+    ) -> None:
         self.n_emits = n_emits
         self.emit_anomaly_every_n_iterations = emit_anomaly_every_n_iterations
         self.pv_configs = [{"name": name, "rate_hz": 120, "drop_rate": 0.0} for name in constant_readings_dict.keys()]
@@ -97,11 +101,13 @@ class K2EGSpoofAnomalyProcess(CustomProcessObject):
         queue: "Manager.Queue",
         n_emits: Optional[int] = 0,
         emit_anomaly_every_n_iterations: Optional[int] = 6,
+        queue_inst: Optional["Manager.Queue"] = None,  # instrumentation queue
         logging_kwargs: Optional[dict] = default_logging_kwargs,
     ):
         self.queue = queue
         self.n_emits = n_emits
         self.emit_anomaly_every_n_iterations = emit_anomaly_every_n_iterations
+        self.queue_inst = queue_inst
 
         self.logging_kwargs = logging_kwargs
         self.logging_kwargs["logger_name"] = "K2EGSpoofAnomProcess"

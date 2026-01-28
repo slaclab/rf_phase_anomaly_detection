@@ -3,6 +3,7 @@ from mp_logging import create_worker_logger, default_logging_kwargs
 from k2eg_interface.k2eg_spoofer import K2EGSpoofer
 from process import CustomProcessObject
 
+from typing import Optional
 
 class K2EGSpoofProcess(CustomProcessObject):
     def __init__(
@@ -11,12 +12,15 @@ class K2EGSpoofProcess(CustomProcessObject):
         pv_list: list[str],
         n_emits: int = 3,
         emit_rate_hz: int = 1,
-        logging_kwargs: dict = default_logging_kwargs,
+        queue_inst: Optional["Manager.Queue"] = None,  # instrumentation queue
+        logging_kwargs: Optional[dict] = default_logging_kwargs,
     ):
         self.queue = queue
         self.pv_list = pv_list
         self.n_emits = n_emits
         self.emit_rate_hz = emit_rate_hz
+        self.queue_inst = queue_inst
+
         self.logging_kwargs = logging_kwargs
         self.logging_kwargs["logger_name"] = "K2EGSpoofProcess"
         self.logger = None

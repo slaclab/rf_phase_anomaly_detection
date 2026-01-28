@@ -27,9 +27,12 @@ class ProcessC(CustomProcessObject):
     def __init__(
         self,
         queue: "Manager.Queue",
+        queue_inst: Optional["Manager.Queue"] = None,  # instrumentation queue
         logging_kwargs: Optional[dict] = default_logging_kwargs,
     ):
         self.queue = queue
+        self.queue_inst = queue_inst
+
         self.logging_kwargs = logging_kwargs
         self.logging_kwargs["logger_name"] = "process_c"
         self.logger = None
@@ -39,8 +42,9 @@ class ProcessC(CustomProcessObject):
             self.logger = create_worker_logger(**self.logging_kwargs)
 
         # Initialize predictors (loads models and configs, if any)
+        #TODO: refactor COADPredictor to use the InstrumentationPortal
         predictors = [
-            COADPredictor(write_to_pv=True, logger=self.logger),
+            COADPredictor(write_to_pv=True, queue_inst=self.queue_inst, logger=self.logger),
             RulesBasedPredictor(logger=self.logger)
         ]
 
@@ -51,6 +55,7 @@ class ProcessC(CustomProcessObject):
                 r = self.queue.get()
                 # self.logger.debug(f"ProcessC sees {r}")
                 if r is None:  # enqueue a None to stop this process
+                    self.queue_inst.put(None)  # end the instrumentation process, too
                     break
                 candidate = deepcopy(r)
                 candidate["rf_pv_name"] = convert_pv_name_to_table_name(r["rf_pv_name"])

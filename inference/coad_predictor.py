@@ -59,7 +59,8 @@ class COADPredictor(BasePredictor):
         self,
         configs: Optional[Dict[str, Any]] = None,
         networks: Optional[List[TorchModule]] = None,
-        write_to_pv: bool = False,
+        write_to_pv: Optional[bool] = False,
+        queue_inst: Optional["Manager.Queue"] = None,  # instrumentation queue
         logger: Optional[logging.Logger] = logger,
     ) -> None:
         """
@@ -80,13 +81,14 @@ class COADPredictor(BasePredictor):
         self.configs = configs if configs else load_configs()
         self.networks = networks if networks else load_models()
         self.write_to_pv = write_to_pv
+        self.queue_inst = queue_inst
         self.klystrons_list = load_klystron_configs()
         try:
-            self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.logger)
+            self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.queue_inst, self.logger)
         except TimeoutError:
             self.write_to_pv = False
             self.logger.warning(f"({str(self)}) k2eg gateway could not be contacted, setting write_to_pv to False")
-            self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.logger)
+            self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.queue_inst, self.logger)
 
         # # TEMPORARY: Silence lume-model out of range warnings
         # self.networks[0].model.input_validation_config = {
