@@ -72,11 +72,11 @@ def check_and_pass_message(
     if "data" not in message:
         log_msg += "Message missing 'data' key; "
 
-    if "serialization" not in message:
-        log_msg += "Message missing 'serialization' key; "
-    else:
-        if not isinstance(message["method"], str):
-            log_msg += "Message['serialization'] is not a string; "
+    # if "serialization" not in message:
+    #     log_msg += "Message missing 'serialization' key; "
+    # else:
+    #     if not isinstance(message["method"], str):
+    #         log_msg += "Message['serialization'] is not a string; "
 
     if log_msg == "":
         portal(**message)

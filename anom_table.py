@@ -76,8 +76,7 @@ class TimedBoolDict:
         self.logger = logger
         if self.write_to_pv:
             # Always reset the anomaly state to False at initialization
-            anomaly_table = create_anomaly_table(self.data)
-            write_prediction_to_k2eg(anomaly_table, self.queue_inst)
+            write_prediction_to_k2eg(self.data, self.queue_inst)
             self.logger.debug("Reset anomaly state PV to all False at initialization.")
         else:
             self.k2eg_client = None
@@ -117,8 +116,7 @@ class TimedBoolDict:
                     self.timers[key].cancel()
                     del self.timers[key]
             if self.write_to_pv:
-                anomaly_table = create_anomaly_table(self.data)
-                write_prediction_to_k2eg(anomaly_table, self.queue_inst)
+                write_prediction_to_k2eg(self.data, self.queue_inst)
             self.logger.debug(f"Set {key} to 1. Current state dict: \n{dict(self.get_dict())}")
 
     def _reset_key(self, key: str):
@@ -141,8 +139,7 @@ class TimedBoolDict:
             if key in self.timers:
                 del self.timers[key]
             if self.write_to_pv:
-                anomaly_table = create_anomaly_table(self.data)
-                write_prediction_to_k2eg(anomaly_table, self.queue_inst)
+                write_prediction_to_k2eg(self.data, self.queue_inst)
             self.logger.debug(f"Reset key {key} to 0. Current state dict: \n{dict(self.get_dict())}")
 
     def get_dict(self):
@@ -175,42 +172,24 @@ class TimedBoolDict:
             if self.write_to_pv:
                 self.queue_inst.put(None)
 
-def create_anomaly_table(anom_dict: Dict[str, bool]) -> NTTable:
-    """
-    Create an anomaly table in the expected format from a dictionary of anomaly states.
 
-    Parameters
-    ----------
-    anom_dict : Dict[str, bool]
-        A dictionary where keys are klystron station names and values are their anomaly states (True for anomalous, False for normal).
-
-    Returns
-    -------
-    NTTable
-        A table with anomaly states for each klystron station.
-    """
-    nt_labels = ["station", "anomaly_state"]
-    table = NTTable(labels=nt_labels)
-    table.set_column("station", list(anom_dict.keys()))
-    table.set_column("anomaly_state", list(anom_dict.values()))
-    return table
-
-
-def write_prediction_to_k2eg(anomaly_table: NTTable, inst_queue: "Manager.Queue") -> None:
+def write_prediction_to_k2eg(
+        anomaly_table: dict[str, bool],
+        inst_queue: "Manager.Queue"
+) -> None:
     """
     Write the anomaly table to K2EG.
 
     Parameters
     ----------
-    anomaly_table : NTTable
-        The anomaly table to write to K2EG.
-    inst_queue : "Manager.Queue
+    anomaly_table : dict[str, bool]
+        The anomaly table to write to K2EG in dictionary form with PV-NAME: bool as the entries.
+    inst_queue : "Manager.Queue"
         Instrumentation Queue for communicating with K2EG to set EPICS PVs.
     # """
     inst_queue.put({
         'method': 'update_anomaly_state',
-        'data': anomaly_table,
-        'serialization': 'NTTable'
+        'data': anomaly_table
     })
 
 

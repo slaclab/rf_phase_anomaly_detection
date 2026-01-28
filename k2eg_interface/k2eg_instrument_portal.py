@@ -52,7 +52,6 @@ class K2EGInstrumentPortal:
             self,
             method: str,
             data: Any,
-            serialization: str,
     ):
         self.logger.info(f"Received {method} request")
         try:
@@ -61,11 +60,14 @@ class K2EGInstrumentPortal:
             self.logger.exception(f"Method {method} not implemented")
             raise
         else:
-            # serialize here
             x(data)
 
-    def update_anomaly_state(self, anomaly_table: NTTable):
+    def update_anomaly_state(
+            self,
+            anomaly_dict: dict[str, bool]
+    ):
         anomaly_pv = "KLYS:SYS0:1:ANOM_STATES"
+        anomaly_table = create_anomaly_table(anomaly_dict)
 
         try:
             self.dml.put(f"pva://{anomaly_pv}", anomaly_table, 10.0)
@@ -75,3 +77,24 @@ class K2EGInstrumentPortal:
                 print(f"Operation timed out while writing to {anomaly_pv}.")
             else:
                 raise e
+
+
+def create_anomaly_table(anom_dict: dict[str, bool]) -> NTTable:
+    """
+    Create an anomaly table in the expected format from a dictionary of anomaly states.
+
+    Parameters
+    ----------
+    anom_dict : Dict[str, bool]
+        A dictionary where keys are klystron station names and values are their anomaly states (True for anomalous, False for normal).
+
+    Returns
+    -------
+    NTTable
+        A table with anomaly states for each klystron station.
+    """
+    nt_labels = ["station", "anomaly_state"]
+    table = NTTable(labels=nt_labels)
+    table.set_column("station", list(anom_dict.keys()))
+    table.set_column("anomaly_state", list(anom_dict.values()))
+    return table
