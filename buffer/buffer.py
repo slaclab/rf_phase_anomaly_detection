@@ -183,12 +183,15 @@ class Buffer:
             snapshot_length = self.snapshot_length
 
         # update the latest PV value map with the last value from each pv
+        # we assume here that (1) k2eg always returns a value, even if very old,
+        # (2) the values returned are in chronological order
         failed_updates = []
         # self.num_snapshots_processed was increased by 1 a few lines above
         # so this is the start of the next snapshot window
         next_start_time = (self.time_of_first_data +
                            self.num_snapshots_processed * self.snapshot_period_ns)
         for pv in self.pv_list:
+            prev_snapshot_val = None
             try:
                 # # this can pull from the future, but it is quick
                 # prev_snapshot_val = get_value(snapshot[pv][-1], self.logger)
@@ -198,12 +201,33 @@ class Buffer:
                         prev_snapshot_val = get_value(entry, self.logger)
                     else:  # entries are in time order, break when you are into the future
                         break
-            except IndexError:
+            except IndexError:  # this exception is caused by the -1 in snapshot[pv][-1]
                 failed_updates.append((pv, 'empty'))
-            except KeyError:
+            except KeyError:  # this exception is caused by the pv in snapshot[pv]
                 failed_updates.append((pv, 'dne'))
             else:
-                self.prev_snapshot_val_map[pv] = prev_snapshot_val
+                if prev_snapshot_val is not None:
+                    self.prev_snapshot_val_map[pv] = prev_snapshot_val
+                else:
+                    # if you get here, it is because snapshot[pv] has values out of order
+                    # and the first value comes after next_start_time
+                    msg = f"PV {pv:s} for snapshot number {snapshot['iteration']:d} "
+                    msg += f"appears to be out of order or entirely from the future. Length: {len(snapshot[pv])}. "
+                    msg += f"next_start_time: {next_start_time}"
+                    self.logger.warning(msg)
+
+        # # Dump the first many snapshots for diagnostics purposes
+        # uu = snapshot['iteration']
+        # if uu < 50:
+        #     import json
+        #     save_this = snapshot | {
+        #         'next_start_time': next_start_time,
+        #         'time_of_first_data': self.time_of_first_data,
+        #         'num_snapshots_processed': self.num_snapshots_processed,
+        #         'snapshot_period_ns': self.snapshot_period_ns
+        #     }
+        #     with open(f"snapshots/snapshot_{uu:03d}.json", 'w') as jf:
+        #         json.dump(save_this, jf, indent=4)
 
         if len(failed_updates) > 0:
             ss = f"There were some issues updating Buffer.prev_snapshot_val_map "
