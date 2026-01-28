@@ -1,11 +1,65 @@
 import time
+import logging
 from multiprocessing import Manager
 
 from process import CustomProcessObject
 from mp_logging import default_logging_kwargs, create_worker_logger
 from k2eg_interface.k2eg_handler import K2EGHandler
 
-from typing import Optional
+from typing import Optional, Any
+
+
+def sort_pv_response_by_time(pv_list: list) -> list:
+    times = [
+        entry['timeStamp']['secondsPastEpoch'] * int(1e9) + entry['timeStamp']['nanoseconds']
+        for entry in pv_list
+    ]
+    # see https://stackoverflow.com/a/6618543/6024187
+    return [x for _, x in sorted(zip(times, pv_list))]
+
+def process_snapshot(
+        snap: dict[str, Any],
+        warn_once_set: set,
+        logger: logging.Logger
+) -> dict[str, Any]:
+    """
+    This function processes a snapshot to make sure that the entries in each PV are
+    in chronological order.
+
+    Parameters
+    ----------
+    snap : dict
+        A snapshot from k2eg.
+    warn_once_set : set
+        A set for holding the types of entries that have already warned about.
+    logger : logging.Logger
+        A logger object.
+
+    Returns
+    -------
+    The processed snapshot.
+    """
+    iteration = snap["iteration"]
+    t0 = time.time()
+    sorted_snapshot = {}
+    for key, value in snap.items():
+        if isinstance(value, list):
+            sorted_snapshot[key] = sort_pv_response_by_time(value)
+        elif isinstance(value, int):
+            sorted_snapshot[key] = value
+        else:
+            sorted_snapshot[key] = value
+            t = type(value)
+            if t not in warn_once_set:
+                msg = f"Unknown type for value in snapshot {iteration:d}, key: {key:s}, type: {t}. "
+                msg += "Future warnings about this type of object are disabled."
+                logger.warning(msg)
+                warn_once_set.add(t)
+    if iteration % 20 == 0:
+        dt = time.time() - t0
+        logger.debug(f"snapshot {iteration:d} sorting time: {1000 * dt:.1f} ms")
+    return sorted_snapshot
+
 
 
 class K2EGProcess(CustomProcessObject):
@@ -48,6 +102,8 @@ class K2EGProcess(CustomProcessObject):
 
         self.keep_fetching_data = False
 
+        self.warn_once_set = set()
+
     def __call__(self):
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
@@ -76,18 +132,34 @@ class K2EGProcess(CustomProcessObject):
             handler.close()
 
     def snapshot_handler(self, snapshot_name: str, snapshot: dict):
+        """
+        This function is passed to k2eg handlers to tell them what to do with a snapshot.
+        The responses from the PVs are usually, but not always, in chronological order.
+        Sort them here.
+
+        Parameters
+        ----------
+        snapshot_name : str
+            The name of the snapshot.
+        snapshot : dict
+            Keys are strings, values can be anything.
+            ints are 'iteration', 'header_timestamp', 'tail_timestamp', and 'timestamp'
+            lists are the response from the PVs.
+        """
         iteration = snapshot["iteration"]
+
+        sorted_snapshot = process_snapshot(snapshot, self.warn_once_set, self.logger)
 
         # claudio wants us to wait for ~10 snapshots for k2eg to warm up
         n_skip = 10
-        if iteration < n_skip:
-            ss = f"Skipping iteration {iteration}/{n_skip} to give k2eg time to warm up"
+        if iteration <= n_skip:
+            ss = f"Skipping iteration {iteration}/{n_skip} from {snapshot_name:s} to give k2eg time to warm up"
             self.logger.info(ss)
         else:
             if self.logger is not None:
-                self.logger.debug(f"Snapshot {iteration:d} enqueued for {snapshot_name}")
-                # self.logger.debug(snapshot)
-            self.queue.put(snapshot)
+                self.logger.debug(f"Snapshot {iteration:d} enqueued for {snapshot_name:s}")
+                # self.logger.debug(sorted_snapshot)
+            self.queue.put(sorted_snapshot)
 
 
 if __name__ == "__main__":
