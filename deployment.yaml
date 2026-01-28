@@ -27,6 +27,8 @@ spec:
         env:
           - name: K2EG_PYTHON_CONFIGURATION_PATH_FOLDER
             value: /app/config
+          - name: TZ
+            value: "America/Los_Angeles"
         volumeMounts:
           - name: s3cmd-config-volume
             mountPath: /app/config/k2eg.ini
