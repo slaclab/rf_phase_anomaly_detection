@@ -84,11 +84,13 @@ class COADPredictor(BasePredictor):
         self.queue_inst = queue_inst
         self.klystrons_list = load_klystron_configs()
         try:
-            self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.queue_inst, self.logger)
+            self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.queue_inst,
+                                                 logger=self.logger)
         except TimeoutError:
             self.write_to_pv = False
             self.logger.warning(f"({str(self)}) k2eg gateway could not be contacted, setting write_to_pv to False")
-            self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.queue_inst, self.logger)
+            self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.queue_inst,
+                                                 logger=self.logger)
 
         # # TEMPORARY: Silence lume-model out of range warnings
         # self.networks[0].model.input_validation_config = {
