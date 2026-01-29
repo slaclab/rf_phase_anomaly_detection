@@ -33,11 +33,10 @@ class TimedBoolDict:
     lock : threading.Lock
         A lock to ensure thread safety when accessing or modifying the data and timers.
     reset_time : int
-        The time in seconds after which the value is reset to False if it was set to True. Default is 300 seconds (5 minutes).
+        The time in seconds after which the value is reset to False if it was set to True. Default is 300 seconds
+        (5 minutes).
     logger : logging.Logger
         A logger instance for logging debug messages.
-    k2eg_client : k2eg_dml
-        The K2EG client used to write the anomaly state to K2EG if `write_to_pv` is True.
     Methods
     -------
     set_key(key: str, value: bool)
@@ -193,7 +192,7 @@ def write_prediction_to_k2eg(
     })
 
 
-def set_anomaly_state(anomaly_state: TimedBoolDict, klys: str, state: bool) -> None:
+def set_anomaly_state(anomaly_state: TimedBoolDict, klys: str, state: bool) -> dict[str, bool]:
     """
     Set the anomaly state for a given klystron station. This updates the internal state of the anomaly dictionary.
 
