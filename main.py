@@ -48,6 +48,10 @@ def main(args: argparse.Namespace):
         )
         main_logger.info(args)
 
+        instrument_po = ProcessI(queue_ins, logging_kwargs=logging_kwargs.copy())
+        instrument_process = Process(target=instrument_po, args=())
+        instrument_process.start()
+
         # create classes to be turned into processes
         # it helps to put them in order
         if args.spoof_k2eg_data:
@@ -73,15 +77,18 @@ def main(args: argparse.Namespace):
             ProcessB(queue_one, queue_two,
                      pv_list=list_of_pvs, queue_inst=queue_ins, logging_kwargs=logging_kwargs.copy()),
             ProcessC(queue_two, queue_inst=queue_ins, logging_kwargs=logging_kwargs.copy()),
-            ProcessI(queue_ins, logging_kwargs=logging_kwargs.copy()),
         ]
 
         # use ProcessManager to handle start and join of processes
         with ProcessManager(process_objects=process_objects) as pm:
+            queue_ins.put({'method': 'update_running_pv', 'data': True})
             while pm.is_running:
                 time.sleep(1)
                 main_logger.debug("pm loop")
+        queue_ins.put({'method': 'update_running_pv', 'data': False})
 
+        queue_ins.put(None)
+        instrument_process.join()  # wait for the instrument process to finish
         queue_log.put(None)
         logger_process.join()  # wait for the logger to finish last
 

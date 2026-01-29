@@ -55,7 +55,6 @@ class ProcessC(CustomProcessObject):
                 r = self.queue.get()
                 # self.logger.debug(f"ProcessC sees {r}")
                 if r is None:  # enqueue a None to stop this process
-                    self.queue_inst.put(None)  # end the instrumentation process, too
                     break
                 candidate = deepcopy(r)
                 candidate["rf_pv_name"] = convert_pv_name_to_table_name(r["rf_pv_name"])

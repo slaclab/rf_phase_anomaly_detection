@@ -129,7 +129,6 @@ class K2EGProcess(CustomProcessObject):
                 time.sleep(0.2)
         self.logger.debug("Finished")
         self.queue.put(None)  # end the downstream processes
-        self.queue_inst.put(None)  # end the instrumentation process
 
         for handler in self.logger.handlers:
             handler.close()

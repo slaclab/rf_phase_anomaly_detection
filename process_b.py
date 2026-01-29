@@ -84,7 +84,6 @@ class ProcessB(CustomProcessObject):
                 if snapshot is None:  # enqueuing a None should stop this process immediately
                     self.logger.info("Received shutdown signal. Stopping process")
                     self.queue_two.put(None)
-                    self.queue_inst.put(None)  # end the instrumentation process, as well
                     break
                 self.logger.debug("Received new snapshot from queue_one")
 
