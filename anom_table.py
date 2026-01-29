@@ -1,10 +1,11 @@
 import threading
 import logging
+from abc import ABC, abstractmethod
 from multiprocessing import Manager
 
 from k2eg.serialization import NTTable
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -14,7 +15,79 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
-class TimedBoolDict:
+class TimedDict(ABC):
+    def __init__(
+            self,
+            keys: List[str],
+            write_to_pv: bool = True,
+            queue_inst: Optional["Manager.Queue"] = None,  # instrumentation queue
+            logger: logging.Logger = logger):
+        """
+        Initializes the TimedBoolDict with the given keys, whether to write to K2EG, and the reset time.
+
+        Parameters
+        ----------
+        keys: List[str]
+            A list of keys for which the boolean values will be stored.
+        write_to_pv: bool
+            A flag indicating whether to write the anomaly state to K2EG. Default is True.
+        logger: logging.Logger
+            A logger instance for logging debug messages. Default is the module's logger.
+        """
+        self.data: Dict[str, bool] = {k: False for k in keys}
+        self.write_to_pv: bool = write_to_pv
+        self.queue_inst = queue_inst
+        self.reset_time: int = 300  # Reset time in seconds (5 minutes is default)
+        self.timers: Dict[str, threading.Timer] = {}
+        self.lock = threading.RLock()
+        self.logger = logger
+        if self.write_to_pv:
+            # Always reset the anomaly state to False at initialization
+            write_prediction_to_k2eg(self.data, self.queue_inst)
+            self.logger.debug("Reset anomaly state PV to all False at initialization.")
+        else:
+            self.k2eg_client = None
+
+    @abstractmethod
+    def set_key(self, key: str, value: bool):
+        pass
+
+    @abstractmethod
+    def _reset_key(self, key: str):
+        pass
+
+    def get_dict(self):
+        """
+        Returns a copy of the current state of the dictionary.
+        This method is thread-safe and returns a snapshot of the current anomaly states for all klystron stations.
+
+        Returns
+        -------
+        Dict[str, bool]
+            A copy of the current state of the dictionary, where keys are klystron station names and values are their
+            anomaly states (True for anomalous, False for normal).
+        """
+        with self.lock:
+            return dict(self.data)
+
+    def shut_down(self):
+        """
+        Cancel all timers and close the K2EG client connection if `write_to_pv` is True.
+        This method should be called when the application is shutting down to clean up resources.
+
+        Returns
+        -------
+        None
+        """
+        with self.lock:
+            for timer in self.timers.values():
+                timer.cancel()
+            self.timers.clear()
+            if self.write_to_pv:
+                self.queue_inst.put(None)
+
+
+class TimedBoolDict(TimedDict):
     """
     A dictionary that holds boolean values for given keys, with a timer that resets the value to False
     after 5 minutes if the value is set to True. Anytime the dictionary is modified, it writes the current state
@@ -47,38 +120,6 @@ class TimedBoolDict:
     get_dict()
         Returns a copy of the current state of the dictionary.
     """
-
-    def __init__(
-            self,
-            keys: List[str],
-            write_to_pv: bool = True,
-            queue_inst: Optional["Manager.Queue"] = None,  # instrumentation queue
-            logger: logging.Logger = logger):
-        """
-        Initializes the TimedBoolDict with the given keys, whether to write to K2EG, and the reset time.
-
-        Parameters
-        ----------
-        keys: List[str]
-            A list of keys for which the boolean values will be stored.
-        write_to_pv: bool
-            A flag indicating whether to write the anomaly state to K2EG. Default is True.
-        logger: logging.Logger
-            A logger instance for logging debug messages. Default is the module's logger.
-        """
-        self.data: Dict[str, bool] = {k: False for k in keys}
-        self.write_to_pv: bool = write_to_pv
-        self.queue_inst = queue_inst
-        self.reset_time: int = 300  # Reset time in seconds (5 minutes is default)
-        self.timers: Dict[str, threading.Timer] = {}
-        self.lock = threading.RLock()
-        self.logger = logger
-        if self.write_to_pv:
-            # Always reset the anomaly state to False at initialization
-            write_prediction_to_k2eg(self.data, self.queue_inst)
-            self.logger.debug("Reset anomaly state PV to all False at initialization.")
-        else:
-            self.k2eg_client = None
 
     def set_key(self, key: str, value: bool):
         """
@@ -141,39 +182,9 @@ class TimedBoolDict:
                 write_prediction_to_k2eg(self.data, self.queue_inst)
             self.logger.debug(f"Reset key {key} to 0. Current state dict: \n{dict(self.get_dict())}")
 
-    def get_dict(self):
-        """
-        Returns a copy of the current state of the dictionary.
-        This method is thread-safe and returns a snapshot of the current anomaly states for all klystron stations.
-
-        Returns
-        -------
-        Dict[str, bool]
-            A copy of the current state of the dictionary, where keys are klystron station names and values are their
-            anomaly states (True for anomalous, False for normal).
-        """
-        with self.lock:
-            return dict(self.data)
-
-    def shut_down(self):
-        """
-        Cancel all timers and close the K2EG client connection if `write_to_pv` is True.
-        This method should be called when the application is shutting down to clean up resources.
-
-        Returns
-        -------
-        None
-        """
-        with self.lock:
-            for timer in self.timers.values():
-                timer.cancel()
-            self.timers.clear()
-            if self.write_to_pv:
-                self.queue_inst.put(None)
-
 
 def write_prediction_to_k2eg(
-        anomaly_table: dict[str, bool],
+        anomaly_table: dict[str, Any],
         inst_queue: "Manager.Queue"
 ) -> None:
     """
@@ -181,8 +192,8 @@ def write_prediction_to_k2eg(
 
     Parameters
     ----------
-    anomaly_table : dict[str, bool]
-        The anomaly table to write to K2EG in dictionary form with PV-NAME: bool as the entries.
+    anomaly_table : dict[str, Any]
+        The anomaly table to write to K2EG in dictionary form with PV-NAME: Any as the entries.
     inst_queue : "Manager.Queue"
         Instrumentation Queue for communicating with K2EG to set EPICS PVs.
     # """
@@ -192,13 +203,17 @@ def write_prediction_to_k2eg(
     })
 
 
-def set_anomaly_state(anomaly_state: TimedBoolDict, klys: str, state: bool) -> dict[str, bool]:
+def set_anomaly_state(
+        anomaly_state: TimedDict,
+        klys: str,
+        state: Any
+) -> dict[str, Any]:
     """
     Set the anomaly state for a given klystron station. This updates the internal state of the anomaly dictionary.
 
     Parameters
     ----------
-    anomaly_dict : TimedBoolDict
+    anomaly_dict : TimedDict
         The dictionary holding the anomaly states.
     klys : str
         The name of the klystron station to set the state for.
@@ -206,5 +221,4 @@ def set_anomaly_state(anomaly_state: TimedBoolDict, klys: str, state: bool) -> d
         The state to set (True for anomalous, False for normal).
     """
     anomaly_state.set_key(klys, state)
-    anomaly_dict = anomaly_state.get_dict()
-    return anomaly_dict
+    return anomaly_state.get_dict()
