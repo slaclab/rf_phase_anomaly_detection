@@ -1,11 +1,18 @@
+import os
 import threading
 import logging
+import yaml
 from abc import ABC, abstractmethod
+from datetime import datetime
+from collections import deque
 from multiprocessing import Manager
 
 from k2eg.serialization import NTTable
 
 from typing import List, Dict, Optional, Any
+
+
+ROOTDIR = os.path.dirname(os.path.abspath(__file__))
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -17,6 +24,7 @@ logger.addHandler(handler)
 
 class TimedDict(ABC):
     default_value = None
+    write_to_pv_method = 'default'
     """
         A dictionary that holds values for given keys, with a timer that resets the value to False
         after a set period of time. Anytime the dictionary is modified, it writes the current state
@@ -51,7 +59,6 @@ class TimedDict(ABC):
 
     def __init__(
             self,
-            keys: List[str],
             write_to_pv: bool = True,
             queue_inst: Optional["Manager.Queue"] = None,  # instrumentation queue
             reset_time: int = 300,  # Reset time in seconds (5 minutes is default)
@@ -72,19 +79,24 @@ class TimedDict(ABC):
         logger: logging.Logger
             A logger instance for logging debug messages. Default is the module's logger.
         """
-        self.data: Dict[str, bool] = {k: self.default_value for k in keys}
+        self.data: Dict[str, Any] = {
+            format_pv_name_for_table(k): self.default_value for k in load_klystron_configs()
+        }
         self.write_to_pv: bool = write_to_pv
         self.queue_inst = queue_inst
         self.reset_time: int = reset_time
         self.timers: Dict[str, threading.Timer] = {}
         self.lock = threading.RLock()
         self.logger = logger
+        if queue_inst is None:
+            self.logger.warning(f"anom_table {str(self)} did not receive a queue instance, disabling PV writing")
+            self.write_to_pv = False
         if self.write_to_pv:
-            # Always reset the anomaly state to False at initialization
-            write_prediction_to_k2eg(self.data, self.queue_inst)
+            # Always reset the anomaly state to default at initialization
+            write_prediction_to_k2eg(self.get_dict(), self.queue_inst, self.write_to_pv_method)
             self.logger.debug("Reset anomaly state PV to all False at initialization.")
 
-    def set_key(self, key: str, value: bool):
+    def set_key(self, key: str, value: Any):
         with self.lock:
             self._set_key(key, value)
 
@@ -124,11 +136,12 @@ class TimedDict(ABC):
                 timer.cancel()
             self.timers.clear()
             if self.write_to_pv:
-                self.queue_inst.put(None)
+                pass
 
 
 class TimedBoolDict(TimedDict):
     default_value = False
+    write_to_pv_method = 'update_anomaly_state'
     """
     A dictionary that holds boolean values for given keys, with a timer that resets the value to False
     after 5 minutes if the value is set to True. Anytime the dictionary is modified, it writes the current state
@@ -180,6 +193,7 @@ class TimedBoolDict(TimedDict):
         -------
         None
         """
+        key = format_pv_name_for_table(key)
         self.logger.debug(f"Setting {key} to 1... Current state dict: \n{dict(self.get_dict())}")
         self.data[key] = value
         if value:
@@ -196,7 +210,7 @@ class TimedBoolDict(TimedDict):
                 self.timers[key].cancel()
                 del self.timers[key]
         if self.write_to_pv:
-            write_prediction_to_k2eg(self.data, self.queue_inst)
+            write_prediction_to_k2eg(self.data, self.queue_inst, self.write_to_pv_method)
         self.logger.debug(f"Set {key} to 1. Current state dict: \n{dict(self.get_dict())}")
 
     def _reset_key(self, key: str):
@@ -213,29 +227,68 @@ class TimedBoolDict(TimedDict):
         -------
         None
         """
+        key = format_pv_name_for_table(key)
         with self.lock:
             self.logger.debug(f"Resetting key {key} to 0... Current state dict: \n{dict(self.get_dict())}")
-            self.data[key] = False
+            self.data[key] = self.default_value
             if key in self.timers:
                 del self.timers[key]
             if self.write_to_pv:
-                write_prediction_to_k2eg(self.data, self.queue_inst)
+                write_prediction_to_k2eg(self.data, self.queue_inst, self.write_to_pv_method)
             self.logger.debug(f"Reset key {key} to 0. Current state dict: \n{dict(self.get_dict())}")
 
 
 class TimedCountDict(TimedDict):
-    default_value = 0
+    def _set_key(self, key: str, value: int):
+        key = format_pv_name_for_table(key)
+        now = datetime.now().timestamp()
+        self.logger.debug(f"Incrementing {key} by 1... Current state dict: \n{dict(self.get_dict())}")
 
-    def set_key(self, key: str, value: int):
-        pass
+        dd = self.data[key]
+        if dd is None:
+            dd = deque(maxlen=3000)
+        dd.append(now)
+        self.drop_old()
+        self.data[key] = dd
+
+        if self.write_to_pv:
+            write_prediction_to_k2eg(self.get_dict(), self.queue_inst, self.write_to_pv_method)
+        self.logger.debug(f"Incrementing {key} to 1. Current state dict: \n{dict(self.get_dict())}")
 
     def _reset_key(self, key: str):
-        pass
+        key = format_pv_name_for_table(key)
+        with self.lock:
+            self.drop_old()
+            self.logger.debug(f"Resetting key {key} ... Current state dict: \n{dict(self.get_dict())}")
+            self.data[key] = self.default_value
+            if self.write_to_pv:
+                write_prediction_to_k2eg(self.get_dict(), self.queue_inst, self.write_to_pv_method)
+            self.logger.debug(f"Reset key {key} to 0. Current state dict: \n{dict(self.get_dict())}")
+
+    def get_dict(self) -> dict:
+        dd = super().get_dict()
+        return {k: (len(v) if v is not None else 0) for k, v in dd.items()}
+
+    def drop_old(self, now: Optional[float] = None) -> None:
+        if now is None:
+            now = datetime.now().timestamp()
+        for v in self.data.values():
+            if v is not None:
+                while len(v) > 0 and v[0] <= now - self.reset_time:
+                    v.popleft()
+
+
+class TimedCandCountDict(TimedCountDict):
+    write_to_pv_method = 'update_cand_count'
+
+class TimedAnomCountDict(TimedCountDict):
+    write_to_pv_method = 'update_anom_count'
 
 
 def write_prediction_to_k2eg(
         anomaly_table: dict[str, Any],
-        inst_queue: "Manager.Queue"
+        inst_queue: "Manager.Queue",
+        method: str = "default"
 ) -> None:
     """
     Write the anomaly table to K2EG.
@@ -245,21 +298,23 @@ def write_prediction_to_k2eg(
     anomaly_table : dict[str, Any]
         The anomaly table to write to K2EG in dictionary form with PV-NAME: Any as the entries.
     inst_queue : "Manager.Queue"
-        Instrumentation Queue for communicating with K2EG to set EPICS PVs.
+        Instrumentation Queue for communicating with K2EG to set EPICS PVs (K2EGInstrumentPortal).
+    method : str
+        The method in the communication handler (K2EGInstrumentPortal) to call.  Default will typically not work.
     # """
     inst_queue.put({
-        'method': 'update_anomaly_state',
+        'method': method,
         'data': anomaly_table
     })
 
 
-def set_anomaly_state(
+def set_timed_dict(
         anomaly_state: TimedDict,
         klys: str,
         state: Any
 ) -> dict[str, Any]:
     """
-    Set the anomaly state for a given klystron station. This updates the internal state of the anomaly dictionary.
+    Set a timed dict for a given klystron station. This updates the internal state of the dictionary.
 
     Parameters
     ----------
@@ -272,3 +327,24 @@ def set_anomaly_state(
     """
     anomaly_state.set_key(klys, state)
     return anomaly_state.get_dict()
+
+
+def format_pv_name_for_table(name: str) -> str:
+    s = name.split(':')
+    return '_'.join(s[:3]).lower()
+
+
+def load_klystron_configs() -> List:
+    """
+    Load klystron configurations from a YAML file.
+
+    The configs should have the following keys:
+        - klystrons: list of klystron station names.
+
+    Returns
+    -------
+    List
+        List of klystron names loaded from the YAML file.
+    """
+    with open(ROOTDIR + "/resources/klystrons.yml", "r") as file:
+        return yaml.safe_load(file)["klystrons"]

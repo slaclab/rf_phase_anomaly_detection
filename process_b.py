@@ -14,6 +14,7 @@ from process import CustomProcessObject
 from buffer.buffer import Buffer
 from anomaly_candidate import AnomalyCandidate, CandidateBucket, find_fast_index, find_most_anomalous_rf_station
 from candidate_saver import CandidateSaver
+from anom_table import TimedCandCountDict
 from run_config import (
     SAMPLES_PER_SECOND,
     BUFFER_LENGTH,
@@ -51,6 +52,20 @@ class ProcessB(CustomProcessObject):
         self.logging_kwargs["logger_name"] = "process_b"
         self.logger = None
 
+        # all of these must be created when the multiprocessing Process calls this object
+        self.buffer = None
+        self.candidate_bucket = None
+        self.candidate_saver = None
+        self.last_anomaly_timestamps = None
+        self.candidate_counter = None
+
+    def __call__(self) -> None:
+        if self.logger is None:
+            self.logger = create_worker_logger(**self.logging_kwargs)
+
+        self.logger.info(f"Starting process_b for {len(self.pv_list)} PVs")
+        self.logger.debug("Beginning main data processing loop...")
+
         # holds up to 5 minutes of 120hz data (36000 points) per pv.
         self.buffer = Buffer(
             pv_list=self.pv_list,
@@ -59,17 +74,17 @@ class ProcessB(CustomProcessObject):
             snapshot_period_ns=NANOSECS_IN_1_SEC,
             logging_kwargs=self.logging_kwargs.copy(),
         )  # 36000 = 120hz * 60sec/min * 5mins
+
         # holds anomaly candidates
         self.candidate_bucket = CandidateBucket()
         self.candidate_saver = CandidateSaver('saved_candidates', self.logging_kwargs.copy())
         self.last_anomaly_timestamps = {k: -1 for k in self.pv_list if k.endswith("PHAS_FASTBR")}
 
-    def __call__(self) -> None:
-        if self.logger is None:
-            self.logger = create_worker_logger(**self.logging_kwargs)
-
-        self.logger.info(f"Starting process_b for {len(self.pv_list)} PVs")
-        self.logger.debug("Beginning main data processing loop...")
+        # counts the number of candidates seen
+        self.candidate_counter = TimedCandCountDict(
+            queue_inst=self.queue_inst,
+            reset_time=604800  # one week, in seconds
+        )
 
         while True:
             # need to be sure each iteration of this processing loop is <= 1 second
@@ -89,6 +104,7 @@ class ProcessB(CustomProcessObject):
 
                 # parse the k2eg snapshot and update buffer
                 index_change, length_of_update = self.buffer.update(snapshot)
+                self.queue_inst.put({'method': 'update_buffer_length', 'data': self.buffer.index})
                 if index_change == 0 and length_of_update == 0:
                     data_in_snapshot = False
                     self.logger.warning(f"No data in snapshot {snapshot['iteration']:d} (skipping processing)")
@@ -141,6 +157,10 @@ class ProcessB(CustomProcessObject):
                 eval_cand = cand | {"reject_reason": evaluation}
                 if evaluation.lower() == 'none':
                     self.candidate_saver.save_anomaly_candidate(eval_cand)
+                    self.candidate_counter.set_key(
+                        eval_cand["rf_pv_name"],
+                        eval_cand["candidate_timestamp"] / NANOSECS_IN_1_SEC,  # seconds since Epoch
+                    )
                     self.queue_two.put(cand)
                     log_verb = "detected"
                     log_method = self.logger.info

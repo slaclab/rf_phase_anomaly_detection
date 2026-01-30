@@ -11,7 +11,7 @@ import torch
 import yaml
 
 from lume_model.models.torch_module import TorchModule
-from anom_table import set_anomaly_state, TimedBoolDict
+from anom_table import TimedBoolDict
 from inference.base_predictor import BasePredictor
 
 ROOTDIR = os.path.dirname(os.path.abspath(__file__))
@@ -82,14 +82,13 @@ class COADPredictor(BasePredictor):
         self.networks = networks if networks else load_models()
         self.write_to_pv = write_to_pv
         self.queue_inst = queue_inst
-        self.klystrons_list = load_klystron_configs()
         try:
-            self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.queue_inst,
+            self.anom_state_dict = TimedBoolDict(self.write_to_pv, self.queue_inst,
                                                  logger=self.logger)
         except TimeoutError:
             self.write_to_pv = False
             self.logger.warning(f"({str(self)}) k2eg gateway could not be contacted, setting write_to_pv to False")
-            self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.queue_inst,
+            self.anom_state_dict = TimedBoolDict(self.write_to_pv, self.queue_inst,
                                                  logger=self.logger)
 
         # # TEMPORARY: Silence lume-model out of range warnings
@@ -136,7 +135,7 @@ class COADPredictor(BasePredictor):
 
         anomalous = predict_label(self.configs, self.networks, (rf_input, bpm_input))
         if anomalous:
-            set_anomaly_state(self.anom_state_dict, rf_pv_name, anomalous)
+            self.anom_state_dict.set_key(rf_pv_name, anomalous)
         return anomalous
 
     def shut_down(self) -> None:
@@ -207,22 +206,6 @@ def load_configs() -> Dict[str, Any]:
         raise FileNotFoundError("Configuration file 'configs.yml' not found in the root directory.")
     with open(ROOTDIR + "/configs.yml", "r") as file:
         return yaml.safe_load(file)
-
-
-def load_klystron_configs() -> List:
-    """
-    Load klystron configurations from a YAML file.
-
-    The configs should have the following keys:
-        - klystrons: list of klystron station names.
-
-    Returns
-    -------
-    List
-        List of klystron names loaded from the YAML file.
-    """
-    with open(ROOTDIR + "/klystrons.yml", "r") as file:
-        return yaml.safe_load(file)["klystrons"]
 
 
 def predict_label(
