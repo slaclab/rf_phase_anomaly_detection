@@ -145,6 +145,7 @@ class ProcessB(CustomProcessObject):
         ss += "checking for ready candidates..."
         self.logger.debug(ss)
         acws = ANOMALY_CANDIDATE_WINDOW_SIZE
+        self.candidate_counter.drop_old()
         # check for candidates ready for process C
         while self.candidate_bucket.oldest_candidate_slow_index <= self.buffer.index - acws:
             self.logger.debug("Getting the oldest candidate for processing")

@@ -239,15 +239,16 @@ class TimedBoolDict(TimedDict):
 
 
 class TimedCountDict(TimedDict):
-    def _set_key(self, key: str, value: int):
+    def _set_key(self, key: str, value: Optional[float] = None):
         key = format_pv_name_for_table(key)
-        now = datetime.now().timestamp()
+        if value is None:
+            value = datetime.now().timestamp()
         self.logger.debug(f"Incrementing {key} by 1... Current state dict: \n{dict(self.get_dict())}")
 
         dd = self.data[key]
         if dd is None:
             dd = deque(maxlen=3000)
-        dd.append(now)
+        dd.append(value)
         self.drop_old()
         self.data[key] = dd
 

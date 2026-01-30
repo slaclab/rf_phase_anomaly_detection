@@ -7,7 +7,7 @@ from typing import Optional
 
 from inference.coad_predictor import COADPredictor
 from inference.rules_based_predictor import RulesBasedPredictor
-from anom_table import TimedAnomCountDict
+
 
 def convert_pv_name_to_table_name(name: str) -> str:
     """
@@ -37,17 +37,9 @@ class ProcessC(CustomProcessObject):
         self.logging_kwargs["logger_name"] = "process_c"
         self.logger = None
 
-        self.anomaly_counter = None
-
     def __call__(self):
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
-
-        # counts the number of candidates seen
-        self.anomaly_counter = TimedAnomCountDict(
-            queue_inst=self.queue_inst,
-            reset_time=604800  # one week, in seconds
-        )
 
         # Initialize predictors (loads models and configs, if any)
         #TODO: refactor COADPredictor to use the InstrumentationPortal

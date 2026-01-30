@@ -11,8 +11,9 @@ import torch
 import yaml
 
 from lume_model.models.torch_module import TorchModule
-from anom_table import TimedBoolDict
+from anom_table import TimedBoolDict, TimedAnomCountDict
 from inference.base_predictor import BasePredictor
+
 
 ROOTDIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -91,6 +92,12 @@ class COADPredictor(BasePredictor):
             self.anom_state_dict = TimedBoolDict(self.write_to_pv, self.queue_inst,
                                                  logger=self.logger)
 
+        # counts the number of anomalies seen
+        self.anomaly_counter = TimedAnomCountDict(
+            queue_inst=self.queue_inst,
+            reset_time=604800  # one week, in seconds
+        )
+
         # # TEMPORARY: Silence lume-model out of range warnings
         # self.networks[0].model.input_validation_config = {
         #     n: "none" for n in self.networks[0].model.input_names
@@ -136,6 +143,7 @@ class COADPredictor(BasePredictor):
         anomalous = predict_label(self.configs, self.networks, (rf_input, bpm_input))
         if anomalous:
             self.anom_state_dict.set_key(rf_pv_name, anomalous)
+            self.anomaly_counter.set_key(rf_pv_name, candidate["candidate_timestamp"])
         return anomalous
 
     def shut_down(self) -> None:
