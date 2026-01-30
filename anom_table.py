@@ -61,22 +61,21 @@ class TimedDict(ABC):
             self,
             write_to_pv: bool = True,
             queue_inst: Optional["Manager.Queue"] = None,  # instrumentation queue
-            reset_time: int = 300,  # Reset time in seconds (5 minutes is default)
+            reset_time: Optional[int] = 300,  # Reset time in seconds (5 minutes is default)
             logger: logging.Logger = logger):
         """
-        Initializes the TimedBoolDict with the given keys, whether to write to K2EG, and the reset time.
+        Initializes the TimedDict, flag whether to write to K2EG, and sets the reset time.
+        Uses an queue to communicate with K2EG.  Without this queue, there will be no communication.
 
         Parameters
         ----------
-        keys: List[str]
-            A list of keys for which the boolean values will be stored.
         write_to_pv: bool
             A flag indicating whether to write the anomaly state to K2EG. Default is True.
         queue_inst: Optional["Manager.Queue"]
             A queue which is used to communicate with K2EG. Default is None.
-        reset_time : int
+        reset_time : Optional[int]
             The time in seconds after which the value is reset. Default is 300 seconds (5 minutes).
-        logger: logging.Logger
+        logger: Optional[logging.Logger]
             A logger instance for logging debug messages. Default is the module's logger.
         """
         self.data: Dict[str, Any] = {
@@ -97,6 +96,20 @@ class TimedDict(ABC):
             self.logger.debug("Reset anomaly state PV to all False at initialization.")
 
     def set_key(self, key: str, value: Any):
+        """
+        Set the value for a given key in the dictionary. If `write_to_pv` is True, it writes the current anomaly state to K2EG.
+
+        Parameters
+        ----------
+        key: str
+            The key for which to set the value.
+        value: Any
+            The value to set for the key.
+
+        Returns
+        -------
+        None
+        """
         with self.lock:
             self._set_key(key, value)
 
@@ -106,18 +119,30 @@ class TimedDict(ABC):
 
     @abstractmethod
     def _reset_key(self, key: str):
+        """
+        Reset the value for a given key to default. If `write_to_pv` is True, it writes the updated value to K2EG.
+
+        Parameters
+        ----------
+        key: str
+            The key to reset in the dictionary.
+
+        Returns
+        -------
+        None
+        """
         pass
 
     def get_dict(self):
         """
         Returns a copy of the current state of the dictionary.
-        This method is thread-safe and returns a snapshot of the current anomaly states for all klystron stations.
+        This method is thread-safe and returns a snapshot of the current dictionary for all klystron stations.
 
         Returns
         -------
         Dict[str, Any]
-            A copy of the current state of the dictionary, where keys are klystron station names and values are their
-            anomaly states (True for anomalous, False for normal).
+            A copy of the current state of the dictionary, where keys are klystron station names and values are
+            whatever the TimedDict is storing.
         """
         with self.lock:
             return dict(self.data)
@@ -210,7 +235,7 @@ class TimedBoolDict(TimedDict):
                 self.timers[key].cancel()
                 del self.timers[key]
         if self.write_to_pv:
-            write_prediction_to_k2eg(self.data, self.queue_inst, self.write_to_pv_method)
+            write_prediction_to_k2eg(self.get_dict(), self.queue_inst, self.write_to_pv_method)
         self.logger.debug(f"Set {key} to 1. Current state dict: \n{dict(self.get_dict())}")
 
     def _reset_key(self, key: str):
@@ -234,7 +259,7 @@ class TimedBoolDict(TimedDict):
             if key in self.timers:
                 del self.timers[key]
             if self.write_to_pv:
-                write_prediction_to_k2eg(self.data, self.queue_inst, self.write_to_pv_method)
+                write_prediction_to_k2eg(self.get_dict(), self.queue_inst, self.write_to_pv_method)
             self.logger.debug(f"Reset key {key} to 0. Current state dict: \n{dict(self.get_dict())}")
 
 
@@ -270,9 +295,11 @@ class TimedCountDict(TimedDict):
         dd = super().get_dict()
         return {k: (len(v) if v is not None else 0) for k, v in dd.items()}
 
-    def drop_old(self, now: Optional[float] = None) -> None:
-        if now is None:
-            now = datetime.now().timestamp()
+    def drop_old(self) -> None:
+        """
+        Looks for klystrons with values that are more than self.reset_time into the past and drops them.
+        """
+        now = datetime.now().timestamp()
         for v in self.data.values():
             if v is not None:
                 while len(v) > 0 and v[0] <= now - self.reset_time:
