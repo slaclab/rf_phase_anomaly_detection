@@ -11,14 +11,16 @@ import torch
 import yaml
 
 from lume_model.models.torch_module import TorchModule
-from anom_table import set_anomaly_state, TimedBoolDict
+from anom_table import TimedBoolDict, TimedAnomCountDict
 from inference.base_predictor import BasePredictor
+
 
 ROOTDIR = os.path.dirname(os.path.abspath(__file__))
 
 # Set up logging
 logger = logging.getLogger(__name__)
-handler = logging.StreamHandler()
+# handler = logging.StreamHandler()
+handler = logging.NullHandler()
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
@@ -59,7 +61,8 @@ class COADPredictor(BasePredictor):
         self,
         configs: Optional[Dict[str, Any]] = None,
         networks: Optional[List[TorchModule]] = None,
-        write_to_pv: bool = False,
+        write_to_pv: Optional[bool] = False,
+        queue_inst: Optional["Manager.Queue"] = None,  # instrumentation queue
         logger: Optional[logging.Logger] = logger,
     ) -> None:
         """
@@ -80,13 +83,21 @@ class COADPredictor(BasePredictor):
         self.configs = configs if configs else load_configs()
         self.networks = networks if networks else load_models()
         self.write_to_pv = write_to_pv
-        self.klystrons_list = load_klystron_configs()
+        self.queue_inst = queue_inst
         try:
-            self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.logger)
+            self.anom_state_dict = TimedBoolDict(self.write_to_pv, self.queue_inst,
+                                                 logger=self.logger)
         except TimeoutError:
             self.write_to_pv = False
             self.logger.warning(f"({str(self)}) k2eg gateway could not be contacted, setting write_to_pv to False")
-            self.anom_state_dict = TimedBoolDict(self.klystrons_list, self.write_to_pv, self.logger)
+            self.anom_state_dict = TimedBoolDict(self.write_to_pv, self.queue_inst,
+                                                 logger=self.logger)
+
+        # counts the number of anomalies seen
+        self.anomaly_counter = TimedAnomCountDict(
+            queue_inst=self.queue_inst,
+            reset_time=7 * 24 * 3600  # reset candidates after a week
+        )
 
         # # TEMPORARY: Silence lume-model out of range warnings
         # self.networks[0].model.input_validation_config = {
@@ -132,7 +143,8 @@ class COADPredictor(BasePredictor):
 
         anomalous = predict_label(self.configs, self.networks, (rf_input, bpm_input))
         if anomalous:
-            set_anomaly_state(self.anom_state_dict, rf_pv_name, anomalous)
+            self.anom_state_dict.set_key(rf_pv_name, anomalous)
+            self.anomaly_counter.set_key(rf_pv_name, candidate["candidate_timestamp"])
         return anomalous
 
     def shut_down(self) -> None:
@@ -143,7 +155,8 @@ class COADPredictor(BasePredictor):
         it is no longer needed or before the program exits.
         """
         self.anom_state_dict.shut_down()
-        self.logger.info(f"({str(self)}) Shutting down predictor and closing K2EG client.")
+        self.anomaly_counter.shut_down()
+        self.logger.info(f"({str(self)}) Shutting down predictor.")
 
 
 def load_models() -> List[TorchModule]:
@@ -203,22 +216,6 @@ def load_configs() -> Dict[str, Any]:
         raise FileNotFoundError("Configuration file 'configs.yml' not found in the root directory.")
     with open(ROOTDIR + "/configs.yml", "r") as file:
         return yaml.safe_load(file)
-
-
-def load_klystron_configs() -> List:
-    """
-    Load klystron configurations from a YAML file.
-
-    The configs should have the following keys:
-        - klystrons: list of klystron station names.
-
-    Returns
-    -------
-    List
-        List of klystron names loaded from the YAML file.
-    """
-    with open(ROOTDIR + "/klystrons.yml", "r") as file:
-        return yaml.safe_load(file)["klystrons"]
 
 
 def predict_label(

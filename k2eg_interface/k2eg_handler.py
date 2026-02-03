@@ -75,7 +75,7 @@ class K2EGHandler:
                 handler=self.snapshot_handler,
                 timeout=10,
             )
-        except k2eg.dml.OperationTimeout:
+        except TimeoutError:
             self.logger.exception("Failed to start k2eg dml instance")
             raise
         else:
