@@ -2,6 +2,7 @@ import os
 import threading
 import logging
 import yaml
+from time import sleep
 from abc import ABC, abstractmethod
 from datetime import datetime
 from collections import deque
@@ -9,14 +10,15 @@ from multiprocessing import Manager
 
 from k2eg.serialization import NTTable
 
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Callable
 
 
 ROOTDIR = os.path.dirname(os.path.abspath(__file__))
 
 # Set up logging
 logger = logging.getLogger(__name__)
-handler = logging.StreamHandler()
+# handler = logging.StreamHandler()
+handler = logging.NullHandler()
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
@@ -263,8 +265,60 @@ class TimedBoolDict(TimedDict):
             self.logger.debug(f"Reset key {key} to 0. Current state dict: \n{dict(self.get_dict())}")
 
 
+class RepeatingTask:
+    def __init__(
+            self,
+            executable: Optional[Callable] = None,
+            sleep_time: Optional[float] = 2,
+            sleep_time_step: Optional[float] = 1,
+    ):
+        self.executable = executable
+        assert sleep_time_step <= sleep_time, 'sleep_time_step must be <= sleep_time'
+        self.sleep_time = sleep_time
+        self.sleep_time_step = sleep_time_step
+        self.keep_running = False
+    def __call__(self):
+        self.keep_running = True
+        sleep_timer = 0
+        while self.keep_running:
+            sleep(self.sleep_time_step)
+            sleep_timer += self.sleep_time_step
+            if sleep_timer >= self.sleep_time:
+                self.execute()
+                sleep_timer = 0
+    def execute(self):
+        if callable(self.executable):
+            self.executable()
+
+
+class StoppableThread(threading.Thread):
+    """
+    Thread class with a stop() method.
+    The thread itself has to check regularly for the stopped() condition.
+    """
+    def __init__(self,  *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._stop_event = threading.Event()
+    def stop(self):
+        self._stop_event.set()
+        try:
+            self._target.keep_running = False
+        except AttributeError:
+            pass
+    def cancel(self):
+        self.stop()
+    @property
+    def stopped(self):
+        return self._stop_event.is_set()
+
+
 class TimedCountDict(TimedDict):
     def _set_key(self, key: str, value: Optional[float] = None):
+        if self.timers == {}:
+            y = RepeatingTask(self.drop_old_with_lock, self.reset_time, sleep_time_step=1)
+            self.timers['all'] = StoppableThread(target=y)
+            self.timers['all'].start()
+
         key = format_pv_name_for_table(key)
         if value is None:
             value = datetime.now().timestamp()
@@ -274,21 +328,16 @@ class TimedCountDict(TimedDict):
         if dd is None:
             dd = deque(maxlen=3000)
         dd.append(value)
-        self.drop_old()
         self.data[key] = dd
-
-        if self.write_to_pv:
-            write_prediction_to_k2eg(self.get_dict(), self.queue_inst, self.write_to_pv_method)
+        self.drop_old()  # calls write_prediction_to_k2eg
         self.logger.debug(f"Incrementing {key} to 1. Current state dict: \n{dict(self.get_dict())}")
 
     def _reset_key(self, key: str):
         key = format_pv_name_for_table(key)
         with self.lock:
-            self.drop_old()
             self.logger.debug(f"Resetting key {key} ... Current state dict: \n{dict(self.get_dict())}")
             self.data[key] = self.default_value
-            if self.write_to_pv:
-                write_prediction_to_k2eg(self.get_dict(), self.queue_inst, self.write_to_pv_method)
+            self.drop_old()  # calls write_prediction_to_k2eg
             self.logger.debug(f"Reset key {key} to 0. Current state dict: \n{dict(self.get_dict())}")
 
     def get_dict(self) -> dict:
@@ -304,6 +353,12 @@ class TimedCountDict(TimedDict):
             if v is not None:
                 while len(v) > 0 and v[0] <= now - self.reset_time:
                     v.popleft()
+        if self.write_to_pv:
+            write_prediction_to_k2eg(self.get_dict(), self.queue_inst, self.write_to_pv_method)
+
+    def drop_old_with_lock(self) -> None:
+        with self.lock:
+            self.drop_old()
 
 
 class TimedCandCountDict(TimedCountDict):

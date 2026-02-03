@@ -83,18 +83,19 @@ class ProcessB(CustomProcessObject):
         # counts the number of candidates seen
         self.candidate_counter = TimedCandCountDict(
             queue_inst=self.queue_inst,
-            reset_time=604800  # one week, in seconds
+            reset_time=7 * 24 * 3600  # reset candidates after a week
         )
 
         while True:
             # need to be sure each iteration of this processing loop is <= 1 second
             # (data comes each second from process_a, so data will pile-up if our processing takes over 1 second)
             timer_start = time.perf_counter()
-            data_in_snapshot = True
+            data_in_snapshot = False
             try:
                 snapshot = self.queue_one.get(timeout=0.05)  # wait 50ms
             except Empty:
                 self.logger.debug("No new data in queue_one (timeout reached).")
+
             else:
                 if snapshot is None:  # enqueuing a None should stop this process immediately
                     self.logger.info("Received shutdown signal. Stopping process")
@@ -106,9 +107,9 @@ class ProcessB(CustomProcessObject):
                 index_change, length_of_update = self.buffer.update(snapshot)
                 self.queue_inst.put({'method': 'update_buffer_length', 'data': self.buffer.index})
                 if index_change == 0 and length_of_update == 0:
-                    data_in_snapshot = False
                     self.logger.warning(f"No data in snapshot {snapshot['iteration']:d} (skipping processing)")
                 else:
+                    data_in_snapshot = True
                     self.logger.debug(
                         f"Buffer updated: index_change={index_change}, length_of_update={length_of_update}"
                     )
@@ -124,6 +125,7 @@ class ProcessB(CustomProcessObject):
 
         self.logger.info("Shutting down process_b")
 
+        self.candidate_counter.shut_down()
         for handler in self.logger.handlers:
             handler.close()
 
@@ -145,7 +147,6 @@ class ProcessB(CustomProcessObject):
         ss += "checking for ready candidates..."
         self.logger.debug(ss)
         acws = ANOMALY_CANDIDATE_WINDOW_SIZE
-        self.candidate_counter.drop_old()
         # check for candidates ready for process C
         while self.candidate_bucket.oldest_candidate_slow_index <= self.buffer.index - acws:
             self.logger.debug("Getting the oldest candidate for processing")

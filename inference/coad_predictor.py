@@ -19,7 +19,8 @@ ROOTDIR = os.path.dirname(os.path.abspath(__file__))
 
 # Set up logging
 logger = logging.getLogger(__name__)
-handler = logging.StreamHandler()
+# handler = logging.StreamHandler()
+handler = logging.NullHandler()
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
@@ -95,7 +96,7 @@ class COADPredictor(BasePredictor):
         # counts the number of anomalies seen
         self.anomaly_counter = TimedAnomCountDict(
             queue_inst=self.queue_inst,
-            reset_time=604800  # one week, in seconds
+            reset_time=7 * 24 * 3600  # reset candidates after a week
         )
 
         # # TEMPORARY: Silence lume-model out of range warnings
@@ -154,7 +155,8 @@ class COADPredictor(BasePredictor):
         it is no longer needed or before the program exits.
         """
         self.anom_state_dict.shut_down()
-        self.logger.info(f"({str(self)}) Shutting down predictor and closing K2EG client.")
+        self.anomaly_counter.shut_down()
+        self.logger.info(f"({str(self)}) Shutting down predictor.")
 
 
 def load_models() -> List[TorchModule]:
