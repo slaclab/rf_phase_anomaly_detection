@@ -315,7 +315,8 @@ class StoppableThread(threading.Thread):
 class TimedCountDict(TimedDict):
     def _set_key(self, key: str, value: Optional[float] = None):
         if self.timers == {}:
-            y = RepeatingTask(self.drop_old_with_lock, self.reset_time, sleep_time_step=1)
+            sts = min(self.reset_time / 10, 1)
+            y = RepeatingTask(self.drop_old_with_lock, self.reset_time, sleep_time_step=sts)
             self.timers['all'] = StoppableThread(target=y)
             self.timers['all'].start()
 
