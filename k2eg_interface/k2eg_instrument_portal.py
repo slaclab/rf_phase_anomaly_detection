@@ -53,7 +53,7 @@ class K2EGInstrumentPortal:
             method: str,
             data: Any,
     ):
-        self.logger.info(f"Received {method} request")
+        self.logger.debug(f"Received {method} request")
         try:
             x = getattr(self, method)
         except AttributeError:
@@ -66,7 +66,6 @@ class K2EGInstrumentPortal:
         try:
             self.dml.put(f"pva://{pv_name}", data, 10.0)
         except Exception as e:
-            # TODO: OperationTimeout might need to be switched to a normal TimeoutError
             if isinstance(e, (OperationTimeout, TimeoutError)):
                 self.logger.warning(f"Operation timed out while writing to {pv_name}.")
             elif isinstance(e, OperationError):
@@ -78,19 +77,31 @@ class K2EGInstrumentPortal:
             self,
             anomaly_dict: dict[str, bool]
     ):
-        anomaly_pv = "KLYS:SYS0:1:ANOM_STATES"
         anomaly_table = create_anomaly_table(anomaly_dict)
+        # the new PV name:
+        anomaly_pv = "ANOM:SYS0:1:KAD_STATES"
         self._put(anomaly_pv, anomaly_table)
         self.update_anomaly_any(anomaly_dict)
+        # the old PV name (to be deleted):
+        anomaly_pv = "KLYS:SYS0:1:ANOM_STATES"
+        self._put(anomaly_pv, anomaly_table)
 
     def update_anomaly_any(self, anomaly_dict: dict[str, bool]):
-        anom_any_pv = "KLYS:SYS0:1:ANOM_ANY"
         anomaly_any = Scalar(key='value', payload=any(anomaly_dict.values()))
+        # the new PV name:
+        anom_any_pv = "ANOM:SYS0:1:KAD_ANOM_ANY"
+        self._put(anom_any_pv, anomaly_any)
+        # the old PV name (to be deleted):
+        anom_any_pv = "KLYS:SYS0:1:ANOM_ANY"
         self._put(anom_any_pv, anomaly_any)
 
     def update_running_pv(self, is_it_running: bool):
-        running_pv = "KLYS:SYS0:1:ANOM_SRV"
         scalar = Scalar(key='value', payload=is_it_running)
+        # the new PV name
+        running_pv = "ANOM:SYS0:1:KAD_RUNNING"
+        self._put(running_pv, scalar)
+        # the old PV name (to be deleted):
+        running_pv = "KLYS:SYS0:1:ANOM_SRV"
         self._put(running_pv, scalar)
 
     def update_buffer_length(self, buffer_len: int):
