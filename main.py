@@ -27,14 +27,14 @@ def main(args: argparse.Namespace):
         queue_log = manager.Queue()  # for logging only
         queue_ins = manager.Queue()  # for communicating with GUI
 
-        main_logger_name = None if args.disable_file_logging else "main"
+        main_logger_name = None if args.disable_file_logging else "kad_main"
 
         # logging configuration
         logging_kwargs = default_logging_kwargs = {
             "queue": queue_log,
             "logger_name": main_logger_name,
             "log_level": args.log_level,  # 10 is DEBUG
-            "log_stdout": True,
+            "log_stdout": not args.disable_stdout_logging,
         }
 
         logger_process = Process(target=run_logger_process, kwargs=logging_kwargs)
@@ -114,7 +114,15 @@ if __name__ == "__main__":
         "-dfl",
         "--disable_file_logging",
         action="store_true",
-        help="Disable writing of log output to file, logging output will still be outputted to terminal.",
+        help=("Disable writing of log output to file, logging output might be output to terminal, " 
+              "depending on that setting."),
+    )
+    parser.add_argument(
+        "-dsl",
+        "--disable_stdout_logging",
+        action="store_true",
+        help=("Disable writing of log output standard out, logging might still be sent to file, "
+              "depending on that setting."),
     )
     parser.add_argument(
         "-ll",
