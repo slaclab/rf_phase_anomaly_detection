@@ -9,13 +9,13 @@ from k2eg_interface.k2eg_handler import K2EGHandler
 from typing import Optional, Any
 
 
+def get_time_from_entry(entry: dict[str, Any]) -> int:
+    return entry['timeStamp']['secondsPastEpoch'] * int(1e9) + entry['timeStamp']['nanoseconds']
+
 def sort_pv_response_by_time(pv_list: list) -> list:
-    times = [
-        entry['timeStamp']['secondsPastEpoch'] * int(1e9) + entry['timeStamp']['nanoseconds']
-        for entry in pv_list
-    ]
+    times = [get_time_from_entry(entry) for entry in pv_list]
     # see https://stackoverflow.com/a/6618543/6024187
-    return [x for _, x in sorted(zip(times, pv_list))]
+    return [x for _, x in sorted(zip(times, pv_list), key=lambda pair: pair[0])]
 
 def process_snapshot(
         snap: dict[str, Any],
@@ -61,7 +61,6 @@ def process_snapshot(
     return sorted_snapshot
 
 
-
 class K2EGProcess(CustomProcessObject):
     """
     This class creates a process for handling k2eg as a sub-process.
@@ -104,9 +103,10 @@ class K2EGProcess(CustomProcessObject):
 
         self.keep_fetching_data = False
 
-        self.warn_once_set = set()
+        self.warn_once_set = None
 
     def __call__(self):
+        self.warn_once_set = set()
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
         if not isinstance(self.k2_handler, K2EGHandler):
@@ -151,11 +151,12 @@ class K2EGProcess(CustomProcessObject):
         iteration = snapshot["iteration"]
 
         sorted_snapshot = process_snapshot(snapshot, self.warn_once_set, self.logger)
+        # sorted_snapshot = snapshot
 
         # claudio wants us to wait for ~10 snapshots for k2eg to warm up
         n_skip = 10
         if iteration <= n_skip:
-            ss = f"Skipping iteration {iteration}/{n_skip} from {snapshot_name:s} to give k2eg time to warm up"
+            ss = f"Skipping iteration {iteration:>2d}/{n_skip:>2d} from {snapshot_name:s} to give k2eg time to warm up"
             self.logger.info(ss)
         else:
             if self.logger is not None:
