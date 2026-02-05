@@ -24,15 +24,20 @@ class SlidingWindowArray:
     ):
         logging_kwargs["logger_name"] = "sliding_window_array"
         self.logger = create_worker_logger(**logging_kwargs, start_quietly=True)
-        self.logger.info(f"({pv_name}) Initializing sliding window")
 
         self.dtype = dtype
-        self.data = np.empty(buffer_len, dtype=dtype)
         self.buffer_len = buffer_len
         self.pv_name = pv_name
-        self.index = 0
+        self.data = None
+        self.index = None
+        self.init_sliding_window_array()
 
         # self.logger.info(f"Initialized SlidingWindowArray for pv '{pv_name}' with size {buffer_len}, dtype {dtype}")
+
+    def init_sliding_window_array(self) -> None:
+        self.logger.info(f"({self.pv_name}) Initializing sliding window")
+        self.data = np.empty(self.buffer_len, dtype=self.dtype)
+        self.index = 0
 
     def put(self, values: np.ndarray) -> None:
         n = len(values)

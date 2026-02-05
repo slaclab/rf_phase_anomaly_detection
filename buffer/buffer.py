@@ -59,47 +59,14 @@ class Buffer:
         logging_kwargs["logger_name"] = "buffer"
         self.logger = create_worker_logger(**logging_kwargs)
 
-        self.pv_list = pv_list
-
-        self.num_snapshots_processed = 0
-        self.time_of_first_data = -1
-
-        # max length of buffer
-        self.buffer_len = buffer_len
-
-        self.index = 0  # tracks the next write index
-
-        self.logger.debug(f"Initializing buffer for {len(pv_list)} PVs, buffer length = {buffer_len}")
-
-        # default array length is 36000 to store 5 mins of data at 120hz.
-        # we allocate the arrays initially to avoid potential memory-copies during array append operation.
-        self.data_map = {
-            pv: SlidingWindowArray(buffer_len, dtype=np.float64, pv_name=pv, logging_kwargs=logging_kwargs.copy())
-            for pv in self.pv_list
-        }
-        # just store the timestamp data from the first pv we read from the snapshot,
-        # and assume the other pv's data is timed the same.
-        self.data_map["pv_timestamps_ns"] = SlidingWindowArray(
-            buffer_len, dtype=np.int64, pv_name="pv_timestamps_ns", logging_kwargs=logging_kwargs.copy()
-        )
-        self.data_map["beam_checks"] = SlidingWindowArray(
-            buffer_len, dtype=bool, pv_name="beam_checks", logging_kwargs=logging_kwargs.copy()
-        )
-        self.data_map["bpm_score_1"] = SlidingWindowArray(
-            buffer_len, dtype=np.float64, pv_name="bpm_score_1", logging_kwargs=logging_kwargs.copy()
-        )
-        self.data_map["bpm_score_20"] = SlidingWindowArray(
-            buffer_len, dtype=np.float64, pv_name="bpm_score_20", logging_kwargs=logging_kwargs.copy()
-        )
-        # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
-        # self.data_map["valid_windows"] = set()  # will hold tuples of (window_start_index, window_end_index)
-
-        self.snapshot_period_ns = snapshot_period_ns
-        self.snapshot_length = snapshot_length
-
-        self.prev_snapshot_val_map = {}  # store the latest value for each PV for potential forward-filling
+        self.pv_list = pv_list  # list of PVs to buffer
+        self.buffer_len = buffer_len  # max length of buffer
+        self.snapshot_period_ns = snapshot_period_ns  # length of a snapshot in nanoseconds
+        self.snapshot_length = snapshot_length  # length of a snapshot in number of entries
 
         self.fixer = SnapshotFixer(pv_list=pv_list, logging_kwargs=logging_kwargs.copy())
+
+        self.init_or_reinit_buffer(reinit=False, logging_kwargs=logging_kwargs)
 
     def update(self, snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
         """
@@ -309,6 +276,45 @@ class Buffer:
             with open(filepath, "w") as f:
                 for v in valid_data:
                     f.write(f"{v}\n")
+
+    def init_or_reinit_buffer(
+            self,
+            reinit: Optional[bool] = False,
+            logging_kwargs: Optional[dict] = default_logging_kwargs
+    ) -> None:
+        self.logger.debug(f"Initializing buffer for {len(self.pv_list)} PVs, buffer length = {self.buffer_len}")
+
+        self.num_snapshots_processed = 0
+        self.time_of_first_data = -1
+        self.index = 0  # tracks the next write index
+        self.prev_snapshot_val_map = {}  # store the latest value for each PV for potential forward-filling
+
+        if not reinit:  # first initialization
+            # default array length is 36000 to store 5 mins of data at 120hz.
+            # we allocate the arrays initially to avoid potential memory-copies during array append operation.
+            self.data_map = {
+                pv: SlidingWindowArray(self.buffer_len, dtype=np.float64, pv_name=pv, logging_kwargs=logging_kwargs.copy())
+                for pv in self.pv_list
+            }
+            # just store the timestamp data from the first pv we read from the snapshot,
+            # and assume the other pv's data is timed the same.
+            self.data_map["pv_timestamps_ns"] = SlidingWindowArray(
+                self.buffer_len, dtype=np.int64, pv_name="pv_timestamps_ns", logging_kwargs=logging_kwargs.copy()
+            )
+            self.data_map["beam_checks"] = SlidingWindowArray(
+                self.buffer_len, dtype=bool, pv_name="beam_checks", logging_kwargs=logging_kwargs.copy()
+            )
+            self.data_map["bpm_score_1"] = SlidingWindowArray(
+                self.buffer_len, dtype=np.float64, pv_name="bpm_score_1", logging_kwargs=logging_kwargs.copy()
+            )
+            self.data_map["bpm_score_20"] = SlidingWindowArray(
+                self.buffer_len, dtype=np.float64, pv_name="bpm_score_20", logging_kwargs=logging_kwargs.copy()
+            )
+            # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
+            # self.data_map["valid_windows"] = set()  # will hold tuples of (window_start_index, window_end_index)
+        else:  # re-initialize the buffer
+            for sliding_window_array in self.data_map.values():
+                sliding_window_array.init_sliding_window_array()
 
 
 if __name__ == "__main__":
