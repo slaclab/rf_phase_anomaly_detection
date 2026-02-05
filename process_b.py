@@ -173,7 +173,7 @@ class ProcessB(CustomProcessObject):
                 fast_time = cand["candidate_timestamp"]
                 ts = str(datetime.fromtimestamp(fast_time / NANOSECS_IN_1_SEC))
                 ss = (f"Anomaly candidate {log_verb:s} at time: {ts}, PV: {cand['rf_pv_name']},"
-                      f" Score: {cand['anomaly_score']:.2f}")
+                      f" Score: {cand['anomaly_score']:.2f}, System-level: {cand['system_level_anomaly']}")
                 log_method(ss)
 
     def process_candidate(self, candidate: AnomalyCandidate) -> dict:
