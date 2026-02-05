@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,15 +16,21 @@ spec:
       labels:
         app: rf-phase-anomaly-detection
     spec:
+      securityContext:
+        fsGroup: 3757
       containers:
       - name: rf-phase-anomaly-detection
         image: ghcr.io/slaclab/rf-phase-anomaly-detection:latest
+#        command: ['python', '-m', 'main', '-ll', '20']
         imagePullPolicy: Always
         restartPolicy: Always
         resources:
+          requests:
+            memory: "500Mi"
+            cpu: "5"
           limits:
             memory: "2Gi"
-            cpu: "500m"
+            cpu: "8"
         env:
           - name: K2EG_PYTHON_CONFIGURATION_PATH_FOLDER
             value: /app/config
@@ -33,19 +40,30 @@ spec:
           - name: s3cmd-config-volume
             mountPath: /app/config/k2eg.ini
             subPath: k2eg.ini
-          - name: saved-candidate-location
+          - name: sdf-storage
             mountPath: /app/saved_candidates
-          - name: log-location
+            subPath: store/bsas/nc_CoAD/saved_candidates
+          - name: sdf-storage
             mountPath: /app/logs
+            subPath: store/bsas/nc_CoAD/server_logs
       volumes:
         - name: s3cmd-config-volume
           configMap:
             name: k2eg-config-map
-        - name: saved-candidate-location
-          hostPath:
-            path: /sdf/data/ad/store/bsas/nc_CoAD/saved_candidates
-            type: DirectoryOrCreate
-        - name: log-location
-          hostPath:
-            path: /sdf/data/ad/store/bsas/nc_CoAD/server_logs
-            type: DirectoryOrCreate
+        - name: sdf-storage
+          persistentVolumeClaim:
+            claimName: sdf-data-storage
+
+---
+# apparently, this points to /sdf/data/ad/
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sdf-data-storage
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: sdf-data-ad
