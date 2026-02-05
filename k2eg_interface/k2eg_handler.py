@@ -83,7 +83,7 @@ class K2EGHandler:
             return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.dml.snapshot_stop(SNAPSHOT_NAME)
+        self.dml.snapshot_stop(self.snapshot_properties.snapshot_name)
         self.dml.close()
         self.snapshot_is_running = False
         self.logger.info("shutdown snapshot production")
