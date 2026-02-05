@@ -1,5 +1,8 @@
 import logging
+from datetime import datetime
 from abc import ABC, abstractmethod
+
+from run_config import NANOSECS_IN_1_SEC
 
 from typing import Any, Optional
 
@@ -52,6 +55,7 @@ class BasePredictor(ABC):
         anomalous = self._predict(candidate=candidate)
         rf_pv_name = candidate["rf_pv_name"]
         candidate_timestamp = candidate["candidate_timestamp"]
+        candidate_time = str(datetime.fromtimestamp(candidate_timestamp / NANOSECS_IN_1_SEC))
         if anomalous:
             log_method = self.logger.info
             log_start = "Anomaly"
@@ -59,7 +63,9 @@ class BasePredictor(ABC):
         else:
             log_method = self.logger.debug
             log_start = "No anomaly"
-        log_method(f"({str(self)}) {log_start} detected for {rf_pv_name} at timestamp {candidate_timestamp}.")
+        msg = f"({str(self)}) {log_start} detected for {rf_pv_name} at time {candidate_time} "
+        msg += f"({candidate_timestamp} ns)."
+        log_method(msg)
 
         return anomalous
 
