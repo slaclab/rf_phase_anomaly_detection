@@ -66,5 +66,5 @@ class RulesBasedPredictor(BasePredictor):
         # compute the bpm signal quantities
         bpm_signal = float(np.abs(bpm_input).mean(axis=0).max())
 
-        anomalous = phase_signal > self.phase_threshold and bpm_signal > self.bpm_threshold
+        anomalous = bool(phase_signal > self.phase_threshold and bpm_signal > self.bpm_threshold)
         return anomalous
