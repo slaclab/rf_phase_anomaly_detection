@@ -7,6 +7,7 @@ from typing import Optional
 
 from inference.coad_predictor import COADPredictor
 from inference.rules_based_predictor import RulesBasedPredictor
+from candidate_saver import AnomalySaver
 
 
 def convert_pv_name_to_table_name(name: str) -> str:
@@ -42,13 +43,17 @@ class ProcessC(CustomProcessObject):
             self.logger = create_worker_logger(**self.logging_kwargs)
 
         # Initialize predictors (loads models and configs, if any)
-        #TODO: refactor COADPredictor to use the InstrumentationPortal
         predictors = [
             COADPredictor(write_to_pv=True, queue_inst=self.queue_inst, logger=self.logger),
             RulesBasedPredictor(logger=self.logger)
         ]
 
         self.logger.info(f"Predictors loaded: {[str(p) for p in predictors]}")
+
+        self.anomaly_saver = AnomalySaver(
+            directory='saved_candidates/anomalies',
+            logging_kwargs=self.logging_kwargs.copy()
+        )
 
         while True:
             if not self.queue.empty():
@@ -67,10 +72,17 @@ class ProcessC(CustomProcessObject):
                 #   "rf_pv_name": string,
                 # }
                 result = [
-                    (str(pred), pred.predict(candidate=candidate))
+                    pred.predict(candidate=candidate)
                     for pred in predictors
                 ]
-                self.logger.debug(f"ProcessC result: {result}")
+                detailed_result = {str(pred): res for pred, res in zip(predictors, result)}
+                self.logger.debug(f"ProcessC result: {detailed_result}")
+                if any(result):
+                    self.anomaly_saver.save(
+                        anomaly=candidate | {'predictors': detailed_result},
+                        reject=False
+                    )
+
 
         # Shut down the predictor/timed dict and close the logger
         [p.shut_down() for p in predictors]

@@ -153,7 +153,7 @@ class ProcessB(CustomProcessObject):
                 evaluation = self.evaluate_candidate(cand)
                 eval_cand = cand | {"reject_reason": evaluation}
                 if evaluation.lower() == 'none':
-                    self.candidate_saver.save_anomaly_candidate(eval_cand)
+                    self.candidate_saver.save(eval_cand)
                     self.candidate_counter.set_key(
                         eval_cand["rf_pv_name"],
                         eval_cand["candidate_timestamp"] / NANOSECS_IN_1_SEC,  # seconds since Epoch
@@ -162,7 +162,7 @@ class ProcessB(CustomProcessObject):
                     log_verb = "detected"
                     log_method = self.logger.info
                 else:  # reject the candidate
-                    # self.candidate_saver.save_anomaly_candidate(eval_cand, reject=True)
+                    # self.candidate_saver.save(eval_cand, reject=True)
                     log_verb = "rejected"
                     log_method = self.logger.debug
                 fast_time = cand["candidate_timestamp"]

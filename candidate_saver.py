@@ -54,7 +54,7 @@ class Saver:
                 os.makedirs(self.directory, exist_ok=True)
                 self.file_counter = 0
 
-    def save_anomaly_candidate(self, anomaly: dict, reject: bool = False) -> None:
+    def save(self, anomaly: dict, reject: bool = False) -> None:
         if self.file_counter is None:
             self.initialize()
         if self.directory is not None:
@@ -75,7 +75,7 @@ class Saver:
                 self.directory,
                 f"{prefix:s}_{date:s}_{time:s}_{self.file_counter:06d}{self.filename_suffix:s}"
             )
-            np.savez_compressed(fn, **anomaly)
+            np.savez_compressed(fn, **anomaly, allow_pickle=True)  # pickle is required to save objects
             self.file_counter += 1
 
 
