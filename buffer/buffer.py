@@ -1,6 +1,5 @@
-from typing import Optional, Tuple
-import numpy as np
 import os
+import numpy as np
 
 from buffer.beam_check import do_beam_checks, BEAM_CHECK_PVS
 from run_config import MAD_LENGTH, BPM_NAMES, BPM_THRESHOLD, SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC
@@ -9,6 +8,8 @@ from buffer.sliding_window import SlidingWindowArray
 from anomaly_candidate import AnomalyCandidate
 from mp_logging import create_worker_logger, default_logging_kwargs
 from buffer.snapshot_fixer import SnapshotFixer, get_timestamp_ns, get_value
+
+from typing import Optional, Tuple
 
 
 def get_first_time_point(snapshot: dict[str, list[dict]], pv_name_list: list[str]) -> int:
@@ -177,11 +178,12 @@ class Buffer:
                     self.prev_snapshot_val_map[pv] = prev_snapshot_val
                 else:
                     # if you get here, it is because snapshot[pv] has values out of order
-                    # and the first value comes after next_start_time
+                    # and the first value comes after next_start_time, or you have lost a snapshot somewhere
                     msg = f"PV {pv:s} for snapshot number {snapshot['iteration']:d} "
                     msg += f"appears to be out of order or entirely from the future. Length: {len(snapshot[pv])}. "
                     msg += f"next_start_time: {next_start_time}"
                     self.logger.warning(msg)
+                    return -1, -1  # tell ProcessB there was a fatal problem
 
         # # Dump the first many snapshots for diagnostics purposes
         # uu = snapshot['iteration']
@@ -282,14 +284,16 @@ class Buffer:
             reinit: Optional[bool] = False,
             logging_kwargs: Optional[dict] = default_logging_kwargs
     ) -> None:
-        self.logger.debug(f"Initializing buffer for {len(self.pv_list)} PVs, buffer length = {self.buffer_len}")
-
+        """
+        This initializes or re-initializes the stateful parts of the buffer.
+        """
         self.num_snapshots_processed = 0
         self.time_of_first_data = -1
         self.index = 0  # tracks the next write index
         self.prev_snapshot_val_map = {}  # store the latest value for each PV for potential forward-filling
 
         if not reinit:  # first initialization
+            self.logger.debug(f"Initializing buffer for {len(self.pv_list)} PVs, buffer length = {self.buffer_len}")
             # default array length is 36000 to store 5 mins of data at 120hz.
             # we allocate the arrays initially to avoid potential memory-copies during array append operation.
             self.data_map = {
@@ -312,7 +316,8 @@ class Buffer:
             )
             # just normal arr for valid_windows, since doesn't have a max size and need sliding logic to drop old values
             # self.data_map["valid_windows"] = set()  # will hold tuples of (window_start_index, window_end_index)
-        else:  # re-initialize the buffer
+        else:  # re-initialize the SlidingWindowArrays
+            self.logger.debug(f"Reinitializing buffer for {len(self.pv_list)} PVs, buffer length = {self.buffer_len}")
             for sliding_window_array in self.data_map.values():
                 sliding_window_array.init_sliding_window_array()
 

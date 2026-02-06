@@ -58,34 +58,24 @@ class ProcessB(CustomProcessObject):
         self.candidate_saver = None
         self.last_anomaly_timestamps = None
         self.candidate_counter = None
+        self.init_time = None
 
     def __call__(self) -> None:
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
 
         self.logger.info(f"Starting process_b for {len(self.pv_list)} PVs")
-        self.logger.debug("Beginning main data processing loop...")
 
-        # holds up to 5 minutes of 120hz data (36000 points) per pv.
-        self.buffer = Buffer(
-            pv_list=self.pv_list,
-            buffer_len=BUFFER_LENGTH,
-            snapshot_length=SAMPLES_PER_SECOND,
-            snapshot_period_ns=NANOSECS_IN_1_SEC,
-            logging_kwargs=self.logging_kwargs.copy(),
-        )  # 36000 = 120hz * 60sec/min * 5mins
-
-        # holds anomaly candidates
-        self.candidate_bucket = CandidateBucket()
         self.candidate_saver = CandidateSaver('saved_candidates', self.logging_kwargs.copy())
-        self.last_anomaly_timestamps = {k: -1 for k in self.pv_list if k.endswith("PHAS_FASTBR")}
-
         # counts the number of candidates seen
         self.candidate_counter = TimedCandCountDict(
             queue_inst=self.queue_inst,
             reset_time=7 * 24 * 3600  # reset candidates after a week
         )
 
+        self.init_or_reinit_process_b(reinit=False)
+
+        self.logger.debug("Beginning main data processing loop...")
         while True:
             # need to be sure each iteration of this processing loop is <= 1 second
             # (data comes each second from process_a, so data will pile-up if our processing takes over 1 second)
@@ -106,7 +96,12 @@ class ProcessB(CustomProcessObject):
                 # parse the k2eg snapshot and update buffer
                 index_change, length_of_update = self.buffer.update(snapshot)
                 self.queue_inst.put({'method': 'update_buffer_length', 'data': self.buffer.index})
-                if index_change == 0 and length_of_update == 0:
+                if index_change == -1 and length_of_update == -1:  # there was a fatal problem with the buffer
+                    end_time = datetime.now()
+                    msg = f"Fatal error with the buffer.  Process ran from {str(self.init_time)} to {str(end_time)}"
+                    self.logger.warning(msg)
+                    self.init_or_reinit_process_b(reinit=True)
+                elif index_change == 0 and length_of_update == 0:
                     self.logger.warning(f"No data in snapshot {snapshot['iteration']:d} (skipping processing)")
                 else:
                     data_in_snapshot = True
@@ -255,3 +250,24 @@ class ProcessB(CustomProcessObject):
         self.last_anomaly_timestamps[candidate["rf_pv_name"]] = current_candidate_timestamp
         return "none"
 
+    def init_or_reinit_process_b(
+            self,
+            reinit: Optional[bool] = False
+    ) -> None:
+        if not reinit:  # first initialization
+            # holds up to 5 minutes of 120hz data (36000 points) per pv.
+            self.buffer = Buffer(
+                pv_list=self.pv_list,
+                buffer_len=BUFFER_LENGTH,
+                snapshot_length=SAMPLES_PER_SECOND,
+                snapshot_period_ns=NANOSECS_IN_1_SEC,
+                logging_kwargs=self.logging_kwargs.copy(),
+            )  # 36000 = 120hz * 60sec/min * 5mins
+        else:  # re-initialize ProcessB
+            self.logger.warning(f"Reinitializing stateful parts of ProcessB")
+            self.buffer.init_or_reinit_buffer(reinit=True)
+        # init/reinit these parts the same way no matter what
+        # holds anomaly candidates
+        self.candidate_bucket = CandidateBucket()
+        self.last_anomaly_timestamps = {k: -1 for k in self.pv_list if k.endswith("PHAS_FASTBR")}
+        self.init_time = datetime.now()

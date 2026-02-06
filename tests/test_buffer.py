@@ -123,6 +123,63 @@ def test_buffer_update_basic(pv_list):
     assert len(buffer.data_map["bpm_score_20"]) == 2 * SAMPLES_PER_SECOND
 
 
+def test_buffer_reinit(pv_list):
+    """Test that Buffer correctly reinits itself. """
+
+    buffer_len = 36000
+    buffer = Buffer(pv_list, buffer_len, SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC)
+    assert buffer.num_snapshots_processed == 0
+    assert buffer.time_of_first_data == -1
+    assert buffer.index == 0
+    assert buffer.prev_snapshot_val_map == {}
+    for key, value in buffer.data_map.items():
+        assert value.index == 0
+
+    # Generate 120Hz timestamps for 3 seconds
+    ts_offset = NANOSECS_IN_1_SEC // SAMPLES_PER_SECOND
+    timestamps_1 = [i * ts_offset for i in range(SAMPLES_PER_SECOND)]
+    timestamps_2 = [(i * ts_offset) + NANOSECS_IN_1_SEC for i in range(SAMPLES_PER_SECOND)]
+
+    snapshot_1 = {pv: [make_entry(ts, float(i)) for i, ts in enumerate(timestamps_1)] for pv in pv_list} | {
+        'iteration': 0, 'timestamp': 0}
+
+    snapshot_2 = {pv: [make_entry(ts, float(i + 1000)) for i, ts in enumerate(timestamps_2)] for pv in pv_list} | {
+        'iteration': 1000, 'timestamp': 1000}
+
+    # first update - does not change buffer
+    index_change, length_of_update = buffer.update(snapshot_1)
+    assert length_of_update == 0
+    assert index_change == 0
+    assert buffer.index == 0
+    assert buffer.num_snapshots_processed == 0
+    assert buffer.time_of_first_data == 999999960
+    assert buffer.index == 0
+    assert buffer.prev_snapshot_val_map != {}
+
+    # second update
+    index_change, length_of_update = buffer.update(snapshot_2)
+    assert length_of_update == SAMPLES_PER_SECOND
+    assert index_change == 0
+    assert buffer.index == SAMPLES_PER_SECOND
+    assert buffer.num_snapshots_processed == 1
+    assert buffer.time_of_first_data == 999999960
+    assert buffer.index == SAMPLES_PER_SECOND
+    assert buffer.prev_snapshot_val_map != {}
+
+    for key, value in buffer.data_map.items():
+        assert value.index == SAMPLES_PER_SECOND
+
+    buffer.init_or_reinit_buffer(reinit=True)
+
+    assert buffer.num_snapshots_processed == 0
+    assert buffer.time_of_first_data == -1
+    assert buffer.index == 0
+    assert buffer.prev_snapshot_val_map == {}
+    for key, value in buffer.data_map.items():
+        assert value.index == 0
+
+
+
 def test_buffer_update_slow_data(pv_list):
     """Tests a buffer that receives data at 5 Hz and arbitrarily"""
     pv_list = ['a', 'b']
