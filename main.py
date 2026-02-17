@@ -5,8 +5,8 @@ from mp_logging import run_logger_process, create_worker_logger
 from process import ProcessManager
 from process_a import K2EGProcess
 from utilities import read_pv_list_from_file
-from k2eg_interface.k2eg_spoof_process import K2EGSpoofProcess
-from k2eg_interface.k2eg_spoof_anomaly_process import K2EGSpoofAnomalyProcess, constant_readings_dict
+from machine_interface.k2eg_spoof_process import K2EGSpoofProcess
+from machine_interface.k2eg_spoof_anomaly_process import K2EGSpoofAnomalyProcess, constant_readings_dict
 from process_b import ProcessB
 from process_c import ProcessC
 from process_i import ProcessI

@@ -2,7 +2,7 @@ from multiprocessing import Manager
 
 from process import CustomProcessObject
 from mp_logging import default_logging_kwargs, create_worker_logger
-from k2eg_interface.k2eg_instrument_portal import K2EGInstrumentPortal
+from machine_interface.k2eg_instrument_portal import K2EGInstrumentPortal
 
 from typing import Optional, Any, TypedDict
 

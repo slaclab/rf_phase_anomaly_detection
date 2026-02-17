@@ -4,7 +4,7 @@ from multiprocessing import Manager
 
 from process import CustomProcessObject
 from mp_logging import default_logging_kwargs, create_worker_logger
-from k2eg_interface.k2eg_handler import K2EGHandler
+from machine_interface.k2eg_handler import K2EGHandler
 
 from typing import Optional, Any
 
