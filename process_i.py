@@ -2,7 +2,7 @@ from multiprocessing import Manager
 
 from process import CustomProcessObject
 from mp_logging import default_logging_kwargs, create_worker_logger
-from machine_interface.k2eg_instrument_portal import K2EGInstrumentPortal
+from machine_interface.k2eg_instrument_portal import K2EGInstrumentPortal as InstrumentPortal
 
 from typing import Optional, Any, TypedDict
 
@@ -34,14 +34,14 @@ class ProcessI(CustomProcessObject):
     def __call__(self):
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
-        if not isinstance(self.portal, K2EGInstrumentPortal):
-            self.portal = K2EGInstrumentPortal(
+        if not isinstance(self.portal, InstrumentPortal):
+            self.portal = InstrumentPortal(
                 logging_kwargs=self.logging_kwargs.copy(),
             )
 
         # put data onto the queue at regular intervals
         with self.portal as portal:
-            self.logger.info(f"K2EGInstrumentPortal.is_running: {portal.is_running}")
+            self.logger.info(f"InstrumentPortal.is_running: {portal.is_running}")
             while portal.is_running:
                 # consume a log message, block until one arrives
                 message = self.queue.get()
@@ -51,7 +51,7 @@ class ProcessI(CustomProcessObject):
                     break
                 else:
                     check_and_pass_message(message, self.portal)
-        self.logger.debug("K2EG portal has been closed")
+        self.logger.debug("Instrument portal has been closed")
 
         for handler in self.logger.handlers:
             handler.close()
@@ -59,7 +59,7 @@ class ProcessI(CustomProcessObject):
 
 def check_and_pass_message(
         message: dict[str, Any],
-        portal: K2EGInstrumentPortal
+        portal: InstrumentPortal
 ):
     log_msg = ""
 
