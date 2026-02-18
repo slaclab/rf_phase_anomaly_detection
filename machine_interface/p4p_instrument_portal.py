@@ -1,11 +1,12 @@
-from p4p.nt import Scalar, Vector, NTTable
+from p4p.nt import NTScalar, NTTable
 from p4p.client.thread import Context
 
 from mp_logging import default_logging_kwargs, create_worker_logger
 
 from typing import Any, Optional
 
-class P4PInterface:
+
+class P4PInstrumentPortal:
     """Generic interface for interacting with EPICS PVs using p4p."""
 
     def __init__(
@@ -85,7 +86,7 @@ class P4PInterface:
         """Context manager entry."""
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
-        self.logger.info("Starting put portal for K2EG")
+        self.logger.info("Starting put portal for P4P")
 
         try:
             self.ctx = Context(self.protocol)
@@ -116,7 +117,8 @@ class P4PInterface:
         self._put(anomaly_pv, anomaly_table)
 
     def update_anomaly_any(self, anomaly_dict: dict[str, bool]):
-        anomaly_any = Scalar(key='value', payload=any(anomaly_dict.values()))
+        scalar_type = NTScalar("?")  # bool scalar type
+        anomaly_any = scalar_type.wrap(any(anomaly_dict.values()))
         # the new PV name:
         anom_any_pv = "ANOM:SYS0:1:KAD_ANOM_ANY"
         self._put(anom_any_pv, anomaly_any)
@@ -125,7 +127,8 @@ class P4PInterface:
         self._put(anom_any_pv, anomaly_any)
 
     def update_running_pv(self, is_it_running: bool):
-        scalar = Scalar(key='value', payload=is_it_running)
+        scalar_type = NTScalar("?")  # bool scalar type
+        scalar = scalar_type.wrap(is_it_running)
         # the new PV name
         running_pv = "ANOM:SYS0:1:KAD_RUNNING"
         self._put(running_pv, scalar)
@@ -135,7 +138,8 @@ class P4PInterface:
 
     def update_buffer_length(self, buffer_len: int):
         buffer_length_pv = "ANOM:SYS0:1:KAD_BUFFER_LENGTH"
-        scalar = Scalar(key='value', payload=buffer_len)
+        scalar_type = NTScalar("L")
+        scalar = scalar_type.wrap(buffer_len)
         self._put(buffer_length_pv, scalar)
 
     def update_cand_count(
@@ -170,11 +174,10 @@ def create_anomaly_table(anom_dict: dict[str, bool]) -> NTTable:
     NTTable
         A table with anomaly states for each klystron station.
     """
-    nt_labels = ["station", "anomaly_state"]
-    table = NTTable(labels=nt_labels)
-    table.set_column("station", list(anom_dict.keys()))
-    table.set_column("anomaly_state", list(anom_dict.values()))
-    return table
+    table = NTTable([("station", "s"), ("anomaly_state", "?")])
+    anomaly_table = [{"station": klys, "anomaly_state": status} for klys, status in anom_dict.items()]
+    anomaly_table = table.wrap(anomaly_table)
+    return anomaly_table
 
 
 def create_cand_count_table(cand_dict: dict[str, int]) -> NTTable:
@@ -191,11 +194,10 @@ def create_cand_count_table(cand_dict: dict[str, int]) -> NTTable:
     NTTable
         A table with counts for each klystron station.
     """
-    nt_labels = ["station", "candidate_count"]
-    table = NTTable(labels=nt_labels)
-    table.set_column("station", list(cand_dict.keys()))
-    table.set_column("candidate_count", list(cand_dict.values()))
-    return table
+    table = NTTable([("station", "s"), ("candidate_count", "L")])
+    cand_table = [{"station": klys, "candidate_count": count} for klys, count in cand_dict.items()]
+    cand_table = table.wrap(cand_table)
+    return cand_table
 
 
 def create_anom_count_table(anom_dict: dict[str, int]) -> NTTable:
@@ -212,8 +214,7 @@ def create_anom_count_table(anom_dict: dict[str, int]) -> NTTable:
     NTTable
         A table with counts for each klystron station.
     """
-    nt_labels = ["station", "anomaly_count"]
-    table = NTTable(labels=nt_labels)
-    table.set_column("station", list(anom_dict.keys()))
-    table.set_column("anomaly_count", list(anom_dict.values()))
-    return table
+    table = NTTable([("station", "s"), ("anomaly_count", "L")])
+    anom_table = [{"station": klys, "anomaly_count": count} for klys, count in anom_dict.items()]
+    anom_table = table.wrap(anom_table)
+    return anom_table
