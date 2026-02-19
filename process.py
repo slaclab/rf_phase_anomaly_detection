@@ -36,3 +36,7 @@ class ProcessManager:
     @property
     def is_running(self):
         return self._is_running and all([p.is_alive() for p in self.processes])
+
+    @is_running.setter
+    def is_running(self, is_running: bool):
+        self._is_running = is_running

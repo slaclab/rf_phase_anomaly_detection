@@ -1,10 +1,10 @@
 import time
 import logging
-from multiprocessing import Manager
+from multiprocessing import Manager, Pipe
 
 from process import CustomProcessObject
 from mp_logging import default_logging_kwargs, create_worker_logger
-from k2eg_interface.k2eg_handler import K2EGHandler
+from machine_interface.k2eg_handler import K2EGHandler
 
 from typing import Optional, Any
 
@@ -88,12 +88,14 @@ class K2EGProcess(CustomProcessObject):
         pv_list: list[str],
         snapshot_period_ms: Optional[int] = 1000,
         queue_inst: Optional["Manager.Queue"] = None,  # instrumentation queue
+        main_pipe: Optional[Pipe] = None,
         logging_kwargs: Optional[dict] = default_logging_kwargs,
     ):
         self.queue = queue
         self.pv_list = pv_list
         self.snapshot_period_ms = snapshot_period_ms
         self.queue_inst = queue_inst
+        self.main_pipe = main_pipe
 
         self.logging_kwargs = logging_kwargs
         self.logging_kwargs["logger_name"] = "K2EGProcess"
@@ -127,6 +129,10 @@ class K2EGProcess(CustomProcessObject):
                 # nearly constant
                 self.logger.debug("Waiting for data from K2EGHandler")
                 time.sleep(0.2)
+                if self.main_pipe is not None and self.main_pipe.poll():
+                    msg = self.main_pipe.recv()
+                    if msg is None:
+                        break
         self.logger.debug("Finished")
         self.queue.put(None)  # end the downstream processes
 

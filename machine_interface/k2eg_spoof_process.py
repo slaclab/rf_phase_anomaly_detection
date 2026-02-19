@@ -1,6 +1,6 @@
 from multiprocessing import Queue
 from mp_logging import create_worker_logger, default_logging_kwargs
-from k2eg_interface.k2eg_spoofer import K2EGSpoofer
+from machine_interface.k2eg_spoofer import K2EGSpoofer
 from process import CustomProcessObject
 
 from typing import Optional
