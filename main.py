@@ -1,6 +1,7 @@
 import time
+import signal
 import argparse
-from multiprocessing import Manager, Process
+from multiprocessing import Manager, Process, Pipe
 from mp_logging import run_logger_process, create_worker_logger
 from process import ProcessManager
 from process_a import K2EGProcess
@@ -10,13 +11,6 @@ from machine_interface.k2eg_spoof_anomaly_process import K2EGSpoofAnomalyProcess
 from process_b import ProcessB
 from process_c import ProcessC
 from process_i import ProcessI
-import sys
-
-
-def signal_handler(sig, frame):
-    # catch ctrl+c here, to avoid dumping a bunch of output to terminal when kill program
-    sys.exit(0)
-
 
 def main(args: argparse.Namespace):
     # Create an instance of the Manager
@@ -26,6 +20,8 @@ def main(args: argparse.Namespace):
         queue_two = manager.Queue()
         queue_log = manager.Queue()  # for logging only
         queue_ins = manager.Queue()  # for communicating with GUI
+        # create a pipe for stopping process_a
+        pipe_a, pipe_main = Pipe()  # receiver_pipe, sender_pipe
 
         main_logger_name = None if args.disable_file_logging else "kad_main"
 
@@ -48,9 +44,17 @@ def main(args: argparse.Namespace):
         )
         main_logger.info(args)
 
+        main_logger.info(
+            f"LoggerProcess running on pid {logger_process.pid} with parent pid {logger_process._parent_pid}"
+        )
+
         instrument_po = ProcessI(queue_ins, logging_kwargs=logging_kwargs.copy())
         instrument_process = Process(target=instrument_po, args=())
         instrument_process.start()
+
+        main_logger.info(
+            f"Instr. Process running on pid {instrument_process.pid} with parent pid {instrument_process._parent_pid}"
+        )
 
         # create classes to be turned into processes
         # it helps to put them in order
@@ -69,7 +73,8 @@ def main(args: argparse.Namespace):
         else:
             list_of_pvs = read_pv_list_from_file("resources/pv_list.txt")
             k2eg_proc = K2EGProcess(
-                queue=queue_one, pv_list=list_of_pvs, snapshot_period_ms=1000, logging_kwargs=logging_kwargs.copy()
+                queue=queue_one, pv_list=list_of_pvs, snapshot_period_ms=1000,
+                main_pipe=pipe_a, logging_kwargs=logging_kwargs.copy()
             )
 
         process_objects = [
@@ -82,10 +87,38 @@ def main(args: argparse.Namespace):
         # use ProcessManager to handle start and join of processes
         with ProcessManager(process_objects=process_objects) as pm:
             queue_ins.put({'method': 'update_running_pv', 'data': True})
+            for p, po in zip(pm.processes, pm.process_objects):
+                main_logger.info(f"{str(po)} running on pid {p.pid} with parent pid {p._parent_pid}")
+
             while pm.is_running:
                 time.sleep(1)
-                main_logger.debug("pm loop")
-        queue_ins.put({'method': 'update_running_pv', 'data': False})
+
+                alive_procs = [p.is_alive() for p in pm.processes]
+                all_pm_procs_alive = all(alive_procs) and (len(pm.processes) > 0)
+
+                for p, alive in zip(pm.processes, alive_procs):
+                    if not alive:
+                        main_logger.critical(f"Process {p} has stopped")
+
+                if not all_pm_procs_alive:
+                    main_logger.critical(f"Stopping all processes")
+                elif not instrument_process.is_alive():
+                    main_logger.critical(f"Instrumentation Process has stopped")
+                    pm.is_running = False
+                elif not logger_process.is_alive():
+                    main_logger.critical(f"Logger Process has stopped")  # will not be logged
+                    pm.is_running = False
+                else:
+                    main_logger.debug(f"All PM processes alive: {all_pm_procs_alive}")
+
+            pipe_main.send(None)  # send end message to process_a
+            for q in [queue_one, queue_two]:
+                q.put(None)  # send end messages to processes b and c
+
+            time.sleep(10)  # give the other processes time to stop
+
+        if instrument_process.is_alive():
+            queue_ins.put({'method': 'update_running_pv', 'data': False})
 
         queue_ins.put(None)
         instrument_process.join()  # wait for the instrument process to finish
@@ -94,9 +127,6 @@ def main(args: argparse.Namespace):
 
 
 if __name__ == "__main__":
-    # SIGINT is ctrl+c
-    #signal.signal(signal.SIGINT, signal_handler)
-
     parser = argparse.ArgumentParser(description="Run with real or spoofed k2eg data.")
     parser.add_argument(
         "-skd",
