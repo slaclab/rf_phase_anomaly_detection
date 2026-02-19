@@ -21,7 +21,7 @@ spec:
       containers:
       - name: rf-phase-anomaly-detection
         image: ghcr.io/slaclab/rf-phase-anomaly-detection:latest
-#        command: ['python', '-m', 'main', '-ll', '20']
+        command: ['python', '-m', 'main', '-dsl', '-ll', '20']  # run without stdout logging, log at info level
         imagePullPolicy: Always
         restartPolicy: Always
         resources:
