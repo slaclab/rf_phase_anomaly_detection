@@ -15,37 +15,59 @@ spec:
     metadata:
       labels:
         app: rf-phase-anomaly-detection
+      annotations:
+        k8s.v1.cni.cncf.io/networks: '[
+                {
+                  "name": "sdf-ad-ingest",
+                  "namespace": "multus-system",
+                  "ips": [ "172.24.8.124/24" ],
+                  "gateway": [ "172.24.8.1" ]
+                }
+              ]'
     spec:
       securityContext:
         fsGroup: 3757
+#      affinity:
+#        nodeAffinity:
+#          requiredDuringSchedulingIgnoredDuringExecution:
+#            nodeSelectorTerms:
+#              - matchExpressions:
+#                  - key: edu.stanford.slac.sdf.k8s.networking.multus
+#                    operator: In
+#                    values:
+#                      - enable
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/ext-load-balancer
+      imagePullSecrets:
+        - name: gh-regcred
       containers:
-      - name: rf-phase-anomaly-detection
-        image: ghcr.io/slaclab/rf-phase-anomaly-detection:latest
+        - name: rf-phase-anomaly-detection
+          image: ghcr.io/slaclab/rf-phase-anomaly-detection:latest
 #        command: ['python', '-m', 'main', '-ll', '20']
-        imagePullPolicy: Always
-        restartPolicy: Always
-        resources:
-          requests:
-            memory: "1Gi"
-            cpu: "5"
-          limits:
-            memory: "2Gi"
-            cpu: "8"
-        env:
-          - name: K2EG_PYTHON_CONFIGURATION_PATH_FOLDER
-            value: /app/config
-          - name: TZ
-            value: "America/Los_Angeles"
-        volumeMounts:
-          - name: s3cmd-config-volume
-            mountPath: /app/config/k2eg.ini
-            subPath: k2eg.ini
-          - name: sdf-storage
-            mountPath: /app/saved_candidates
-            subPath: store/bsas/nc_CoAD/saved_candidates
-          - name: sdf-storage
-            mountPath: /app/logs
-            subPath: store/bsas/nc_CoAD/server_logs
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "5"
+            limits:
+              memory: "2Gi"
+              cpu: "8"
+          env:
+            - name: K2EG_PYTHON_CONFIGURATION_PATH_FOLDER
+              value: /app/config
+            - name: TZ
+              value: "America/Los_Angeles"
+          volumeMounts:
+            - name: s3cmd-config-volume
+              mountPath: /app/config/k2eg.ini
+              subPath: k2eg.ini
+            - name: sdf-storage
+              mountPath: /app/saved_candidates
+              subPath: store/bsas/nc_CoAD/saved_candidates
+            - name: sdf-storage
+              mountPath: /app/logs
+              subPath: store/bsas/nc_CoAD/server_logs
       volumes:
         - name: s3cmd-config-volume
           configMap:
