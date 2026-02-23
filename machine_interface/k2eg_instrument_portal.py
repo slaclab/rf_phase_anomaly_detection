@@ -68,8 +68,10 @@ class K2EGInstrumentPortal:
         except Exception as e:
             if isinstance(e, (OperationTimeout, TimeoutError)):
                 self.logger.warning(f"Operation timed out while writing to {pv_name}.")
+                raise e
             elif isinstance(e, OperationError):
                 self.logger.warning(f"Operation errored while writing to {pv_name}.")
+                raise e
             else:
                 raise e
 
