@@ -67,10 +67,10 @@ class K2EGInstrumentPortal:
             self.dml.put(f"pva://{pv_name}", data, 10.0)
         except Exception as e:
             if isinstance(e, (OperationTimeout, TimeoutError)):
-                self.logger.warning(f"Operation timed out while writing to {pv_name}.")
+                self.logger.exception(f"Operation timed out while writing to {pv_name}.")
                 raise e
             elif isinstance(e, OperationError):
-                self.logger.warning(f"Operation errored while writing to {pv_name}.")
+                self.logger.exception(f"Operation errored while writing to {pv_name}.")
                 raise e
             else:
                 raise e
