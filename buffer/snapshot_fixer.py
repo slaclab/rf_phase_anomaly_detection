@@ -45,7 +45,7 @@ class SnapshotFixer:
     ) -> (dict[str, Tuple[np.ndarray, np.ndarray]], dict[str, float]):
         """
         Returns a dict mapping PV -> (values, timestamps_ns) that belong in the currently being processed snapshot window.
-        Early entries (entries expectred in a later snapshot) get stored in `temp_storage` for later use.
+        Early entries (entries expected in a later snapshot) get stored in `temp_storage` for later use.
 
         Args:
             raw_snapshot (Dict[str, List[dict]]): the snapshot as sent by k2eg, before any processing is applied.
