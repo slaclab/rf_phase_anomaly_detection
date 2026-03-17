@@ -6,7 +6,7 @@ from run_config import CANDIDATE_LOOKBACK_WINDOW_LENGTH, FEEDBACK_STATIONS
 from anomaly_candidate import find_most_anomalous_rf_station
 
 
-RF_PV_NAMES = [n for n in read_pv_list_from_file("resources/pv_list.txt") if n.endswith("PHAS_FASTBR")]
+RF_PV_NAMES = [n for n in read_pv_list_from_file("resources/pv_list.txt") if n.endswith("PHAS_FASTCUHBR")]
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def make_single_anomaly_data():
 @pytest.fixture
 def make_feedback_anomaly_data():
     rng = np.random.default_rng(12345)
-    index = 27  # KLYS:LI24:11:PHAS_FASTBR
+    index = 27  # KLYS:LI24:11:PHAS_FASTCUHBR
     clwl = CANDIDATE_LOOKBACK_WINDOW_LENGTH
     data = rng.random((clwl, len(RF_PV_NAMES)))
     data[:, index] = (np.arange(clwl) > 10).astype(float) * 5.0

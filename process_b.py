@@ -177,7 +177,7 @@ class ProcessB(CustomProcessObject):
         self.logger.debug(f"Candidate: slow_index={candidate.slow_index}, score_start_index={score_start_index}")
 
         # find the most anomalous rf station
-        station_names = [n for n in self.pv_list if n.endswith("PHAS_FASTBR")]
+        station_names = [n for n in self.pv_list if n.endswith("PHAS_FASTCUHBR")]
         rf_phase_data = np.stack(
             [self.buffer.get(pv, score_start_index, candidate.slow_index) for pv in station_names], axis=1
         )  # (CANDIDATE_WINDOW_SIZE, len(station_names))
@@ -269,5 +269,5 @@ class ProcessB(CustomProcessObject):
         # init/reinit these parts the same way no matter what
         # holds anomaly candidates
         self.candidate_bucket = CandidateBucket()
-        self.last_anomaly_timestamps = {k: -1 for k in self.pv_list if k.endswith("PHAS_FASTBR")}
+        self.last_anomaly_timestamps = {k: -1 for k in self.pv_list if k.endswith("PHAS_FASTCUHBR")}
         self.init_time = datetime.now()

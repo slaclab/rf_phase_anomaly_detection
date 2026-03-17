@@ -10,7 +10,7 @@ from collections import deque
 from anom_table import (TimedBoolDict, TimedCandCountDict, TimedAnomCountDict,
                         format_pv_name_for_table, load_klystron_configs)
 
-KEY = "KLYS:LI20:61:PHAS_FASTBR"
+KEY = "KLYS:LI20:61:PHAS_FASTCUHBR"
 F_KEY = "klys_li20_61"
 RESET_TIME = 0.1
 

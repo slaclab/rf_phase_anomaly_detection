@@ -200,7 +200,7 @@ def find_most_anomalous_rf_station(
 if __name__ == "__main__":
     from utilities import read_pv_list_from_file
 
-    rf_pv_names = [n for n in read_pv_list_from_file("resources/pv_list.txt") if n.endswith("PHAS_FASTBR")]
+    rf_pv_names = [n for n in read_pv_list_from_file("resources/pv_list.txt") if n.endswith("PHAS_FASTCUHBR")]
 
     bucket = CandidateBucket()
 

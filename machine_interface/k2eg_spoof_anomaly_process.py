@@ -23,7 +23,7 @@ constant_readings_dict = {
     "IOC:BSY0:MP01:PC_RATE": 8,
     "IOC:IN20:EV01:RG02_ACTRATE": 10,
     "STPR:BSYH:2:STD2_IN_A": 0,
-    "KLYS:LI20:61:PHAS_FASTBR": 25.0,
+    "KLYS:LI20:61:PHAS_FASTCUHBR": 25.0,
     "KLYS:LI20:61:AMPL": 45.0,
 }
 
@@ -34,7 +34,7 @@ def force_anomaly(constant_data: dict) -> dict:
         if (
             pv_name.endswith("XBR")
             or pv_name.endswith("YBR")
-            or pv_name.endswith("FASTBR")
+            or pv_name.endswith("FASTCUHBR")
             or pv_name.endswith("AMPL")
             or pv_name.endswith("TMITCUHBR")
             or pv_name.endswith("TMITBR")

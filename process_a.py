@@ -12,10 +12,28 @@ from typing import Optional, Any
 def get_time_from_entry(entry: dict[str, Any]) -> int:
     return entry['timeStamp']['secondsPastEpoch'] * int(1e9) + entry['timeStamp']['nanoseconds']
 
+
 def sort_pv_response_by_time(pv_list: list) -> list:
     times = [get_time_from_entry(entry) for entry in pv_list]
     # see https://stackoverflow.com/a/6618543/6024187
     return [x for _, x in sorted(zip(times, pv_list), key=lambda pair: pair[0])]
+
+
+def prune_alarm_data(
+        pv_name: str,
+        pv_list: list[dict],
+        logger: logging.Logger
+) -> list[dict]:
+    pruned_list = [e for e in pv_list if e['alarm']['severity'] == 0]
+    if len(pruned_list) == 0:
+        msg = f"PV {pv_name} was pruned to empty due to alarms, putting newest value on anyway"
+        logger.warning(msg)
+        pruned_list.append(pv_list[-1])  # put the newest value back on
+    elif len(pruned_list) != len(pv_list):
+        msg = f"PV {pv_name} was pruned to {len(pruned_list)} of {len(pv_list)} values due to alarms"
+        logger.debug(msg)
+    return pruned_list
+
 
 def process_snapshot(
         snap: dict[str, Any],
@@ -44,7 +62,14 @@ def process_snapshot(
     sorted_snapshot = {}
     for key, value in snap.items():
         if isinstance(value, list):
-            sorted_snapshot[key] = sort_pv_response_by_time(value)
+            if len(value) == 0:
+                # this should not happen, k2eg should always return at least one value
+                msg = f"PV {key:s} came from k2eg empty"
+                logger.warning(msg)
+
+            pruned_value = prune_alarm_data(key, value, logger)
+
+            sorted_snapshot[key] = sort_pv_response_by_time(pruned_value)
         elif isinstance(value, int):
             sorted_snapshot[key] = value
         else:
@@ -74,7 +99,7 @@ class K2EGProcess(CustomProcessObject):
         A multiprocessing manager queue on which to put the snapshots.
     pv_list : list[str]
         A list of pv names and access types to hand to k2eg.
-        Example list element is 'ca://KLYS:LI20:61:PHAS_FASTBR'
+        Example list element is 'ca://KLYS:LI20:61:PHAS_FASTCUHBR'
     snapshot_period_ms : int
         The number of milliseconds between snapshots emitted by k2eg.
     logging_kwargs : dict
@@ -177,7 +202,7 @@ if __name__ == "__main__":
     module for deploying this code.
     """
     # basic testing
-    list_of_pvs = ["ca://KLYS:LI20:61:PHAS_FASTBR", "ca://KLYS:LI20:61:AMPL"]
+    list_of_pvs = ["ca://KLYS:LI20:61:PHAS_FASTCUHBR", "ca://KLYS:LI20:61:AMPL"]
 
     # test just the handler
     def snap_handler(snap_name: str, snapshot: dict):

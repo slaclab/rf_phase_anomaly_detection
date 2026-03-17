@@ -12,7 +12,7 @@ from candidate_saver import AnomalySaver
 
 def convert_pv_name_to_table_name(name: str) -> str:
     """
-    Converts name from something that looks like KLYS:LI20:61:PHAS_FASTBR to
+    Converts name from something that looks like KLYS:LI20:61:PHAS_FASTCUHBR to
     something that looks like klys_li20_61.  The former is used by K2EG and
     the latter is used by the NTTable for the GUI.
     """
@@ -20,7 +20,7 @@ def convert_pv_name_to_table_name(name: str) -> str:
         return "_".join(name.split(":")[:-1]).lower()
     else:
         raise NotImplementedError(
-            f"process_c expected a name that looks like KLYS:LI20:61:PHAS_FASTBR, but received {name} instead"
+            f"process_c expected a name that looks like KLYS:LI20:61:PHAS_FASTCUHBR, but received {name} instead"
         )
 
 
