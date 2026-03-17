@@ -43,6 +43,10 @@ def get_latest_time_point(snapshot: dict[str, list[dict]], pv_name_list: list[st
     return max_ts
 
 
+def get_all_timestamps_from_pv(pv_list: list[dict]) -> list[int]:
+    return [get_timestamp_ns(x) for x in pv_list]
+
+
 class Buffer:
     """
     Fixed-length buffer for storing a sliding window of 120hz float data per pv.
@@ -161,9 +165,9 @@ class Buffer:
         for pv in self.pv_list:
             prev_snapshot_val = None
             try:
-                # # this can pull from the future, but it is quick
+                # # this can pull from the future, but it is quick:
                 # prev_snapshot_val = get_value(snapshot[pv][-1], self.logger)
-                # respects time of arrival, but does more work
+                # respects time of arrival, but does more work:
                 for entry in snapshot[pv]:
                     if get_timestamp_ns(entry) <= next_start_time:
                         prev_snapshot_val = get_value(entry, self.logger)
@@ -176,12 +180,23 @@ class Buffer:
             else:
                 if prev_snapshot_val is not None:
                     self.prev_snapshot_val_map[pv] = prev_snapshot_val
+                elif self.prev_snapshot_val_map[pv] is not None:
+                    # if you get here prev_snapshot_val is None but you have an older value stored, keep going
+                    msg = f"PV {pv:s} for snapshot number {snapshot['iteration']:d} "
+                    msg += "does not have any values this snapshot, using older values"
+                    self.logger.warning(msg)
                 else:
                     # if you get here, it is because snapshot[pv] has values out of order
                     # and the first value comes after next_start_time, or you have lost a snapshot somewhere
+                    # since you do not already have self.prev_snapshot_val_map[pv] saved, you have to start over
                     msg = f"PV {pv:s} for snapshot number {snapshot['iteration']:d} "
                     msg += f"appears to be out of order or entirely from the future. Length: {len(snapshot[pv])}. "
                     msg += f"next_start_time: {next_start_time}"
+                    self.logger.warning(msg)
+                    wrong_time_stamps = get_all_timestamps_from_pv(snapshot[pv])
+                    msg = f"PV timestamps: {wrong_time_stamps}"
+                    self.logger.warning(msg)
+                    msg = f"Time relative to next_start_time: {[(x - next_start_time) / 1e9 for x in wrong_time_stamps]} seconds"
                     self.logger.warning(msg)
                     return -1, -1  # tell ProcessB there was a fatal problem
 
