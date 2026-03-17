@@ -28,36 +28,36 @@ class TimedDict(ABC):
     default_value = None
     write_to_pv_method = 'default'
     """
-        A dictionary that holds values for given keys, with a timer that resets the value to False
-        after a set period of time. Anytime the dictionary is modified, it writes the current state
-        to K2EG, allowing for real-time monitoring of states for klystron stations.
+    A dictionary that holds values for given keys, with a timer that resets the value to False
+    after a set period of time. Anytime the dictionary is modified, it writes the current state
+    to K2EG, allowing for real-time monitoring of states for klystron stations.
 
-        This class is thread-safe and can be used in a multi-threaded environment.
+    This class is thread-safe and can be used in a multi-threaded environment.
 
-        Attributes
-        ----------
-        data : Dict[str, Any]
-            A dictionary that holds values for each key.
-        write_to_pv : bool
-            A flag indicating whether to write to K2EG.
-        timers : Dict[str, threading.Timer]
-            A dictionary that holds timers for each key, which reset the value to False after a set period of time..
-        lock : threading.Lock
-            A lock to ensure thread safety when accessing or modifying the data and timers.
-        reset_time : int
-            The time in seconds after which the value is reset. Default is 300 seconds (5 minutes).
-        logger : logging.Logger
-            A logger instance for logging debug messages.
-        Methods
-        -------
-        set_key(key: str, value: Any)
-            Sets the value for the given key. If the value is True, starts a timer to reset it to False after 5 minutes.
-            If the value is False, cancels any existing timer for that key.
-        _reset_key(key: str)
-            Resets the value for the given key to False and cancels the timer if it exists.
-        get_dict()
-            Returns a copy of the current state of the dictionary.
-        """
+    Attributes
+    ----------
+    data : Dict[str, Any]
+        A dictionary that holds values for each key.
+    write_to_pv : bool
+        A flag indicating whether to write to K2EG.
+    timers : Dict[str, threading.Timer]
+        A dictionary that holds timers for each key, which reset the value to False after a set period of time..
+    lock : threading.Lock
+        A lock to ensure thread safety when accessing or modifying the data and timers.
+    reset_time : int
+        The time in seconds after which the value is reset. Default is 300 seconds (5 minutes).
+    logger : logging.Logger
+        A logger instance for logging debug messages.
+    Methods
+    -------
+    set_key(key: str, value: Any)
+        Sets the value for the given key. If the value is True, starts a timer to reset it to False after 5 minutes.
+        If the value is False, cancels any existing timer for that key.
+    _reset_key(key: str)
+        Resets the value for the given key to False and cancels the timer if it exists.
+    get_dict()
+        Returns a copy of the current state of the dictionary.
+    """
 
     def __init__(
             self,
