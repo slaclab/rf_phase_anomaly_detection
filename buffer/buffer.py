@@ -184,7 +184,7 @@ class Buffer:
                     # if you get here prev_snapshot_val is None but you have an older value stored, keep going
                     msg = f"PV {pv:s} for snapshot number {snapshot['iteration']:d} "
                     msg += "does not have any values this snapshot, using older values"
-                    self.logger.warning(msg)
+                    self.logger.debug(msg)
                 else:
                     # if you get here, it is because snapshot[pv] has values out of order
                     # and the first value comes after next_start_time, or you have lost a snapshot somewhere
