@@ -5,6 +5,7 @@ from multiprocessing import Manager, Pipe
 from process import CustomProcessObject
 from mp_logging import default_logging_kwargs, create_worker_logger
 from machine_interface.k2eg_handler import K2EGHandler
+from warn_once import WarnOnceSet
 
 from typing import Optional, Any
 
@@ -20,24 +21,32 @@ def sort_pv_response_by_time(pv_list: list) -> list:
 
 
 def prune_alarm_data(
-        pv_name: str,
-        pv_list: list[dict],
-        logger: logging.Logger
-) -> list[dict]:
+        pv_list: list[dict]
+) -> (list[dict], str):
+    """
+
+    Parameters
+    ----------
+    pv_list : list[dict]
+        A list of data from k2eg.
+
+    Returns
+    -------
+    The pruned list and a string describing any warning-level issues with the data now that it is pruned.
+    """
     pruned_list = [e for e in pv_list if e['alarm']['severity'] == 0]
+    issue_string = ""
     if len(pruned_list) == 0:
-        msg = f"PV {pv_name} was pruned to empty due to alarms, putting newest value on anyway"
-        logger.warning(msg)
         pruned_list.append(pv_list[-1])  # put the newest value back on
+        issue_string = "all alarms"
     elif len(pruned_list) != len(pv_list):
-        msg = f"PV {pv_name} was pruned to {len(pruned_list)} of {len(pv_list)} values due to alarms"
-        logger.debug(msg)
-    return pruned_list
+        issue_string = "some alarms"
+    return pruned_list, issue_string
 
 
 def process_snapshot(
         snap: dict[str, Any],
-        warn_once_set: set,
+        warn_once_set: WarnOnceSet,
         logger: logging.Logger
 ) -> dict[str, Any]:
     """
@@ -48,7 +57,7 @@ def process_snapshot(
     ----------
     snap : dict
         A snapshot from k2eg.
-    warn_once_set : set
+    warn_once_set : WarnOnceSet
         A set for holding the types of entries that have already warned about.
     logger : logging.Logger
         A logger object.
@@ -67,7 +76,25 @@ def process_snapshot(
                 msg = f"PV {key:s} came from k2eg empty"
                 logger.warning(msg)
 
-            pruned_value = prune_alarm_data(key, value, logger)
+            pruned_value, issue_string = prune_alarm_data(value)
+            if issue_string and key not in warn_once_set:
+                if issue_string == "all alarms":
+                    msg = f"PV {key} was pruned to empty due to alarms, putting newest value on anyway"
+                    logger.warning(msg)
+                    limit = warn_once_set.keep_for_this_many_iterations
+                    msg = f"Future warnings about this type of object are disabled for {limit:d} iterations."
+                    logger.warning(msg)
+                    warn_once_set.add(pv_name=key, reason=issue_string, iteration=iteration)
+                elif issue_string == "some alarms":  # not a warning
+                    msg = f"PV {key} was pruned to {len(pruned_value)} of {len(value)} values due to alarms"
+                    logger.debug(msg)
+                else:
+                    msg = f"PV {key} was pruned for an unknown reason"
+                    logger.warning(msg)
+                    limit = warn_once_set.keep_for_this_many_iterations
+                    msg = f"Future warnings about this type of object are disabled for {limit:d} iterations."
+                    logger.warning(msg)
+                    warn_once_set.add(pv_name=key, reason=issue_string, iteration=iteration)
 
             sorted_snapshot[key] = sort_pv_response_by_time(pruned_value)
         elif isinstance(value, int):
@@ -76,10 +103,18 @@ def process_snapshot(
             sorted_snapshot[key] = value
             t = type(value)
             if t not in warn_once_set:
-                msg = f"Unknown type for value in snapshot {iteration:d}, key: {key:s}, type: {t}. "
-                msg += "Future warnings about this type of object are disabled."
+                msg = f"Unknown type for value in snapshot {iteration:d}, key: {key:s}, type: {t}."
                 logger.warning(msg)
-                warn_once_set.add(t)
+                limit = warn_once_set.keep_for_this_many_iterations
+                msg = f"Future warnings about this type of object are disabled for {limit:d} iterations."
+                logger.warning(msg)
+                warn_once_set.add(pv_name=t, reason="unknown type", iteration=iteration)
+
+    removed_instances = warn_once_set.prune_old_instances(iteration)
+    for ri in removed_instances:
+        msg = f"Warning {ri.reason} are allowed again for PV {ri.pv_name}"
+        logger.debug(msg)
+
     if iteration % 20 == 0:
         dt = time.time() - t0
         logger.debug(f"snapshot {iteration:d} sorting time: {1000 * dt:.1f} ms")
@@ -133,7 +168,7 @@ class K2EGProcess(CustomProcessObject):
         self.warn_once_set = None
 
     def __call__(self):
-        self.warn_once_set = set()
+        self.warn_once_set = WarnOnceSet(keep_for_this_many_iterations=120)
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
         if not isinstance(self.k2_handler, K2EGHandler):
