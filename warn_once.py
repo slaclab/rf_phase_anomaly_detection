@@ -34,4 +34,5 @@ class WarnOnceSet:
         for instance in self.warn_set.values():
             if instance.iteration + self.keep_for_this_many_iterations <= current_iteration:
                 removed_instances.append(instance)
+                del self.warn_set[instance.pv_name]
         return removed_instances
