@@ -71,6 +71,12 @@ class Buffer:
 
         self.fixer = SnapshotFixer(pv_list=pv_list, logging_kwargs=logging_kwargs.copy())
 
+        # the following will immediately be replaced in init_or_reinit_buffer
+        self.num_snapshots_processed = None
+        self.time_of_first_data = None
+        self.index = None  # tracks the next write index
+        self.prev_snapshot_val_map = None
+        self.init_mode = None  # True means init_mode, False means run_mode
         self.init_or_reinit_buffer(reinit=False, logging_kwargs=logging_kwargs)
 
     def update(self, snapshot: dict[str, list[dict]]) -> Tuple[int, int]:
@@ -83,23 +89,62 @@ class Buffer:
         ------
             Two integers.  The first is the number of indexes data might have
             been moved back.  The second is the length of the snapshot.
+            Output meanings:
+            -1, -1    : fatal error, you will have to reinit the buffer
+            0, 0      : fine but the buffer is not changing, init_mode hasn't completed
+            0, 120    : buffer is full and is updating
+            -120, 120 : buffer is not full and is updating
+            Note that 120 is the standard LCLS operating frequency.  0, Y and -Y, Y are fine
+            for any value of Y that is smaller than the buffer.
         """
-        self.logger.debug("Buffer starting update...")
 
-        # if this is the first snapshot seen, get the oldest time across all pv data-points
-        if self.time_of_first_data == -1:
-            min_ts = get_latest_time_point(snapshot, self.pv_list)
-            if min_ts is not None:
-                # the first data is expected to show up one bucket after the last sample found:
-                self.time_of_first_data = min_ts + NANOSECS_IN_1_SEC // SAMPLES_PER_SECOND
-                ss = f"Snapshot {snapshot['iteration']}, start time for all data is {self.time_of_first_data:d} ns"
-                self.logger.info(ss)
+        # # Dump the first many snapshots for diagnostics purposes
+        # uu = snapshot['iteration']
+        # if uu < 50:
+        #     import json
+        #     save_this = snapshot | {
+        #         'next_start_time': next_start_time,
+        #         'time_of_first_data': self.time_of_first_data,
+        #         'num_snapshots_processed': self.num_snapshots_processed,
+        #         'snapshot_period_ns': self.snapshot_period_ns
+        #     }
+        #     with open(f"snapshots/snapshot_{uu:03d}.json", 'w') as jf:
+        #         json.dump(save_this, jf, indent=4)
+
+        self.logger.debug("Buffer starting update...")
+        # in order to run successfully, this buffer needs two things:
+        # (1) a starting time for all the data
+        # (2) a value in prev_snapshot_val_map to fill in data
+        # 1 is satisfied when self.time_of_first_data > -1
+        # 2 is satisfied when there are zero None values in self.prev_snapshot_val
+        # when you have not yet started collecting data, get the oldest time across all pv data-points
+        if self.init_mode:  # if in init mode
+            _ = self.update_prev_snapshot_val_map(snapshot)  # try to fill
+            # the following will be None if the PV has not yet successfully produced a value
+            number_of_prev_nones = sum([x is None for x in self.prev_snapshot_val_map.values()])
+            if number_of_prev_nones == 0:
+                # if you are here, prev_snapshot_val_map is full, update start time
+                min_ts = get_latest_time_point(snapshot, self.pv_list)
+                if min_ts is not None:
+                    # the first data is expected to show up one bucket after the last sample found:
+                    self.time_of_first_data = min_ts + NANOSECS_IN_1_SEC // SAMPLES_PER_SECOND
+                    ss = f"Snapshot {snapshot['iteration']}, start time for all data is {self.time_of_first_data:d} ns"
+                    self.logger.info(ss)
+                    self.init_mode = False  # can leave init_mode now
+                else:
+                    ss = f"Buffer failed to find a starting time for data collection in snapshot {snapshot['iteration']}"
+                    self.logger.warning(ss)
             else:
-                ss = f"Buffer failed to find a starting time for data collection in snapshot {snapshot['iteration']}"
-                self.logger.warning(ss)
-            was_full_before_new_data = False
-            snapshot_length = 0
-        else:  # otherwise, process the data
+                # if you are here, you still have not collected enough prev_snapshot_val_map values
+                # do not do anything, the final return will be 0, 0 and process B will continue
+                ss = f"buffer.prev_snapshot_val_map is not yet complete on snapshot {snapshot['iteration']}"
+                ss += f" ({number_of_prev_nones:>3d}/{len(self.prev_snapshot_val_map):>3d}) PVs still None"
+                self.logger.info(ss)
+            # # the following are always correct in init_mode
+            # was_full_before_new_data = False
+            # snapshot_length = 0
+            return 0, 0
+        else:  # run mode, process the data
             # get the expected time window (start and end) for this snapshot
             start_time = self.time_of_first_data + self.num_snapshots_processed * self.snapshot_period_ns
             end_time = start_time + self.snapshot_period_ns
@@ -107,9 +152,6 @@ class Buffer:
             # makes sure that all new data is within the above time window, also gets the latest datapoint
             # that should have already been sent, if any
             fixed_snapshot_data, new_latest_values = self.fixer.fix_snapshot(snapshot, start_time, end_time)
-            # copy any new latest values into memory
-            for key, value in new_latest_values.items():
-                self.prev_snapshot_val_map[key] = value
             # bucket the data into 120 Hz buckets
             fixed_and_bucketed_snapshot_data = self.fixer.bucket_snapshot_data(
                 fixed_snapshot_data, self.prev_snapshot_val_map, start_time, end_time
@@ -148,80 +190,19 @@ class Buffer:
                 self.data_map["bpm_score_20"].put(np.zeros(self.snapshot_length))
                 self.logger.debug("Not enough data yet for bpm score computation, adding zeros to bpm_score array")
 
-            self.logger.debug(f"num snapshots processed {self.num_snapshots_processed}")
             self.num_snapshots_processed += 1
+            self.logger.debug(f"num snapshots processed {self.num_snapshots_processed}")
 
             self.logger.debug("Buffer done updating")
             snapshot_length = self.snapshot_length
 
-        # update the latest PV value map with the last value from each pv
-        # we assume here that (1) k2eg always returns a value, even if very old,
-        # (2) the values returned are in chronological order
-        failed_updates = []
-        # self.num_snapshots_processed was increased by 1 a few lines above
-        # so this is the start of the next snapshot window
-        next_start_time = (self.time_of_first_data +
-                           self.num_snapshots_processed * self.snapshot_period_ns)
-        for pv in self.pv_list:
-            prev_snapshot_val = None
-            try:
-                # # this can pull from the future, but it is quick:
-                # prev_snapshot_val = get_value(snapshot[pv][-1], self.logger)
-                # respects time of arrival, but does more work:
-                for entry in snapshot[pv]:
-                    if get_timestamp_ns(entry) <= next_start_time:
-                        prev_snapshot_val = get_value(entry, self.logger)
-                    else:  # entries are in time order, break when you are into the future
-                        break
-            except IndexError:  # this exception is caused by the -1 in snapshot[pv][-1]
-                failed_updates.append((pv, 'empty'))
-            except KeyError:  # this exception is caused by the pv in snapshot[pv]
-                failed_updates.append((pv, 'dne'))
-            else:
-                if prev_snapshot_val is not None:
-                    self.prev_snapshot_val_map[pv] = prev_snapshot_val
-                elif self.prev_snapshot_val_map[pv] is not None:
-                    # if you get here prev_snapshot_val is None but you have an older value stored, keep going
-                    msg = f"PV {pv:s} for snapshot number {snapshot['iteration']:d} "
-                    msg += "does not have any values this snapshot, using older values"
-                    self.logger.debug(msg)
-                else:
-                    # if you get here, it is because snapshot[pv] has values out of order
-                    # and the first value comes after next_start_time, or you have lost a snapshot somewhere
-                    # since you do not already have self.prev_snapshot_val_map[pv] saved, you have to start over
-                    msg = f"PV {pv:s} for snapshot number {snapshot['iteration']:d} "
-                    msg += f"appears to be out of order or entirely from the future. Length: {len(snapshot[pv])}. "
-                    msg += f"next_start_time: {next_start_time}"
-                    self.logger.warning(msg)
-                    wrong_time_stamps = get_all_timestamps_from_pv(snapshot[pv])
-                    msg = f"PV timestamps: {wrong_time_stamps}"
-                    self.logger.warning(msg)
-                    msg = f"Time relative to next_start_time: {[(x - next_start_time) / 1e9 for x in wrong_time_stamps]} seconds"
-                    self.logger.warning(msg)
-                    return -1, -1  # tell ProcessB there was a fatal problem
-
-        # # Dump the first many snapshots for diagnostics purposes
-        # uu = snapshot['iteration']
-        # if uu < 50:
-        #     import json
-        #     save_this = snapshot | {
-        #         'next_start_time': next_start_time,
-        #         'time_of_first_data': self.time_of_first_data,
-        #         'num_snapshots_processed': self.num_snapshots_processed,
-        #         'snapshot_period_ns': self.snapshot_period_ns
-        #     }
-        #     with open(f"snapshots/snapshot_{uu:03d}.json", 'w') as jf:
-        #         json.dump(save_this, jf, indent=4)
-
-        if len(failed_updates) > 0:
-            ss = f"There were some issues updating Buffer.prev_snapshot_val_map "
-            ss += f"for snapshot {snapshot['iteration']:d}: "
-            for name in ['empty', 'dne']:
-                c = sum([1 for x in failed_updates if x[-1] == name])
-                ss += f"{c:d} were {name} | "
-            self.logger.warning(ss[:-3])
-
-        return -self.snapshot_length if was_full_before_new_data else 0, snapshot_length
+            # this must be run after self.num_snapshot_processed += 1
+            # to properly account for what the next timestamp is
+            healthy_prev_snapshot_val_map = self.update_prev_snapshot_val_map(snapshot)
+            if healthy_prev_snapshot_val_map:
+                return -self.snapshot_length if was_full_before_new_data else 0, snapshot_length
+            else:  # any unhealthy prev_snapshot_val_map condition requires a re-init
+                return -1, -1
 
     def find_candidates(self, look_back_this_far: int) -> list[AnomalyCandidate]:
         candidates = []
@@ -305,7 +286,8 @@ class Buffer:
         self.num_snapshots_processed = 0
         self.time_of_first_data = -1
         self.index = 0  # tracks the next write index
-        self.prev_snapshot_val_map = {}  # store the latest value for each PV for potential forward-filling
+        self.prev_snapshot_val_map = {k: None for k in self.pv_list}  # store the latest value for each PV for potential forward-filling
+        self.init_mode = True  # True means init_mode, False means run_mode
 
         if not reinit:  # first initialization
             self.logger.debug(f"Initializing buffer for {len(self.pv_list)} PVs, buffer length = {self.buffer_len}")
@@ -335,6 +317,99 @@ class Buffer:
             self.logger.debug(f"Reinitializing buffer for {len(self.pv_list)} PVs, buffer length = {self.buffer_len}")
             for sliding_window_array in self.data_map.values():
                 sliding_window_array.init_sliding_window_array()
+
+    def update_prev_snapshot_val_map(
+            self,
+            snapshot: dict[str, list[dict]]
+    ) -> bool:
+        """
+        Update prev_snapshot_val_map.  This map is required to be full (no None values) for a
+        successful run.  You cannot leave init_mode until this is the case.
+
+        Parameters
+        ----------
+        snapshot : k2eg snapshot
+
+        Returns
+        -------
+            bool True if prev_snapshot_val_map is full and healthy, False otherwise
+        """
+        # update the latest PV value map with the last value from each pv
+        # this will be used the next time something is added to the buffer to fill
+        # in any buckets that occur before the first value in the snapshot
+        # we assume here that (1) k2eg always returns a value, even if very old,
+        # (2) the values returned are in chronological order
+        failed_updates = []
+
+        if self.init_mode:
+            next_start_time = np.inf  # in init mode, take the last value every time
+        else:  # run mode
+            # during normal run time (not init_mode) self.num_snapshots_processed
+            # was increased by 1 at the end of processing, so this is the start of the next
+            # snapshot window
+            next_start_time = (self.time_of_first_data +
+                               self.num_snapshots_processed * self.snapshot_period_ns)
+        for pv in self.pv_list:
+            prev_snapshot_val = None
+            try:
+                # # this can pull from the future, but it is quick:
+                # prev_snapshot_val = get_value(snapshot[pv][-1], self.logger)
+                # respects time of arrival, but does more work:
+                for entry in snapshot[pv]:
+                    if get_timestamp_ns(entry) <= next_start_time:
+                        prev_snapshot_val = get_value(entry, self.logger)
+                    else:  # entries are in time order, break when you are into the future
+                        break
+            except IndexError:  # this exception is caused by the -1 in snapshot[pv][-1]
+                failed_updates.append((pv, 'empty'))
+            except KeyError:  # this exception is caused by the pv in snapshot[pv]
+                failed_updates.append((pv, 'dne'))
+            else:
+                if prev_snapshot_val is not None:
+                    # if you found a new latest value in the try clause, save it here for the next iteration
+                    self.prev_snapshot_val_map[pv] = prev_snapshot_val
+                elif self.prev_snapshot_val_map[pv] is not None:
+                    # if you get here prev_snapshot_val is None but you have an older value stored, keep going
+                    msg = f"PV {pv:s} for snapshot number {snapshot['iteration']:d} "
+                    msg += "does not have any values this snapshot, using older values"
+                    self.logger.debug(msg)
+                else:
+                    # if you get here, it is because snapshot[pv] has values out of order and the first value comes
+                    # after next_start_time, or you have lost a snapshot (or entry) somewhere
+                    if self.init_mode:
+                        # data collection hasn't started yet, it is ok to have missing values
+                        msg = f"PV {pv:s} for snapshot number {snapshot['iteration']:d} "
+                        msg += "does not yet have a prev_snapshot_val_map entry"
+                        self.logger.warning(msg)
+                    else:
+                        # since you do not already have self.prev_snapshot_val_map[pv] saved,
+                        # and data collection has begun, you have to start over
+                        msg = f"PV {pv:s} for snapshot number {snapshot['iteration']:d} "
+                        msg += f"appears to be out of order or entirely from the future. Length: {len(snapshot[pv])}. "
+                        msg += f"next_start_time: {next_start_time}"
+                        self.logger.warning(msg)
+                        wrong_time_stamps = get_all_timestamps_from_pv(snapshot[pv])
+                        msg = f"PV timestamps: {wrong_time_stamps}"
+                        self.logger.warning(msg)
+                        msg = f"Time relative to next_start_time: {[(x - next_start_time) / 1e9 for x in wrong_time_stamps]} seconds"
+                        self.logger.warning(msg)
+
+                        failed_updates.append((pv, 'ooo'))  # ooo = "out of order"
+                        # # if data collection has started, and you cannot find or fill in data, you must exit
+                        # return -1, -1  # tell ProcessB there was a fatal problem
+
+        if len(failed_updates) > 0:
+            ss = f"There were some issues updating Buffer.prev_snapshot_val_map "
+            ss += f"for snapshot {snapshot['iteration']:d}: "
+            for name in ['empty', 'dne', 'ooo']:
+                c = sum([1 for x in failed_updates if x[-1] == name])
+                ss += f"{c:d} were {name} | "
+            self.logger.warning(ss[:-3])
+
+        if self.init_mode or len(failed_updates) == 0:
+            return True
+        else:
+            return False
 
 
 if __name__ == "__main__":

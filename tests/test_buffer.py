@@ -131,7 +131,7 @@ def test_buffer_reinit(pv_list):
     assert buffer.num_snapshots_processed == 0
     assert buffer.time_of_first_data == -1
     assert buffer.index == 0
-    assert buffer.prev_snapshot_val_map == {}
+    assert all([x is None for x in buffer.prev_snapshot_val_map.values()])
     for key, value in buffer.data_map.items():
         assert value.index == 0
 
@@ -174,7 +174,7 @@ def test_buffer_reinit(pv_list):
     assert buffer.num_snapshots_processed == 0
     assert buffer.time_of_first_data == -1
     assert buffer.index == 0
-    assert buffer.prev_snapshot_val_map == {}
+    assert all([x is None for x in buffer.prev_snapshot_val_map.values()])
     for key, value in buffer.data_map.items():
         assert value.index == 0
 
@@ -267,3 +267,59 @@ def test_buffer_update_slow_data(pv_list):
     assert all(buffer.get('b') == expected_buffer_b)
     assert len(buffer.fixer.temp_storage['a']) == 0
     assert len(buffer.fixer.temp_storage['b']) == 1
+
+
+def test_buffer_update_filling_prev_snapshot_val_map(pv_list):
+    """Tests that prev_snapshot_val_map is filled correctly when values are missing at start-up."""
+    # buffer.prev_snapshot_val_map is empty here
+    buffer = Buffer(pv_list, 1000, SAMPLES_PER_SECOND, NANOSECS_IN_1_SEC)
+    # buffer.logger.addHandler(logging.StreamHandler())
+
+    # Generate 120Hz timestamps for 3 seconds
+    ts_offset = NANOSECS_IN_1_SEC // SAMPLES_PER_SECOND
+    timestamps_1 = [i * ts_offset for i in range(SAMPLES_PER_SECOND)]
+    timestamps_2 = [(i * ts_offset) + NANOSECS_IN_1_SEC for i in range(SAMPLES_PER_SECOND)]
+    timestamps_3 = [(i * ts_offset) + 2 * NANOSECS_IN_1_SEC for i in range(SAMPLES_PER_SECOND)]
+
+    snapshot_1 = {pv: [make_entry(ts, float(i) + j) for i, ts in enumerate(timestamps_1)] for j, pv in
+                  enumerate(pv_list)} | {'iteration': 0, 'timestamp': 0}
+    snapshot_2 = {pv: [make_entry(ts, float(i + 120) + j) for i, ts in enumerate(timestamps_2)] for j, pv in
+                  enumerate(pv_list)} | {'iteration': 1, 'timestamp': 120}
+    snapshot_3 = {pv: [make_entry(ts, float(i + 240) + j) for i, ts in enumerate(timestamps_3)] for j, pv in
+                  enumerate(pv_list)} | {'iteration': 2, 'timestamp': 240}
+
+    snapshot_1['BPMS:LI24:801:XCUHBR'] = []  # make sure one of the PVs is empty for the first snapshot
+    snapshot_2['BPMS:LTUH:450:XCUHBR'] = []  # make sure one of the PVs is empty for the 2nd snapshot
+    snapshot_3['BPMS:DMPH:502:TMITCUHBR'] = []  # make sure one of the PVs is empty for the 2nd snapshot
+
+    assert all([x is None for x in buffer.prev_snapshot_val_map.values()])
+    assert buffer.time_of_first_data == -1
+
+    # first update - does not change buffer, do not leave init_mode
+    # prev_snapshot_val_map is missing a value
+    index_change, length_of_update = buffer.update(snapshot_1)
+    assert length_of_update == 0
+    assert index_change == 0
+    assert buffer.index == 0
+    assert buffer.init_mode == True
+    assert buffer.prev_snapshot_val_map['BPMS:IN20:221:TMITCUHBR'] == 119
+    assert buffer.prev_snapshot_val_map['BPMS:LI24:801:XCUHBR'] is None
+
+    # first update - does not change buffer, init_mode set False
+    # prev_snapshot_val_map is full
+    index_change, length_of_update = buffer.update(snapshot_2)
+    assert length_of_update == 0
+    assert index_change == 0
+    assert buffer.index == 0
+    assert buffer.init_mode == False
+    assert buffer.prev_snapshot_val_map['BPMS:IN20:221:TMITCUHBR'] == 239
+    assert buffer.prev_snapshot_val_map['BPMS:LTUH:450:XCUHBR'] == 122
+
+    # first update - does not change buffer, init_mode is False
+    index_change, length_of_update = buffer.update(snapshot_3)
+    assert length_of_update == 120
+    assert index_change == 0
+    assert buffer.index == 120
+    assert buffer.init_mode == False
+    assert buffer.prev_snapshot_val_map['BPMS:IN20:221:TMITCUHBR'] == 359
+    assert buffer.prev_snapshot_val_map['BPMS:DMPH:502:TMITCUHBR'] == 247
