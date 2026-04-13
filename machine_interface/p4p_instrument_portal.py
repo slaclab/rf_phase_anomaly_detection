@@ -75,6 +75,9 @@ class P4PInstrumentPortal:
         except AttributeError:
             msg = f"Requested method {method} not implemented; no put performed"
             self.logger.warning(msg)
+        except TimeoutError:
+            msg = f"Requested method {method} timed out; no put performed"
+            self.logger.warning(msg)
         else:
             x(data)
 
