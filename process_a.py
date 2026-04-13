@@ -37,7 +37,7 @@ def prune_alarm_data(
     pruned_list = [e for e in pv_list if e['alarm']['severity'] == 0]
     issue_string = ""
     if len(pruned_list) == 0:
-        pruned_list.append(pv_list[-1])  # put the newest value back on
+        # pruned_list.append(pv_list[-1])  # put the newest value back on
         issue_string = "all alarms"
     elif len(pruned_list) != len(pv_list):
         issue_string = "some alarms"
@@ -76,10 +76,16 @@ def process_snapshot(
                 msg = f"PV {key:s} came from k2eg empty"
                 logger.warning(msg)
 
-            pruned_value, issue_string = prune_alarm_data(value)
+            if not key.startswith("KLYS"):
+                # anything except klystrons needs to be pruned for alarms
+                pruned_value, issue_string = prune_alarm_data(value)
+            else:
+                # klystron PVs are seldom monitored for alarms, keep everything
+                pruned_value = value
+                issue_string = ""
             if issue_string and key not in warn_once_set:
                 if issue_string == "all alarms":
-                    msg = f"PV {key} was pruned to empty due to alarms, putting newest value on anyway"
+                    msg = f"PV {key} was pruned to empty due to alarms" #, putting newest value on anyway"
                     logger.warning(msg)
                     limit = warn_once_set.keep_for_this_many_iterations
                     msg = f"Future warnings about this type of object are disabled for {limit:d} iterations."
