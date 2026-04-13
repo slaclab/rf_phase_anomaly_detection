@@ -4,49 +4,49 @@ output_order: [anom_score]
 model:
   model_class: TorchModel
   input_variables:
-    BPMS:LTUH:250:X:
+    BPMS:LTUH:250:XCUHBR:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
       value_range: [-1000.0, 1000.0]
       value_range_tolerance: 1.0e-08
-    BPMS:LTUH:450:X:
+    BPMS:LTUH:450:XCUHBR:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
       value_range: [-1000.0, 1000.0]
       value_range_tolerance: 1.0e-08
-    BPMS:DMPH:502:Y:
+    BPMS:DMPH:502:YCUHBR:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
       value_range: [-1000.0, 1000.0]
       value_range_tolerance: 1.0e-08
-    BPMS:DMPH:693:Y:
+    BPMS:DMPH:693:YCUHBR:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
       value_range: [-1000.0, 1000.0]
       value_range_tolerance: 1.0e-08
-    BPMS:LTUH:250:TMIT:
+    BPMS:LTUH:250:TMITCUHBR:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
       value_range: [-10.0, 100000000000.0]
       value_range_tolerance: 1.0e-08
-    BPMS:LTUH:450:TMIT:
+    BPMS:LTUH:450:TMITCUHBR:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
       value_range: [-10.0, 100000000000.0]
       value_range_tolerance: 1.0e-08
-    BPMS:DMPH:502:TMIT:
+    BPMS:DMPH:502:TMITCUHBR:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
       value_range: [-10.0, 100000000000.0]
       value_range_tolerance: 1.0e-08
-    BPMS:DMPH:693:TMIT:
+    BPMS:DMPH:693:TMITCUHBR:
       variable_class: ScalarVariable
       default_value: 0.0
       is_constant: false
