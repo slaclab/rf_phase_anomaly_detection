@@ -2,8 +2,8 @@ from multiprocessing import Manager
 
 from process import CustomProcessObject
 from mp_logging import default_logging_kwargs, create_worker_logger
-from machine_interface.k2eg_instrument_portal import K2EGInstrumentPortal as InstrumentPortal
-#from machine_interface.p4p_instrument_portal import P4PInstrumentPortal as InstrumentPortal
+# from machine_interface.k2eg_instrument_portal import K2EGInstrumentPortal as InstrumentPortal
+from machine_interface.p4p_instrument_portal import P4PInstrumentPortal as InstrumentPortal
 
 from typing import Optional, Any, TypedDict
 
