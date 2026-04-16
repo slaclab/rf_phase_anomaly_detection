@@ -36,10 +36,10 @@ spec:
             value: /app/config
           - name: TZ
             value: "America/Los_Angeles"
-          - name: EPICS_PVA_ADDR_LIST
-            value: 134.79.151.21:5167
-          - name: EPICS_PVA_AUTO_ADDR_LIST
-            value: "NO"
+#          - name: EPICS_PVA_ADDR_LIST
+#            value: 134.79.151.21:5167
+#          - name: EPICS_PVA_AUTO_ADDR_LIST
+#            value: "NO"
         volumeMounts:
           - name: s3cmd-config-volume
             mountPath: /app/config/k2eg.ini
