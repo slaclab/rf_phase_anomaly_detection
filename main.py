@@ -48,7 +48,7 @@ def main(args: argparse.Namespace):
             f"LoggerProcess running on pid {logger_process.pid} with parent pid {logger_process._parent_pid}"
         )
 
-        instrument_po = ProcessI(queue_ins, logging_kwargs=logging_kwargs.copy())
+        instrument_po = ProcessI(queue_ins, use_k2eg=args.use_k2eg, logging_kwargs=logging_kwargs.copy())
         instrument_process = Process(target=instrument_po, args=())
         instrument_process.start()
 
@@ -160,6 +160,12 @@ if __name__ == "__main__":
         type=int,
         default=20,
         help="Level to perform logging at"
+    )
+    parser.add_argument(
+        "-uk",
+        "--use_k2eg",
+        action="store_true",
+        help="If this flag is passed, use k2eg to write to instrumentation PVs; otherwise use p4p"
     )
 
     args = parser.parse_args()

@@ -1,9 +1,10 @@
+import time
 from multiprocessing import Manager
 
 from process import CustomProcessObject
 from mp_logging import default_logging_kwargs, create_worker_logger
-# from machine_interface.k2eg_instrument_portal import K2EGInstrumentPortal as InstrumentPortal
-from machine_interface.p4p_instrument_portal import P4PInstrumentPortal as InstrumentPortal
+from machine_interface.k2eg_instrument_portal import K2EGInstrumentPortal
+from machine_interface.p4p_instrument_portal import P4PInstrumentPortal
 
 from typing import Optional, Any, TypedDict
 
@@ -23,9 +24,11 @@ class ProcessI(CustomProcessObject):
     def __init__(
             self,
             queue: "Manager.Queue",
+            use_k2eg: bool = False,
             logging_kwargs: Optional[dict] = default_logging_kwargs,
     ):
         self.queue = queue
+        self.use_k2eg = use_k2eg  # if True: use k2eg, otherwise: use p4p
         self.logging_kwargs = logging_kwargs
         self.logging_kwargs["logger_name"] = "Process_i"
         self.logger = None
@@ -35,10 +38,9 @@ class ProcessI(CustomProcessObject):
     def __call__(self):
         if self.logger is None:
             self.logger = create_worker_logger(**self.logging_kwargs)
-        if not isinstance(self.portal, InstrumentPortal):
-            self.portal = InstrumentPortal(
-                logging_kwargs=self.logging_kwargs.copy(),
-            )
+            time.sleep(3)  # wait a few seconds for the logger to be created
+        if self.portal is None:
+            self.portal = self.configure_instrument_portal()
 
         # put data onto the queue at regular intervals
         with self.portal as portal:
@@ -57,10 +59,23 @@ class ProcessI(CustomProcessObject):
         for handler in self.logger.handlers:
             handler.close()
 
+    def configure_instrument_portal(self):
+        if self.use_k2eg:
+            portal_type = K2EGInstrumentPortal
+            portal_name = "K2EGInstrumentPortal"
+        else:
+            portal_type = P4PInstrumentPortal
+            portal_name = "P4PInstrumentPortal"
+        if self.logger is not None:
+            self.logger.info(f"Using {portal_name} to write to PVs")
+        return portal_type(
+            logging_kwargs=self.logging_kwargs.copy(),
+        )
+
 
 def check_and_pass_message(
         message: dict[str, Any],
-        portal: InstrumentPortal
+        portal: 'InstrumentPortal'
 ):
     log_msg = ""
 
