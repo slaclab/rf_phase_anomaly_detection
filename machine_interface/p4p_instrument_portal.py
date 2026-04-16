@@ -44,7 +44,13 @@ class P4PInstrumentPortal:
         timeout : float, optional
             Operation timeout in seconds, by default 5.0
         """
-        self.ctx.put(pv_name, value, timeout=timeout)
+        try:
+            self.ctx.put(pv_name, value, timeout=timeout)
+        except TimeoutError:
+            msg = f"P4PInstrumentPortal put to {pv_name} timed out; "
+            msg += "it is likely the mailbox is not reachable, shutting down"
+            self.logger.exception(msg)
+            raise
 
     def _get(self, pv_name: str, timeout: Optional[float] = 5.0) -> Any:
         """
