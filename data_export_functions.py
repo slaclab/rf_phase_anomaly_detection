@@ -17,7 +17,7 @@ def check_save_flag_file(func):
     if os.path.exists(sff):
         with open(sff, 'r') as f:
             # the file contains only True or False and nothing else
-            save_flag = f.read()
+            save_flag = bool(f.read().rstrip())
         if save_flag:
             return func
     return do_nothing  # do nothing without the file existing and flag set True
