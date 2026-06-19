@@ -22,6 +22,7 @@ from run_config import (
     NANOSECS_IN_1_SEC,
     CANDIDATE_LOOKBACK_WINDOW_LENGTH,
     ANOMALY_CANDIDATE_WINDOW_SIZE,
+    CANDIDATE_SAVE_DIRECTORY,
 )
 
 # we care about windows where beam-checks fail only if longer than this length
@@ -66,7 +67,7 @@ class ProcessB(CustomProcessObject):
 
         self.logger.info(f"Starting process_b for {len(self.pv_list)} PVs")
 
-        self.candidate_saver = CandidateSaver('saved_candidates', self.logging_kwargs.copy())
+        self.candidate_saver = CandidateSaver(CANDIDATE_SAVE_DIRECTORY, self.logging_kwargs.copy())
         # counts the number of candidates seen
         self.candidate_counter = TimedCandCountDict(
             queue_inst=self.queue_inst,

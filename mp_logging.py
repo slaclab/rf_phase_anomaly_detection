@@ -4,6 +4,8 @@ from datetime import datetime
 from multiprocessing import Queue
 from logging.handlers import QueueHandler
 
+from run_config import LOGGER_FILE_DIRECTORY
+
 from typing import Optional
 
 
@@ -48,7 +50,7 @@ def run_logger_process(
 
     if logger_name is not None:
         # configure a file handler
-        direc = 'logs'
+        direc = LOGGER_FILE_DIRECTORY
         os.makedirs(direc, exist_ok=True)
         log_path = os.path.join(direc, f"{logger_name:s}_{t:s}.log")
         cch = logging.FileHandler(log_path)
