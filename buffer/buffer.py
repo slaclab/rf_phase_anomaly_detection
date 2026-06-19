@@ -8,6 +8,7 @@ from buffer.sliding_window import SlidingWindowArray
 from anomaly_candidate import AnomalyCandidate
 from mp_logging import create_worker_logger, default_logging_kwargs
 from buffer.snapshot_fixer import SnapshotFixer, get_timestamp_ns, get_value
+from data_export_functions import save_fixed_snapshot, save_bucketed_snapshot, save_sliding_windows
 
 from typing import Optional, Tuple
 
@@ -111,6 +112,8 @@ class Buffer:
         #     with open(f"snapshots/snapshot_{uu:03d}.json", 'w') as jf:
         #         json.dump(save_this, jf, indent=4)
 
+        iteration: int = snapshot["iteration"]
+
         self.logger.debug("Buffer starting update...")
         # in order to run successfully, this buffer needs two things:
         # (1) a starting time for all the data
@@ -128,7 +131,7 @@ class Buffer:
                 if min_ts is not None:
                     # the first data is expected to show up one bucket after the last sample found:
                     self.time_of_first_data = min_ts + NANOSECS_IN_1_SEC // SAMPLES_PER_SECOND
-                    ss = f"Snapshot {snapshot['iteration']}, start time for all data is {self.time_of_first_data:d} ns"
+                    ss = f"Snapshot {iteration}, start time for all data is {self.time_of_first_data:d} ns"
                     self.logger.info(ss)
                     self.init_mode = False  # can leave init_mode now
                 else:
@@ -137,7 +140,7 @@ class Buffer:
             else:
                 # if you are here, you still have not collected enough prev_snapshot_val_map values
                 # do not do anything, the final return will be 0, 0 and process B will continue
-                ss = f"buffer.prev_snapshot_val_map is not yet complete on snapshot {snapshot['iteration']}"
+                ss = f"buffer.prev_snapshot_val_map is not yet complete on snapshot {iteration}"
                 ss += f" ({number_of_prev_nones:>3d}/{len(self.prev_snapshot_val_map):>3d}) PVs still None"
                 self.logger.info(ss)
             # # the following are always correct in init_mode
@@ -152,10 +155,14 @@ class Buffer:
             # makes sure that all new data is within the above time window, also gets the latest datapoint
             # that should have already been sent, if any
             fixed_snapshot_data, new_latest_values = self.fixer.fix_snapshot(snapshot, start_time, end_time)
+            # TODO: comment this out
+            save_fixed_snapshot(fixed_snapshot_data, new_latest_values, iteration)
             # bucket the data into 120 Hz buckets
             fixed_and_bucketed_snapshot_data = self.fixer.bucket_snapshot_data(
                 fixed_snapshot_data, self.prev_snapshot_val_map, start_time, end_time
             )
+            # TODO: comment this out
+            save_bucketed_snapshot(fixed_and_bucketed_snapshot_data, iteration)
 
             beam_check_data = {}
             for pv in BEAM_CHECK_PVS:
@@ -165,6 +172,11 @@ class Buffer:
             for pv, values in fixed_and_bucketed_snapshot_data.items():
                 # self.logger.debug(f"Appending bucketed + cleaned data to data_map for PV: {pv}")
                 self.data_map[pv].put(values)
+
+            # TODO: comment this out
+            # save the BPM data for debugging
+            windows_to_save = {pv: self.data_map[pv].data for pv in BPM_NAMES}
+            save_sliding_windows(windows_to_save, iteration)
 
             # do the beam checks and put the data on beam_check buffer
             beam_checks_result = do_beam_checks(beam_check_data)

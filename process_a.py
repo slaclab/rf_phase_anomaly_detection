@@ -6,6 +6,7 @@ from process import CustomProcessObject
 from mp_logging import default_logging_kwargs, create_worker_logger
 from machine_interface.k2eg_handler import K2EGHandler
 from warn_once import WarnOnceSet
+from data_export_functions import save_snapshot
 
 from typing import Optional, Any
 
@@ -221,9 +222,12 @@ class K2EGProcess(CustomProcessObject):
             lists are the response from the PVs.
         """
         iteration = snapshot["iteration"]
-
+        # TODO: comment this out
+        save_snapshot(snapshot, 'raw', iteration)
         sorted_snapshot = process_snapshot(snapshot, self.warn_once_set, self.logger)
         # sorted_snapshot = snapshot
+        # TODO: comment this out
+        save_snapshot(sorted_snapshot, 'pruned', iteration)
 
         # claudio wants us to wait for ~10 snapshots for k2eg to warm up
         n_skip = 10
