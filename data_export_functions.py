@@ -8,6 +8,22 @@ from run_config import CANDIDATE_SAVE_DIRECTORY
 from typing import Tuple
 
 
+def do_nothing(*args, **kwargs):
+    pass
+
+
+def check_save_flag_file(func):
+    sff = os.path.join(CANDIDATE_SAVE_DIRECTORY, "save_flag_file.txt")
+    if os.path.exists(sff):
+        with open(sff, 'r') as f:
+            # the file contains only True or False and nothing else
+            save_flag = f.read()
+        if save_flag:
+            return func
+    return do_nothing  # do nothing without the file existing and flag set True
+
+
+@check_save_flag_file
 def save_snapshot(
         snapshot: dict,
         prefix: str,  # should be 'raw' or 'pruned'
@@ -21,6 +37,7 @@ def save_snapshot(
         json.dump(snapshot, f)
 
 
+@check_save_flag_file
 def save_fixed_snapshot(
         fixed_data: dict[str, Tuple[np.ndarray, np.ndarray]],
         latest_data: dict[str, float],
@@ -33,6 +50,7 @@ def save_fixed_snapshot(
     np.savez(fn, data=fixed_data, latest=latest_data)
 
 
+@check_save_flag_file
 def save_bucketed_snapshot(
         bucketed_data: dict[str, np.ndarray],
         iteration: int
@@ -44,6 +62,7 @@ def save_bucketed_snapshot(
     np.savez(fn, **bucketed_data)
 
 
+@check_save_flag_file
 def save_sliding_windows(
         windows: dict[str, np.ndarray],
         iteration: int
