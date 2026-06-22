@@ -247,9 +247,9 @@ def test_buffer_update_slow_data(pv_list):
             # makes sure that all new data is within the above time window, also gets the latest datapoint
             # that should have already been sent, if any
             fixed_snapshot_data, new_latest_values = self.fixer.fix_snapshot(snapshot, start_time, end_time)
-            # copy any new latest values into memory
-            for key, value in new_latest_values.items():
-                self.prev_snapshot_val_map[key] = value
+            # # copy any new latest values into memory
+            # for key, value in new_latest_values.items():
+            #     self.prev_snapshot_val_map[key] = value
             # bucket the data into 120 Hz buckets
             fixed_and_bucketed_snapshot_data = self.fixer.bucket_snapshot_data(
                 fixed_snapshot_data, self.prev_snapshot_val_map, start_time, end_time
@@ -290,7 +290,7 @@ def test_buffer_update_filling_prev_snapshot_val_map(pv_list):
 
     snapshot_1['BPMS:LI24:801:XCUHBR'] = []  # make sure one of the PVs is empty for the first snapshot
     snapshot_2['BPMS:LTUH:450:XCUHBR'] = []  # make sure one of the PVs is empty for the 2nd snapshot
-    snapshot_3['BPMS:DMPH:502:TMITCUHBR'] = []  # make sure one of the PVs is empty for the 2nd snapshot
+    snapshot_3['BPMS:DMPH:502:TMITCUHBR'] = []  # make sure one of the PVs is empty for the 3rd snapshot
 
     assert all([x is None for x in buffer.prev_snapshot_val_map.values()])
     assert buffer.time_of_first_data == -1
@@ -305,7 +305,7 @@ def test_buffer_update_filling_prev_snapshot_val_map(pv_list):
     assert buffer.prev_snapshot_val_map['BPMS:IN20:221:TMITCUHBR'] == 119
     assert buffer.prev_snapshot_val_map['BPMS:LI24:801:XCUHBR'] is None
 
-    # first update - does not change buffer, init_mode set False
+    # second update - does not change buffer, init_mode set False
     # prev_snapshot_val_map is full
     index_change, length_of_update = buffer.update(snapshot_2)
     assert length_of_update == 0
@@ -315,7 +315,7 @@ def test_buffer_update_filling_prev_snapshot_val_map(pv_list):
     assert buffer.prev_snapshot_val_map['BPMS:IN20:221:TMITCUHBR'] == 239
     assert buffer.prev_snapshot_val_map['BPMS:LTUH:450:XCUHBR'] == 122
 
-    # first update - does not change buffer, init_mode is False
+    # third update - does not change buffer, init_mode is False
     index_change, length_of_update = buffer.update(snapshot_3)
     assert length_of_update == 120
     assert index_change == 0

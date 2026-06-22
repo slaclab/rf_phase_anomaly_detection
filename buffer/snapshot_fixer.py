@@ -211,7 +211,9 @@ def process_pv_from_snapshot(
         elif ts_ns <= end_time:
             temp_storage.popleft()
             in_window_timestamps.append(ts_ns)
-            in_window_values.append(get_value(entry, logger))
+            new_value = get_value(entry, logger)
+            in_window_values.append(new_value)
+            latest_value = new_value
         else:
             break  # data expected in future snapshot, leave in queue for later processing
 
