@@ -163,7 +163,7 @@ def find_most_anomalous_rf_station(
     Parameters
     ----------
     rf_phase_data : np.ndarray
-        2D array containing rf station data.
+        2D array containing rf station data.  shape is [window_size, num_rf_pvs]
     rf_pv_names : list[str]
         List of RF PV names corresponding to phas_fast channels.
     phas_thresh : float
@@ -176,16 +176,30 @@ def find_most_anomalous_rf_station(
     """
 
     # Absolute deviation from 0 (centered signal)
-    rf_phase_data_abs = np.abs(rf_phase_data)
+    # replaces NaN with zeros, so they get sorted to smallest
+    rf_phase_data_abs = np.nan_to_num(np.abs(rf_phase_data), nan=0.)  # shape is [window_size, num_rf_pvs]
+
+    # sort the values for each time point (row) along the rf-station axis (columns)
+    # this sorts smallest to largest
+    rf_phase_data_abs_sorted = np.sort(rf_phase_data_abs, axis=1)  # shape is [window_size, num_rf_pvs]
+
+    # take the 5th largest value for each time point and tile for subtraction
+    fifth = min(5, rf_phase_data_abs.shape[1])  # in case you get too few rf_stations
+    phase_fifth_max = np.sort(rf_phase_data_abs_sorted, axis=1)[:, -fifth]  # shape is [window_size]
+    phase_fifth_max = np.tile(
+        phase_fifth_max.reshape(-1, 1),
+        (1, rf_phase_data_abs.shape[-1])
+    )  # shape is [window_size, num_rf_pvs
 
     # Max deviation per RF PV in this window
-    max_per_rf = np.nanmax(rf_phase_data_abs, axis=0)  # shape: (num_rf_pvs,)
+    max_per_rf = np.nanmax(rf_phase_data_abs - phase_fifth_max, axis=0)  # shape: (num_rf_pvs,)
 
     # System-level anomaly check: more than 10 RFs over threshold
     system_level_anomaly = np.sum(max_per_rf > phas_thresh) > 10
 
-    # Rank the top 5 highest deviations
-    top5_indices = np.argsort(max_per_rf)[::-1]
+    # Rank the top 5 highest deviations - sorts largest to smallest
+    # use stable to always get the same ordering in case of ties
+    top5_indices = np.argsort(max_per_rf, stable=True)[::-1]
 
     # Return the top *non-feedback* station
     # will fail if all rf stations are FEEDBACK_STATIONS

@@ -26,6 +26,18 @@ def make_single_anomaly_data():
 
 
 @pytest.fixture
+def make_system_anomaly_data():
+    clwl = CANDIDATE_LOOKBACK_WINDOW_LENGTH
+    data = np.zeros(clwl)
+    data[clwl // 4:3 * clwl // 4] = 1.0
+    data = np.hstack(
+        [data.reshape(-1, 1).copy() * i for i in range(len(RF_PV_NAMES) // 2)]
+        + [(1 - data).reshape(-1, 1).copy() * i for i in range(len(RF_PV_NAMES) // 2)]
+    )
+    return data
+
+
+@pytest.fixture
 def make_feedback_anomaly_data():
     rng = np.random.default_rng(12345)
     index = 27  # KLYS:LI24:11:PHAS_FASTCUHBR
@@ -45,7 +57,14 @@ def make_feedback_only_anomaly_data():
 
 def test_on_random_data(make_random_data):
     rf_name, deviation, system = find_most_anomalous_rf_station(make_random_data, rf_pv_names=RF_PV_NAMES)
-    assert system  # should be true
+    assert not system  # should be false
+
+
+def test_on_systematic_data(make_random_data):
+    rf_name, deviation, system = find_most_anomalous_rf_station(
+        make_random_data, rf_pv_names=RF_PV_NAMES, phas_thresh=-5
+    )
+    assert system  # should be false
 
 
 def test_on_single_anomaly_data(make_single_anomaly_data):
