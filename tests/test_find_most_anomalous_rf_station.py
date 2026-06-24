@@ -56,20 +56,20 @@ def make_feedback_only_anomaly_data():
 
 
 def test_on_random_data(make_random_data):
-    rf_name, deviation, system = find_most_anomalous_rf_station(make_random_data, rf_pv_names=RF_PV_NAMES)
+    rf_name, deviation, system = find_most_anomalous_rf_station(make_random_data, rf_pv_names=RF_PV_NAMES, phas_thresh=1)[0]
     assert not system  # should be false
 
 
 def test_on_systematic_data(make_random_data):
-    rf_name, deviation, system = find_most_anomalous_rf_station(
-        make_random_data, rf_pv_names=RF_PV_NAMES, phas_thresh=-5
-    )
-    assert system  # should be false
+    station_candidates = find_most_anomalous_rf_station(make_random_data, rf_pv_names=RF_PV_NAMES, phas_thresh=-5)
+    rf_name, deviation, system = station_candidates[0]
+    assert len(station_candidates) == 5
+    assert system  # should be true
 
 
 def test_on_single_anomaly_data(make_single_anomaly_data):
     index, data = make_single_anomaly_data
-    rf_name, deviation, system = find_most_anomalous_rf_station(data, rf_pv_names=RF_PV_NAMES)
+    rf_name, deviation, system = find_most_anomalous_rf_station(data, rf_pv_names=RF_PV_NAMES)[0]
     assert rf_name == RF_PV_NAMES[index]
     assert deviation == 5.0
     assert not system  # should be false
@@ -77,7 +77,7 @@ def test_on_single_anomaly_data(make_single_anomaly_data):
 
 def test_on_feedback_anomaly_data(make_feedback_anomaly_data):
     index, data = make_feedback_anomaly_data
-    rf_name, deviation, system = find_most_anomalous_rf_station(data, rf_pv_names=RF_PV_NAMES)
+    rf_name, deviation, system = find_most_anomalous_rf_station(data, rf_pv_names=RF_PV_NAMES, phas_thresh=0.05)[0]
     assert rf_name != RF_PV_NAMES[index]  # should not match
     assert deviation != 5.0  # should not match
     assert not system  # should be false
@@ -85,7 +85,8 @@ def test_on_feedback_anomaly_data(make_feedback_anomaly_data):
 
 def test_on_feedback_only_anomaly_data(make_feedback_only_anomaly_data):
     index, data = make_feedback_only_anomaly_data
-    rf_name, deviation, system = find_most_anomalous_rf_station(data, rf_pv_names=FEEDBACK_STATIONS)
-    assert rf_name == ""
-    assert deviation == 0.0
-    assert not system  # should be false
+    station_candidates = find_most_anomalous_rf_station(data, rf_pv_names=FEEDBACK_STATIONS, phas_thresh=1)
+    assert station_candidates == []
+    # assert rf_name == ""
+    # assert deviation == 0.0
+    # assert not system  # should be false

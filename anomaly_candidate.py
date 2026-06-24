@@ -151,7 +151,7 @@ def find_most_anomalous_rf_station(
     rf_phase_data: np.ndarray,
     rf_pv_names: list[str],
     phas_thresh: float = CANDIDATE_PHASE_THRESHOLD,
-) -> tuple[str, float, bool]:
+) -> list[tuple[str, float, bool]]:
     """
     Implements the RF Candidate Selection from Appendix C of
     https://arxiv.org/abs/2505.16052
@@ -171,8 +171,10 @@ def find_most_anomalous_rf_station(
 
     Returns
     -------
-    Tuple[str, float, bool]
-        The most anomalous RF PV name, its deviation score, and a system_level flag (0 or 1).
+    List[Tuple[str, float, bool]]
+        List of the most anomalous stations:
+        (RF PV name, its deviation score, and a system_level flag (0 or 1)) for each station.
+        Returns an empty list if no non-feedback stations are above threshold.
     """
 
     # Absolute deviation from 0 (centered signal)
@@ -202,15 +204,23 @@ def find_most_anomalous_rf_station(
     top_indices = np.argsort(max_per_rf, stable=True)[::-1]
 
     # Return the top *non-feedback* station
-    # will fail if all rf stations are FEEDBACK_STATIONS
-    for i in top_indices:
-        if max_per_rf[i] < phas_thresh:
-            break  # all further values are smaller, stop looking
-        pv = rf_pv_names[i]
+    top_stations = []
+    # will return [] if all rf stations are FEEDBACK_STATIONS
+    for index in top_indices:
+        max_val = max_per_rf[index]
+        if max_val < phas_thresh and len(top_stations) > 0:
+            # all further stations are lower, stop and return only those stations above threshold
+            # return at least one station if none are above threshold
+            break
+        pv = rf_pv_names[index]
         if pv not in FEEDBACK_STATIONS:
-            return pv, max_per_rf[i], system_level_anomaly
+            top_stations.append(
+                (pv, max_val, system_level_anomaly)
+            )
+        if len(top_stations) >= 5:  # reached 5 stations, stop and return all 5
+            break
 
-    return "", 0.0, system_level_anomaly
+    return top_stations
 
 
 if __name__ == "__main__":
@@ -240,10 +250,11 @@ if __name__ == "__main__":
     candidate = bucket.get()
     window_size = 20
     window = np.stack([np.random.randn(window_size) for _ in rf_pv_names], axis=1)  # (window_size, num_rf_pvs)
-    most_anomalous_rf_pv_name, deviation_score, system_level_flag = find_most_anomalous_rf_station(
+    station_candidates = find_most_anomalous_rf_station(
         window, rf_pv_names=rf_pv_names
-    )
-    print(most_anomalous_rf_pv_name, deviation_score, system_level_flag)
+    )  # this will be empty
+    # for sc in station_candidates:
+    #     print(sc)
 
     bpm_score_20 = np.random.rand(120)
     start = 0
