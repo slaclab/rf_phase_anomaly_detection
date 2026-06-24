@@ -11,15 +11,15 @@ from typing import Optional
 
 constant_readings_dict = {
     "BPMS:IN20:221:TMITCUHBR": 3 * EXP_TMIT_MIN,
-    "BPMS:LI24:801:XBR": 2.0,
-    "BPMS:LTUH:250:XBR": 1.5,
-    "BPMS:LTUH:450:XBR": -1.0,
-    "BPMS:DMPH:502:YBR": 1.0,
-    "BPMS:DMPH:693:YBR": -3.0,
-    "BPMS:LTUH:250:TMITBR": 4 * EXP_TMIT_MIN,
-    "BPMS:LTUH:450:TMITBR": 4 * EXP_TMIT_MIN,
-    "BPMS:DMPH:502:TMITBR": 4 * EXP_TMIT_MIN,
-    "BPMS:DMPH:693:TMITBR": 4 * EXP_TMIT_MIN,
+    "BPMS:LI24:801:XCUHBR": 2.0,
+    "BPMS:LTUH:250:XCUHBR": 1.5,
+    "BPMS:LTUH:450:XCUHBR": -1.0,
+    "BPMS:DMPH:502:YCUHBR": 1.0,
+    "BPMS:DMPH:693:YCUHBR": -3.0,
+    "BPMS:LTUH:250:TMITCUHBR": 4 * EXP_TMIT_MIN,
+    "BPMS:LTUH:450:TMITCUHBR": 4 * EXP_TMIT_MIN,
+    "BPMS:DMPH:502:TMITCUHBR": 4 * EXP_TMIT_MIN,
+    "BPMS:DMPH:693:TMITCUHBR": 4 * EXP_TMIT_MIN,
     "IOC:BSY0:MP01:PC_RATE": 8,
     "IOC:IN20:EV01:RG02_ACTRATE": 10,
     "STPR:BSYH:2:STD2_IN_A": 0,
@@ -32,8 +32,8 @@ def force_anomaly(constant_data: dict) -> dict:
     anom_data = {}
     for pv_name, reading_list in constant_data.items():
         if (
-            pv_name.endswith("XBR")
-            or pv_name.endswith("YBR")
+            pv_name.endswith("XCUHBR")
+            or pv_name.endswith("YCUHBR")
             or pv_name.endswith("FASTCUHBR")
             or pv_name.endswith("AMPL")
             or pv_name.endswith("TMITCUHBR")

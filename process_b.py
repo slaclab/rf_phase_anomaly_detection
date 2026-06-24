@@ -148,9 +148,9 @@ class ProcessB(CustomProcessObject):
             self.logger.debug("Getting the oldest candidate for processing")
             candidate = self.candidate_bucket.get()  # get the oldest candidate
 
-            cand = self.process_candidate(candidate=candidate)
+            cands = self.process_candidate(candidate=candidate)  # list of candidates, potentially empty
 
-            if cand:  # dictionary is not empty for some reason
+            for cand in cands:
                 evaluation = self.evaluate_candidate(cand)
                 eval_cand = cand | {"reject_reason": evaluation}
                 if evaluation.lower() == 'none':
@@ -172,21 +172,12 @@ class ProcessB(CustomProcessObject):
                       f" Score: {cand['anomaly_score']:.2f}, System-level: {cand['system_level_anomaly']}")
                 log_method(ss)
 
-    def process_candidate(self, candidate: AnomalyCandidate) -> dict:
+    def process_candidate(self, candidate: AnomalyCandidate) -> list[dict]:
         self.logger.debug("Starting to process candidate...")
         score_start_index = max(0, candidate.slow_index - CANDIDATE_LOOKBACK_WINDOW_LENGTH)
         self.logger.debug(f"Candidate: slow_index={candidate.slow_index}, score_start_index={score_start_index}")
 
-        # find the most anomalous rf station
-        station_names = [n for n in self.pv_list if n.endswith("PHAS_FASTCUHBR")]
-        rf_phase_data = np.stack(
-            [self.buffer.get(pv, score_start_index, candidate.slow_index) for pv in station_names], axis=1
-        )  # (CANDIDATE_WINDOW_SIZE, len(station_names))
-        most_anomalous_rf_pv_name, deviation_score, system_level_anom = find_most_anomalous_rf_station(
-            rf_phase_data, rf_pv_names=station_names
-        )
-        self.logger.debug(f"Most anomalous rf PV: {most_anomalous_rf_pv_name}, Score: {deviation_score:.2f}")
-
+        #### retrieve data that is common to all possible candidates
         # Get the bpm_score_20 values for the lookback window
         bpm_score_20 = self.buffer.get("bpm_score_20", score_start_index, candidate.slow_index)
 
@@ -196,32 +187,51 @@ class ProcessB(CustomProcessObject):
         fast_time = self.buffer.get("pv_timestamps_ns", fast_index, fast_index + 1)[0]
         self.logger.debug(f"Fast trigger index: {fast_index}, timestamp: {fast_time}")
 
-        # prepare anomaly candidate data for process C
         # TODO: integrate beam check results into slow/fast index selection
         anomaly_data_window = candidate.window_slice
         data_quality_array = self.buffer.get("beam_checks", anomaly_data_window[0], anomaly_data_window[1]).copy()
-        rf_input: np.array = self.buffer.get(
-            most_anomalous_rf_pv_name, anomaly_data_window[0], anomaly_data_window[1]
-        ).copy()
+
+        # get the bpm data for any potential candidate
         bpm_input = []
         for pv_name in BPM_NAMES:
             bpm_input.append(self.buffer.get(pv_name, anomaly_data_window[0], anomaly_data_window[1]).copy())
-        # send candidate to process C
-        if most_anomalous_rf_pv_name:  # non-empty rf_pv_name
-            self.logger.debug(f"Returning anomaly candidate dict for PV '{most_anomalous_rf_pv_name}'")
-            return {
-                "candidate_timestamp": fast_time,
-                "rf_input": rf_input.reshape(1, -1),
-                "bpm_input": np.vstack(bpm_input),
-                "rf_pv_name": most_anomalous_rf_pv_name,
-                "anomaly_score": deviation_score,
-                "system_level_anomaly": system_level_anom,
-                "number_of_bad_datapoints": sum(~data_quality_array),
-                "data_quality_array": data_quality_array,
-            }
-        else:
-            self.logger.debug("No valid RF PV name found, returning empty candidate")
-            return {}
+        #### end common-data retrieval
+
+        # find the most anomalous rf stations
+        station_names = [n for n in self.pv_list if n.endswith("PHAS_FASTCUHBR")]
+        rf_phase_data = np.stack(
+            [self.buffer.get(pv, score_start_index, candidate.slow_index) for pv in station_names], axis=1
+        )  # (CANDIDATE_WINDOW_SIZE, len(station_names))
+        station_candidates = find_most_anomalous_rf_station(
+            rf_phase_data, rf_pv_names=station_names
+        )  # this might be an empty list if only feedback stations are given in rf_pv_names
+        ready_candidates = []
+        # for (str, float, bool) in station_candidates:
+        for most_anomalous_rf_pv_name, deviation_score, system_level_anom in station_candidates:
+            self.logger.debug(f"Most anomalous rf PV: {most_anomalous_rf_pv_name}, Score: {deviation_score:.2f}")
+
+            # get the rf station data for this candidate and rf station
+            rf_input: np.ndarray = self.buffer.get(
+                most_anomalous_rf_pv_name, anomaly_data_window[0], anomaly_data_window[1]
+            ).copy()
+            # send candidate to process C
+            if most_anomalous_rf_pv_name:  # non-empty rf_pv_name
+                self.logger.debug(f"Returning anomaly candidate dict for PV '{most_anomalous_rf_pv_name}'")
+                ready_candidates.append({
+                    "candidate_timestamp": fast_time,
+                    "rf_input": rf_input.reshape(1, -1),
+                    "bpm_input": np.vstack(bpm_input),
+                    "rf_pv_name": most_anomalous_rf_pv_name,
+                    "anomaly_score": deviation_score,
+                    "system_level_anomaly": system_level_anom,
+                    "number_of_bad_datapoints": sum(~data_quality_array),
+                    "data_quality_array": data_quality_array,
+                })
+            else:
+                self.logger.debug("No valid RF PV name found, returning empty candidate")
+
+        return ready_candidates
+
 
     def evaluate_candidate(self, candidate: dict) -> str:
         """
