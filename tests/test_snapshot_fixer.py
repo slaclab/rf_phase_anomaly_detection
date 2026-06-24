@@ -4,6 +4,19 @@ from run_config import NANOSECS_IN_1_SEC
 from buffer.snapshot_fixer import get_timestamp_ns
 
 
+# simulate snapshot's pv-entry data
+def make_entry(ts_ns: int, value: float) -> dict:
+    seconds = ts_ns // NANOSECS_IN_1_SEC  # // is int division
+    nanoseconds = ts_ns % NANOSECS_IN_1_SEC
+    return {
+        "timeStamp": {
+            "secondsPastEpoch": seconds,
+            "nanoseconds": nanoseconds,
+        },
+        "value": value,
+    }
+
+
 def test_fix_snapshot_basic():
     """
     Test handling when a snapshot contains data-points that we expect in a later snapshot. (based on timestamps)
@@ -11,18 +24,6 @@ def test_fix_snapshot_basic():
 
     pv_list = ["pv1", "pv2"]
     fixer = SnapshotFixer(pv_list)
-
-    # simulate snapshot's pv-entry data
-    def make_entry(ts_ns: int, value: float) -> dict:
-        seconds = ts_ns // NANOSECS_IN_1_SEC  # // is int division
-        nanoseconds = ts_ns % NANOSECS_IN_1_SEC
-        return {
-            "timeStamp": {
-                "secondsPastEpoch": seconds,
-                "nanoseconds": nanoseconds,
-            },
-            "value": value,
-        }
 
     saved_for_later_val = 2.0
     saved_for_later_ts = 110
@@ -39,7 +40,7 @@ def test_fix_snapshot_basic():
     }
 
     fixed = fixer.fix_snapshot(raw_snapshot, 0, 100)
-    assert fixed[1] == {}
+    assert fixed[1] == {'pv1': 1.0, 'pv2': 3.0}
     fixed = fixed[0]
 
     # only current-window data is returned from `fix_snapshot()`
