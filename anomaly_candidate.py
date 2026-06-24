@@ -189,7 +189,7 @@ def find_most_anomalous_rf_station(
     phase_fifth_max = np.tile(
         phase_fifth_max.reshape(-1, 1),
         (1, rf_phase_data_abs.shape[-1])
-    )  # shape is [window_size, num_rf_pvs
+    )  # shape is [window_size, num_rf_pvs]
 
     # Max deviation per RF PV in this window
     max_per_rf = np.nanmax(rf_phase_data_abs - phase_fifth_max, axis=0)  # shape: (num_rf_pvs,)
@@ -199,11 +199,13 @@ def find_most_anomalous_rf_station(
 
     # Rank the top 5 highest deviations - sorts largest to smallest
     # use stable to always get the same ordering in case of ties
-    top5_indices = np.argsort(max_per_rf, stable=True)[::-1]
+    top_indices = np.argsort(max_per_rf, stable=True)[::-1]
 
     # Return the top *non-feedback* station
     # will fail if all rf stations are FEEDBACK_STATIONS
-    for i in top5_indices:
+    for i in top_indices:
+        if max_per_rf[i] < phas_thresh:
+            break  # all further values are smaller, stop looking
         pv = rf_pv_names[i]
         if pv not in FEEDBACK_STATIONS:
             return pv, max_per_rf[i], system_level_anomaly
