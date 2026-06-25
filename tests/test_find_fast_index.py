@@ -34,4 +34,4 @@ def test_find_short_index(make_short_score_window):
 def test_find_flat_index(make_flat_score_window):
     score_window = make_flat_score_window
     found_index = find_fast_index(score_window)
-    assert found_index == 15
+    assert found_index == 10

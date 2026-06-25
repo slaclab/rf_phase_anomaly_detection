@@ -102,7 +102,7 @@ class CandidateBucket(PriorityQueue):
             self.put(candidate)
 
 
-def find_fast_index(bpm_score_20: np.ndarray) -> int:
+def find_fast_index(bpm_score_1: np.ndarray) -> int:
     """
     Implements the  fast trigger from Section IV A of
     https://arxiv.org/abs/2505.16052
@@ -113,37 +113,37 @@ def find_fast_index(bpm_score_20: np.ndarray) -> int:
 
     Parameters
     ----------
-    bpm_score_20: np.ndarray
+    bpm_score_1: np.ndarray
         bpm-score values for the lookback window
 
     Returns
     -------
-        Index in bpm_score_20 where fast trigger is detected
+        Index in bpm_score_1 where fast trigger is detected
     """
-    if len(bpm_score_20) < 10:  # fallback if data is too small
-        return len(bpm_score_20)
+    if len(bpm_score_1) < 10:  # fallback if data is too small
+        return len(bpm_score_1)
 
-    # Split into two parts: baseline (first part of the window) and trigger_window (last_half)
-    baseline_end = max(1, len(bpm_score_20) // 2)
-    baseline = bpm_score_20[:baseline_end]
-    trigger_window = bpm_score_20[baseline_end:]
+    # Split into two parts: baseline (first part of the window) and the full trigger_window
+    baseline_end = max(1, len(bpm_score_1) // 2)
+    baseline = bpm_score_1[:baseline_end]
+    trigger_window = bpm_score_1
 
     # Compute mean and std from baseline window
     baseline_mean = np.mean(baseline)
     baseline_std = np.std(baseline) + 1e-6  # avoid divide-by-zero
 
-    # Compute z-scores in trigger window
+    # Compute absolute z-scores in trigger window
     z_scores = np.abs(trigger_window - baseline_mean) / baseline_std
 
     # Find first point above threshold (z > 1.25)
     indexes_above_thresh = np.where(z_scores > 1.25)[0]
 
     if len(indexes_above_thresh) > 0:  # Found anomaly; get first one
-        rel_fast_idx = baseline_end + indexes_above_thresh[0]
+        rel_fast_idx = indexes_above_thresh[0]
     else:
-        rel_fast_idx = baseline_end + len(trigger_window) // 2  # No clear anomaly; default to center of trigger_window
+        rel_fast_idx = len(trigger_window) // 2  # No clear anomaly; default to center of trigger_window
 
-    # Return fast trigger index in absolute buffer coordinates
+    # Return fast trigger index counting from the start of bpm_score_1
     return rel_fast_idx
 
 
@@ -256,7 +256,7 @@ if __name__ == "__main__":
     # for sc in station_candidates:
     #     print(sc)
 
-    bpm_score_20 = np.random.rand(120)
+    bpm_score_1 = np.random.rand(120)
     start = 0
-    fast_index = find_fast_index(bpm_score_20=bpm_score_20)
+    fast_index = find_fast_index(bpm_score_1=bpm_score_1)
     print(fast_index)

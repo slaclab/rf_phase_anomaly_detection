@@ -179,10 +179,10 @@ class ProcessB(CustomProcessObject):
 
         #### retrieve data that is common to all possible candidates
         # Get the bpm_score_20 values for the lookback window
-        bpm_score_20 = self.buffer.get("bpm_score_20", score_start_index, candidate.slow_index)
+        bpm_score_1 = self.buffer.get("bpm_score_1", score_start_index, candidate.slow_index)
 
         # find the fast trigger
-        fast_index = score_start_index + find_fast_index(bpm_score_20)
+        fast_index = score_start_index + find_fast_index(bpm_score_1)
         candidate.fast_index = fast_index
         fast_time = self.buffer.get("pv_timestamps_ns", fast_index, fast_index + 1)[0]
         self.logger.debug(f"Fast trigger index: {fast_index}, timestamp: {fast_time}")
